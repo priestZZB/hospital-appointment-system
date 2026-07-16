@@ -1,0 +1,58 @@
+# ============================================================
+# 医院门诊预约挂号系统 — .gitignore
+# ============================================================
+
+# === 项目文档（不纳入版本控制） ===
+docs/
+PROMPT.md
+DEVELOPMENT_TASKS.md
+
+# === Java / Maven ===
+target/
+*.class
+*.jar
+*.war
+*.ear
+!.mvn/wrapper/maven-wrapper.jar
+
+# === IDE ===
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.springBeans
+
+# === OS ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# === Logs ===
+logs/
+*.log
+*.log.*
+
+# === Environment ===
+.env
+.env.local
+.env.*.local
+
+# === Docker ===
+docker-compose.override.yml
+
+# === Node (前端) ===
+node_modules/
+dist/
+*.tsbuildinfo
+
+# === Temp ===
+tmp/
+temp/
+*.tmp

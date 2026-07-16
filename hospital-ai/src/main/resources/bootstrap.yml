@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: ai-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yaml
+  datasource:
+    url: jdbc:mysql://localhost:3306/ai_db?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai
+    username: root
+    password: root123
+    driver-class-name: com.mysql.cj.jdbc.Driver

@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**, /api/admin/user/**, /api/admin/role/**, /api/admin/audit-log/**
+        - id: patient-service
+          uri: lb://patient-service
+          predicates:
+            - Path=/api/patient/**, /api/admin/patient/**
+        - id: clinic-service
+          uri: lb://clinic-service
+          predicates:
+            - Path=/api/department/**, /api/admin/department/**, /api/schedule/**, /api/admin/schedule/**, /api/slot/**, /api/order/**, /api/checkin/**, /api/call/**, /api/queue/**, /api/consultation/**, /api/medical-record/**, /api/prescription/**, /api/stop/**, /api/admin/stop/**, /api/bi/**
+        - id: medsupply-service
+          uri: lb://medsupply-service
+          predicates:
+            - Path=/api/admin/drug/**, /api/admin/exam/**, /api/exam/**, /api/admin/drug/dispense/**
+        - id: payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/payment/**, /api/notification/**
+        - id: ai-service
+          uri: lb://ai-service
+          predicates:
+            - Path=/api/ai/**
