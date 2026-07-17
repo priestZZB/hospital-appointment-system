@@ -8,28 +8,74 @@ spring:
         locator:
           enabled: true
           lower-case-service-id: true
+      # ==================== 路由规则 ====================
       routes:
+        # auth-service: 认证、用户、角色、审计日志
         - id: auth-service
           uri: lb://auth-service
           predicates:
-            - Path=/api/auth/**, /api/admin/user/**, /api/admin/role/**, /api/admin/audit-log/**
+            - Path=/api/auth/**,/api/admin/user/**,/api/admin/role/**,/api/admin/audit-log/**
+        # patient-service: 患者档案、实名认证、过敏史、文件上传
         - id: patient-service
           uri: lb://patient-service
           predicates:
-            - Path=/api/patient/**, /api/admin/patient/**
+            - Path=/api/patient/**,/api/admin/patient/**
+        # clinic-service: 科室、排班、号源、挂号、签到、叫号、接诊、病历、处方、停诊、BI、WebSocket
         - id: clinic-service
           uri: lb://clinic-service
           predicates:
-            - Path=/api/department/**, /api/admin/department/**, /api/schedule/**, /api/admin/schedule/**, /api/slot/**, /api/order/**, /api/checkin/**, /api/call/**, /api/queue/**, /api/consultation/**, /api/medical-record/**, /api/prescription/**, /api/stop/**, /api/admin/stop/**, /api/bi/**
+            - Path=/api/clinic/**,/api/department/**,/api/schedule/**,/api/slot/**,/api/order/**,/api/checkin/**,/api/call/**,/api/queue/**,/api/consultation/**,/api/medical-record/**,/api/prescription/**,/api/stop/**,/api/bi/**,/api/ws/**
+        # medsupply-service: 药品、检查项、发药、报告
         - id: medsupply-service
           uri: lb://medsupply-service
           predicates:
-            - Path=/api/admin/drug/**, /api/admin/exam/**, /api/exam/**, /api/admin/drug/dispense/**
+            - Path=/api/medsupply/**,/api/admin/drug/**,/api/admin/exam/**,/api/exam/**,/api/admin/drug/dispense/**
+        # payment-service: 支付、退款、通知、凭证
         - id: payment-service
           uri: lb://payment-service
           predicates:
-            - Path=/api/payment/**, /api/notification/**
+            - Path=/api/payment/**,/api/notification/**
+        # ai-service: AI 分诊
         - id: ai-service
           uri: lb://ai-service
           predicates:
             - Path=/api/ai/**
+
+      # ==================== 全局 CORS 跨域 ====================
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+    # ==================== Sentinel 控制台 ====================
+    sentinel:
+      transport:
+        dashboard: localhost:8080
+        port: 8719
+      # 饥饿加载（避免首次访问慢）
+      eager: true
+      # Sentinel Gateway 专用配置
+      scg:
+        fallback:
+          mode: response
+          response-status: 429
+          response-body: '{"code":1010,"message":"请求过于频繁，请稍后重试","data":null,"timestamp":0}'
+          content-type: application/json;charset=UTF-8
+
+# ==================== 日志 ====================
+logging:
+  level:
+    com.hospital.gateway: DEBUG
+    com.alibaba.cloud.sentinel: DEBUG
+
+# ==================== Gateway JWT 白名单 ====================
+gateway:
+  jwt:
+    whitelist:
+      - /api/auth/register
+      - /api/auth/login
+      - /api/ws/**
