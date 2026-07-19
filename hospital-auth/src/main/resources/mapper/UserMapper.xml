@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.auth.mapper.UserMapper">
+
+    <!-- ==================== 结果映射 ==================== -->
+
+    <resultMap id="BaseResultMap" type="com.hospital.auth.entity.User">
+        <id column="id" property="id"/>
+        <result column="phone" property="phone"/>
+        <result column="password" property="password"/>
+        <result column="real_name" property="realName"/>
+        <result column="gender" property="gender"/>
+        <result column="user_type" property="userType"/>
+        <result column="status" property="status"/>
+        <result column="last_login_time" property="lastLoginTime"/>
+        <result column="last_login_ip" property="lastLoginIp"/>
+        <result column="need_password_change" property="needPasswordChange"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <resultMap id="UserVOMap" type="com.hospital.auth.vo.UserVO">
+        <id column="id" property="id"/>
+        <result column="phone" property="phone"/>
+        <result column="real_name" property="realName"/>
+        <result column="gender" property="gender"/>
+        <result column="user_type" property="userType"/>
+        <result column="status" property="status"/>
+        <result column="last_login_time" property="lastLoginTime"/>
+        <result column="create_time" property="createTime"/>
+        <collection property="roles" ofType="string">
+            <result column="role_code"/>
+        </collection>
+    </resultMap>
+
+    <!-- ==================== SQL ==================== -->
+
+    <select id="findByPhone" resultMap="BaseResultMap">
+        SELECT id, phone, password, real_name, gender, user_type, status,
+               last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted
+        FROM `user`
+        WHERE phone = #{phone} AND deleted = 0
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, phone, password, real_name, gender, user_type, status,
+               last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted
+        FROM `user`
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.auth.entity.User"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `user` (phone, password, real_name, gender, user_type, status,
+                            last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted)
+        VALUES (#{phone}, #{password}, #{realName}, #{gender}, #{userType}, #{status},
+                #{lastLoginTime}, #{lastLoginIp}, #{needPasswordChange}, NOW(), NOW(), 0)
+    </insert>
+
+    <select id="selectPage" resultMap="UserVOMap">
+        SELECT u.id, u.phone, u.real_name, u.gender, u.user_type, u.status,
+               u.last_login_time, u.create_time, r.role_code
+        FROM `user` u
+        LEFT JOIN user_role ur ON u.id = ur.user_id
+        LEFT JOIN role r ON ur.role_id = r.id AND r.status = 1
+        WHERE u.deleted = 0
+        <if test="phone != null and phone != ''">
+            AND u.phone LIKE CONCAT('%', #{phone}, '%')
+        </if>
+        <if test="userType != null and userType != ''">
+            AND u.user_type = #{userType}
+        </if>
+        <if test="status != null">
+            AND u.status = #{status}
+        </if>
+        ORDER BY u.create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(DISTINCT u.id)
+        FROM `user` u
+        LEFT JOIN user_role ur ON u.id = ur.user_id
+        LEFT JOIN role r ON ur.role_id = r.id AND r.status = 1
+        WHERE u.deleted = 0
+        <if test="phone != null and phone != ''">
+            AND u.phone LIKE CONCAT('%', #{phone}, '%')
+        </if>
+        <if test="userType != null and userType != ''">
+            AND u.user_type = #{userType}
+        </if>
+        <if test="status != null">
+            AND u.status = #{status}
+        </if>
+    </select>
+
+    <update id="updateStatus">
+        UPDATE `user` SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateLastLogin">
+        UPDATE `user` SET last_login_time = NOW(), last_login_ip = #{lastLoginIp}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

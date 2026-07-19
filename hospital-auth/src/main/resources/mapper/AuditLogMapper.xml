@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.auth.mapper.AuditLogMapper">
+
+    <!-- ==================== 结果映射 ==================== -->
+
+    <resultMap id="BaseResultMap" type="com.hospital.auth.entity.AuditLog">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="username" property="username"/>
+        <result column="operation" property="operation"/>
+        <result column="http_method" property="httpMethod"/>
+        <result column="request_uri" property="requestUri"/>
+        <result column="request_ip" property="requestIp"/>
+        <result column="request_params" property="requestParams"/>
+        <result column="response_result" property="responseResult"/>
+        <result column="execution_time" property="executionTime"/>
+        <result column="status" property="status"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <!-- ==================== SQL ==================== -->
+
+    <insert id="insert" parameterType="com.hospital.auth.entity.AuditLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO audit_log (user_id, username, operation, http_method, request_uri,
+                               request_ip, request_params, response_result, execution_time,
+                               status, error_message, create_time)
+        VALUES (#{userId}, #{username}, #{operation}, #{httpMethod}, #{requestUri},
+                #{requestIp}, #{requestParams}, #{responseResult}, #{executionTime},
+                #{status}, #{errorMessage}, NOW())
+    </insert>
+
+    <select id="pageQuery" resultMap="BaseResultMap">
+        SELECT id, user_id, username, operation, http_method, request_uri, request_ip,
+               request_params, response_result, execution_time, status, error_message, create_time
+        FROM audit_log
+        WHERE 1 = 1
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+        <if test="operationType != null and operationType != ''">
+            AND operation = #{operationType}
+        </if>
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countPageQuery" resultType="long">
+        SELECT COUNT(*)
+        FROM audit_log
+        WHERE 1 = 1
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+        <if test="operationType != null and operationType != ''">
+            AND operation = #{operationType}
+        </if>
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+    </select>
+
+</mapper>

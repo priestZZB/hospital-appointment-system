@@ -192,12 +192,14 @@ class JwtUtilTest {
         }
 
         @Test
-        @DisplayName("roles 中包含特殊字符可正常解析")
-        void testRolesWithSpecialCharacters() {
+        @DisplayName("多角色 Token 可正常签发与解析")
+        void testMultipleRolesGenerateAndParse() {
             List<String> roles = List.of("ROLE_DOCTOR", "ROLE_ADMIN");
             String token = jwtUtil.generate(1L, roles);
             List<String> parsedRoles = jwtUtil.getRoles(token);
             assertEquals(2, parsedRoles.size());
+            assertTrue(parsedRoles.contains("ROLE_DOCTOR"));
+            assertTrue(parsedRoles.contains("ROLE_ADMIN"));
         }
     }
 }

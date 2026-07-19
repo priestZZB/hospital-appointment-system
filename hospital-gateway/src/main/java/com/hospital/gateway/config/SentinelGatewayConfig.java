@@ -3,11 +3,9 @@ package com.hospital.gateway.config;
 import com.alibaba.csp.sentinel.adapter.gateway.sc.callback.BlockRequestHandler;
 import com.alibaba.csp.sentinel.adapter.gateway.sc.callback.GatewayCallbackManager;
 import com.alibaba.csp.sentinel.adapter.gateway.sc.exception.SentinelGatewayBlockExceptionHandler;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.result.Result;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,9 +13,11 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import org.springframework.web.reactive.result.view.ViewResolver;
 
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Sentinel 网关限流配置
@@ -27,18 +27,16 @@ import java.nio.charset.StandardCharsets;
  */
 @Slf4j
 @Configuration
-@RequiredArgsConstructor
 public class SentinelGatewayConfig {
 
-    private final ObjectMapper objectMapper;
-
     /**
-     * 注入 Sentinel Gateway 过滤器
+     * 注入 Sentinel Gateway 过滤器（新版 API 需显式传入 ViewResolver 和 ServerCodecConfigurer）
      */
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
-    public SentinelGatewayBlockExceptionHandler sentinelGatewayBlockExceptionHandler() {
-        return new SentinelGatewayBlockExceptionHandler();
+    public SentinelGatewayBlockExceptionHandler sentinelGatewayBlockExceptionHandler(
+            List<ViewResolver> viewResolvers, ServerCodecConfigurer serverCodecConfigurer) {
+        return new SentinelGatewayBlockExceptionHandler(viewResolvers, serverCodecConfigurer);
     }
 
     /**
@@ -48,21 +46,10 @@ public class SentinelGatewayConfig {
      */
     @PostConstruct
     public void initBlockHandlers() {
-        BlockRequestHandler blockRequestHandler = (serverWebExchange, throwable) -> {
-            Result<Void> result = Result.fail(ErrorCodeEnum.RATE_LIMIT_EXCEEDED);
-
-            byte[] bytes;
-            try {
-                bytes = objectMapper.writeValueAsBytes(result);
-            } catch (Exception e) {
-                log.error("[Sentinel] 序列化限流响应失败", e);
-                bytes = "{\"code\":9999,\"message\":\"系统繁忙\"}".getBytes(StandardCharsets.UTF_8);
-            }
-
-            return ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(new String(bytes, StandardCharsets.UTF_8));
-        };
+        BlockRequestHandler blockRequestHandler = (serverWebExchange, throwable) ->
+                ServerResponse.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue(Result.fail(ErrorCodeEnum.RATE_LIMIT_EXCEEDED));
 
         GatewayCallbackManager.setBlockHandler(blockRequestHandler);
         log.info("[Sentinel] Gateway 限流降级回调已注册");

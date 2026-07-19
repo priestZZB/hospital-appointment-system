@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.auth.mapper.RoleMapper">
+
+    <!-- ==================== 结果映射 ==================== -->
+
+    <resultMap id="BaseResultMap" type="com.hospital.auth.entity.Role">
+        <id column="id" property="id"/>
+        <result column="role_code" property="roleCode"/>
+        <result column="role_name" property="roleName"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <!-- ==================== SQL ==================== -->
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT id, role_code, role_name, description, status, create_time, update_time
+        FROM role
+        ORDER BY id
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, role_code, role_name, description, status, create_time, update_time
+        FROM role
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByCode" resultMap="BaseResultMap">
+        SELECT id, role_code, role_name, description, status, create_time, update_time
+        FROM role
+        WHERE role_code = #{roleCode}
+    </select>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT r.id, r.role_code, r.role_name, r.description, r.status, r.create_time, r.update_time
+        FROM role r
+        INNER JOIN user_role ur ON r.id = ur.role_id
+        WHERE ur.user_id = #{userId} AND r.status = 1
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.auth.entity.Role"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO role (role_code, role_name, description, status, create_time, update_time)
+        VALUES (#{roleCode}, #{roleName}, #{description}, #{status}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.auth.entity.Role">
+        UPDATE role
+        <set>
+            <if test="roleName != null">role_name = #{roleName},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM role WHERE id = #{id}
+    </delete>
+
+    <insert id="insertUserRole">
+        INSERT INTO user_role (user_id, role_id, create_time)
+        VALUES (#{userId}, #{roleId}, NOW())
+    </insert>
+
+    <delete id="deleteUserRole">
+        DELETE FROM user_role WHERE user_id = #{userId} AND role_id = #{roleId}
+    </delete>
+
+    <select id="countUserRole" resultType="int">
+        SELECT COUNT(*) FROM user_role WHERE user_id = #{userId} AND role_id = #{roleId}
+    </select>
+
+    <delete id="deleteUserRolesByRoleId">
+        DELETE FROM user_role WHERE role_id = #{roleId}
+    </delete>
+
+    <delete id="deleteRolePermissionsByRoleId">
+        DELETE FROM role_permission WHERE role_id = #{roleId}
+    </delete>
+
+</mapper>

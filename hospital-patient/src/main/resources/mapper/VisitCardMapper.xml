@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.patient.mapper.VisitCardMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.patient.entity.VisitCard">
+        <id column="id" property="id"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="card_no" property="cardNo"/>
+        <result column="status" property="status"/>
+        <result column="issue_date" property="issueDate"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT * FROM visit_card WHERE patient_id = #{patientId}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.patient.entity.VisitCard"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO visit_card (patient_id, card_no, status, issue_date, create_time)
+        VALUES (#{patientId}, #{cardNo}, #{status}, #{issueDate}, NOW())
+    </insert>
+
+</mapper>

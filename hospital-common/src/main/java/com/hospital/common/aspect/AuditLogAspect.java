@@ -7,7 +7,6 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -15,8 +14,15 @@ import java.lang.reflect.Method;
 /**
  * 审计日志切面
  * <p>
- * 拦截标注了 @AuditLog 的方法，异步记录操作日志。
- * 当前迭代仅输出日志，后续迭代接入数据库。
+ * 拦截标注了 @AuditLog 的方法，记录操作日志。
+ * 当前迭代仅输出日志，后续迭代接入数据库 + 异步化。
+ * <p>
+ * 异步化注意事项（记录备查）：
+ * <ol>
+ *   <li>需在配置类添加 {@code @EnableAsync} 并配置线程池</li>
+ *   <li>异步方法无法通过 {@code UserContext} ThreadLocal 获取用户信息，
+ *       需在主线程提前捕获 userId 作为参数传入</li>
+ * </ol>
  */
 @Slf4j
 @Aspect
@@ -39,24 +45,28 @@ public class AuditLogAspect {
             throw e;
         } finally {
             long elapsed = System.currentTimeMillis() - start;
-            // 异步记录审计日志
-            asyncLog(joinPoint, elapsed, error == null);
+            // 在主线程提前捕获 userId，避免后续异步化时 ThreadLocal 失效
+            Long userId = UserContext.getUserId();
+            recordLog(joinPoint, userId, elapsed, error == null);
         }
 
         return result;
     }
 
     /**
-     * 异步写入审计日志（当前为日志输出，后续改为数据库插入）
+     * 写入审计日志（当前为日志输出，后续改为数据库插入）
+     *
+     * @param joinPoint 切点
+     * @param userId    操作人 ID（由调用方传入，避免 ThreadLocal 跨线程问题）
+     * @param elapsed   执行耗时（毫秒）
+     * @param success   是否成功
      */
-    @Async
-    void asyncLog(ProceedingJoinPoint joinPoint, long elapsed, boolean success) {
+    void recordLog(ProceedingJoinPoint joinPoint, Long userId, long elapsed, boolean success) {
         try {
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
             Method method = signature.getMethod();
             AuditLog auditLog = method.getAnnotation(AuditLog.class);
 
-            Long userId = UserContext.getUserId();
             String operation = auditLog.value();
             if (operation.isBlank()) {
                 operation = signature.getDeclaringTypeName() + "." + method.getName();

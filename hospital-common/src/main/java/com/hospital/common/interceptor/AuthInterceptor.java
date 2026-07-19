@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,7 @@ import java.util.List;
  * 白名单路径（如 login/register）由 WebMvcConfigurer 配置排除。
  */
 @Slf4j
+@Component
 public class AuthInterceptor implements HandlerInterceptor {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

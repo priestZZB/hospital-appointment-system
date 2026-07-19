@@ -8,7 +8,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.nio.file.AccessDeniedException;
 import java.util.stream.Collectors;
 
 /**
@@ -39,15 +38,6 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         log.warn("[参数校验失败] uri={}, detail={}", request.getRequestURI(), detail);
         return Result.fail(ErrorCodeEnum.PARAM_ERROR.getCode(), detail);
-    }
-
-    /**
-     * 权限不足异常
-     */
-    @ExceptionHandler(AccessDeniedException.class)
-    public Result<Void> handleAccessDenied(AccessDeniedException e, HttpServletRequest request) {
-        log.warn("[权限不足] uri={}, message={}", request.getRequestURI(), e.getMessage());
-        return Result.fail(ErrorCodeEnum.NO_PERMISSION);
     }
 
     /**

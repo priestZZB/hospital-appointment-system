@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.patient.mapper.PatientMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.patient.entity.Patient">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="name" property="name"/>
+        <result column="gender" property="gender"/>
+        <result column="birth_date" property="birthDate"/>
+        <result column="id_card" property="idCard"/>
+        <result column="phone" property="phone"/>
+        <result column="emergency_contact" property="emergencyContact"/>
+        <result column="emergency_phone" property="emergencyPhone"/>
+        <result column="verify_status" property="verifyStatus"/>
+        <result column="id_card_front_url" property="idCardFrontUrl"/>
+        <result column="id_card_back_url" property="idCardBackUrl"/>
+        <result column="verify_comment" property="verifyComment"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT * FROM patient WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM patient WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.patient.entity.Patient"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO patient (user_id, name, gender, birth_date, id_card, phone,
+                             emergency_contact, emergency_phone, verify_status,
+                             id_card_front_url, id_card_back_url, verify_comment,
+                             avatar_url, create_time, update_time)
+        VALUES (#{userId}, #{name}, #{gender}, #{birthDate}, #{idCard}, #{phone},
+                #{emergencyContact}, #{emergencyPhone}, #{verifyStatus},
+                #{idCardFrontUrl}, #{idCardBackUrl}, #{verifyComment},
+                #{avatarUrl}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.patient.entity.Patient">
+        UPDATE patient
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="birthDate != null">birth_date = #{birthDate},</if>
+            <if test="idCard != null">id_card = #{idCard},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="emergencyContact != null">emergency_contact = #{emergencyContact},</if>
+            <if test="emergencyPhone != null">emergency_phone = #{emergencyPhone},</if>
+            <if test="verifyStatus != null">verify_status = #{verifyStatus},</if>
+            <if test="idCardFrontUrl != null">id_card_front_url = #{idCardFrontUrl},</if>
+            <if test="idCardBackUrl != null">id_card_back_url = #{idCardBackUrl},</if>
+            <if test="verifyComment != null">verify_comment = #{verifyComment},</if>
+            <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+</mapper>
