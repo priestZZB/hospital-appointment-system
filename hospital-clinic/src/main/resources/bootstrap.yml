@@ -8,8 +8,16 @@ spring:
       config:
         server-addr: localhost:8848
         file-extension: yaml
+  data:
+    redis:
+      host: localhost
+      port: 6379
   datasource:
     url: jdbc:mysql://localhost:3306/clinic_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+jwt:
+  secret: hospital-appointment-system-jwt-secret-key-2026-must-be-at-least-32-chars
+  expiration: 7200

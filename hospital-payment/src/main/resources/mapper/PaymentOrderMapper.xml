@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.payment.mapper.PaymentOrderMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.payment.entity.PaymentOrder">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="appointment_id" property="appointmentId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="amount" property="amount"/>
+        <result column="order_type" property="orderType"/>
+        <result column="status" property="status"/>
+        <result column="pay_time" property="payTime"/>
+        <result column="pay_method" property="payMethod"/>
+        <result column="expire_time" property="expireTime"/>
+        <result column="cancel_time" property="cancelTime"/>
+        <result column="version" property="version"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.payment.entity.PaymentOrder"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO payment_order (order_no, appointment_id, patient_id, amount, order_type,
+                                   status, expire_time, version, create_time, update_time)
+        VALUES (#{orderNo}, #{appointmentId}, #{patientId}, #{amount}, #{orderType},
+                #{status}, #{expireTime}, 0, NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+               status, pay_time, pay_method, expire_time, cancel_time,
+               version, create_time, update_time
+        FROM payment_order
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+               status, pay_time, pay_method, expire_time, cancel_time,
+               version, create_time, update_time
+        FROM payment_order
+        WHERE order_no = #{orderNo}
+    </select>
+
+    <select id="selectByAppointmentId" resultMap="BaseResultMap">
+        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+               status, pay_time, pay_method, expire_time, cancel_time,
+               version, create_time, update_time
+        FROM payment_order
+        WHERE appointment_id = #{appointmentId}
+        ORDER BY create_time DESC
+        LIMIT 1
+    </select>
+
+    <update id="updateStatusWithVersion">
+        UPDATE payment_order
+        SET status = #{status}, version = version + 1, update_time = NOW()
+        WHERE id = #{id} AND version = #{version}
+    </update>
+
+    <update id="markAsPaid">
+        UPDATE payment_order
+        SET status = 'PAID', pay_time = NOW(), pay_method = #{payMethod},
+            version = version + 1, update_time = NOW()
+        WHERE id = #{id} AND status = 'PENDING' AND version = #{version}
+    </update>
+
+    <select id="selectTimeoutOrders" resultMap="BaseResultMap">
+        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+               status, pay_time, pay_method, expire_time, cancel_time,
+               version, create_time, update_time
+        FROM payment_order
+        WHERE status = #{status}
+          AND expire_time &lt; #{now}
+        ORDER BY expire_time ASC
+    </select>
+
+</mapper>

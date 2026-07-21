@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.ScheduleMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.Schedule">
+        <id column="id" property="id"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="schedule_date" property="scheduleDate"/>
+        <result column="period" property="period"/>
+        <result column="period_start" property="periodStart"/>
+        <result column="period_end" property="periodEnd"/>
+        <result column="total_slots" property="totalSlots"/>
+        <result column="slot_duration" property="slotDuration"/>
+        <result column="register_fee" property="registerFee"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.Schedule"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO schedule (doctor_id, department_id, schedule_date, period,
+                              period_start, period_end, total_slots, slot_duration,
+                              register_fee, status, create_time, update_time)
+        VALUES (#{doctorId}, #{departmentId}, #{scheduleDate}, #{period},
+                #{periodStart}, #{periodEnd}, #{totalSlots}, #{slotDuration},
+                #{registerFee}, COALESCE(#{status}, 1), NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, doctor_id, department_id, schedule_date, period,
+               period_start, period_end, total_slots, slot_duration,
+               register_fee, status, create_time, update_time
+        FROM schedule
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByDeptAndDateRange" resultMap="BaseResultMap">
+        SELECT id, doctor_id, department_id, schedule_date, period,
+               period_start, period_end, total_slots, slot_duration,
+               register_fee, status, create_time, update_time
+        FROM schedule
+        WHERE department_id = #{departmentId}
+          AND schedule_date BETWEEN #{startDate} AND #{endDate}
+          AND status = 1
+        ORDER BY schedule_date ASC, period ASC
+    </select>
+
+    <select id="selectByDoctorDatePeriod" resultMap="BaseResultMap">
+        SELECT id, doctor_id, department_id, schedule_date, period,
+               period_start, period_end, total_slots, slot_duration,
+               register_fee, status, create_time, update_time
+        FROM schedule
+        WHERE doctor_id = #{doctorId}
+          AND schedule_date = #{scheduleDate}
+          AND period = #{period}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE schedule SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

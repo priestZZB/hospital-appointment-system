@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.payment.mapper.LocalMessageMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.payment.entity.LocalMessage">
+        <id column="id" property="id"/>
+        <result column="message_id" property="messageId"/>
+        <result column="exchange" property="exchange"/>
+        <result column="routing_key" property="routingKey"/>
+        <result column="message_body" property="messageBody"/>
+        <result column="status" property="status"/>
+        <result column="retry_count" property="retryCount"/>
+        <result column="max_retry" property="maxRetry"/>
+        <result column="next_retry_time" property="nextRetryTime"/>
+        <result column="fail_reason" property="failReason"/>
+        <result column="business_type" property="businessType"/>
+        <result column="business_id" property="businessId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.payment.entity.LocalMessage"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO local_message (message_id, exchange, routing_key, message_body,
+                                   status, retry_count, max_retry, business_type,
+                                   business_id, create_time, update_time)
+        VALUES (#{messageId}, #{exchange}, #{routingKey}, #{messageBody},
+                #{status}, #{retryCount}, #{maxRetry}, #{businessType},
+                #{businessId}, NOW(), NOW())
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE local_message
+        SET status = #{status},
+            fail_reason = #{failReason},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectFailedOrPending" resultMap="BaseResultMap">
+        SELECT id, message_id, exchange, routing_key, message_body,
+               status, retry_count, max_retry, next_retry_time,
+               fail_reason, business_type, business_id, create_time, update_time
+        FROM local_message
+        WHERE status IN ('PENDING', 'FAILED')
+          AND retry_count &lt; max_retry
+        ORDER BY create_time ASC
+        LIMIT 100
+    </select>
+
+</mapper>

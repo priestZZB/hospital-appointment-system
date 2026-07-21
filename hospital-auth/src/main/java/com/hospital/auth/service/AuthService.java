@@ -42,7 +42,7 @@ public class AuthService {
     private final StringRedisTemplate stringRedisTemplate;
     private final PatientFeignClient patientFeignClient;
 
-    private static final String TOKEN_BLACKLIST_KEY = "token:blacklist";
+    private static final String TOKEN_BLACKLIST_PREFIX = "token:blacklist:";
 
     /**
      * 患者注册
@@ -150,7 +150,7 @@ public class AuthService {
     /**
      * 登出
      * <p>
-     * 将当前 Token 加入 Redis 黑名单 Set，Gateway 后续请求会自动拦截。
+     * 将当前 Token 加入 Redis 黑名单（独立 key，各自 TTL），Gateway 后续请求会自动拦截。
      *
      * @param token JWT Token
      */
@@ -165,9 +165,9 @@ public class AuthService {
             return;
         }
 
-        stringRedisTemplate.opsForSet().add(TOKEN_BLACKLIST_KEY, token);
-        // 设置 Set 整体过期时间，防止无限增长
-        stringRedisTemplate.expire(TOKEN_BLACKLIST_KEY, Duration.ofSeconds(remaining + 3600));
+        // 每个 token 独立 key，避免 TTL 互相覆盖
+        stringRedisTemplate.opsForValue().set(
+                TOKEN_BLACKLIST_PREFIX + token, "1", Duration.ofSeconds(remaining));
         log.info("[登出] Token 已加入黑名单，剩余有效秒数: {}", remaining);
     }
 
@@ -196,11 +196,11 @@ public class AuthService {
             throw new BusinessException(ErrorCodeEnum.USER_DISABLED);
         }
 
-        // 3. 旧 Token 加黑名单
+        // 3. 旧 Token 加黑名单（独立 key）
         long remaining = jwtUtil.getRemainingSeconds(oldToken);
         if (remaining > 0) {
-            stringRedisTemplate.opsForSet().add(TOKEN_BLACKLIST_KEY, oldToken);
-            stringRedisTemplate.expire(TOKEN_BLACKLIST_KEY, Duration.ofSeconds(remaining + 3600));
+            stringRedisTemplate.opsForValue().set(
+                    TOKEN_BLACKLIST_PREFIX + oldToken, "1", Duration.ofSeconds(remaining));
         }
 
         // 4. 查角色（以 DB 最新数据为准）并签发新 Token

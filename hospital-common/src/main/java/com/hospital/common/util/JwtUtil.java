@@ -32,13 +32,18 @@ public class JwtUtil {
     /**
      * 通过构造注入配置，支持 Nacos 动态刷新
      *
-     * @param secret     JWT 签名密钥（需 ≥256 bits）
+     * @param secret     JWT 签名密钥（需 ≥256 bits），必须通过 Nacos 配置，不允许使用默认值
      * @param expiration Token 有效期（秒），默认 7200（2小时）
      */
-    public JwtUtil(@Value("${jwt.secret:hospital-appointment-system-jwt-secret-key-2026}") String secret,
+    public JwtUtil(@Value("${jwt.secret:}") String secret,
                    @Value("${jwt.expiration:7200}") long expiration) {
+        if (secret == null || secret.isBlank() || secret.length() < 32) {
+            throw new IllegalStateException(
+                "JWT 密钥未配置或长度不足（需 ≥32 字符）。请在 Nacos 配置 jwt.secret");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = expiration;
+        log.info("[JWT] 密钥已加载，有效期: {}秒", expiration);
     }
 
     /**

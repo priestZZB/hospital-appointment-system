@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.DoctorMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.Doctor">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="name" property="name"/>
+        <result column="gender" property="gender"/>
+        <result column="phone" property="phone"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="title" property="title"/>
+        <result column="specialty" property="specialty"/>
+        <result column="introduction" property="introduction"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT id, user_id, name, gender, phone, department_id, title,
+               specialty, introduction, status, create_time, update_time
+        FROM doctor
+        WHERE 1 = 1
+        <if test="departmentId != null">
+            AND department_id = #{departmentId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND name LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY id ASC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM doctor
+        WHERE 1 = 1
+        <if test="departmentId != null">
+            AND department_id = #{departmentId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND name LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, user_id, name, gender, phone, department_id, title,
+               specialty, introduction, status, create_time, update_time
+        FROM doctor
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT id, user_id, name, gender, phone, department_id, title,
+               specialty, introduction, status, create_time, update_time
+        FROM doctor
+        WHERE user_id = #{userId}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.Doctor"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO doctor (user_id, name, gender, phone, department_id, title,
+                            specialty, introduction, status, create_time, update_time)
+        VALUES (#{userId}, #{name}, #{gender}, #{phone}, #{departmentId}, #{title},
+                #{specialty}, #{introduction}, COALESCE(#{status}, 1), NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.clinic.entity.Doctor">
+        UPDATE doctor SET update_time = NOW()
+        <if test="name != null">, name = #{name}</if>
+        <if test="gender != null">, gender = #{gender}</if>
+        <if test="phone != null">, phone = #{phone}</if>
+        <if test="departmentId != null">, department_id = #{departmentId}</if>
+        <if test="title != null">, title = #{title}</if>
+        <if test="specialty != null">, specialty = #{specialty}</if>
+        <if test="introduction != null">, introduction = #{introduction}</if>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE doctor SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

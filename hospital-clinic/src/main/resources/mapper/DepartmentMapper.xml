@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.DepartmentMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.Department">
+        <id column="id" property="id"/>
+        <result column="dept_name" property="deptName"/>
+        <result column="dept_code" property="deptCode"/>
+        <result column="description" property="description"/>
+        <result column="location" property="location"/>
+        <result column="phone" property="phone"/>
+        <result column="status" property="status"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT id, dept_name, dept_code, description, location, phone,
+               status, sort_order, create_time, update_time
+        FROM department
+        WHERE status = 1
+        <if test="keyword != null and keyword != ''">
+            AND dept_name LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, dept_name, dept_code, description, location, phone,
+               status, sort_order, create_time, update_time
+        FROM department
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.Department"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO department (dept_name, dept_code, description, location, phone, status, sort_order, create_time, update_time)
+        VALUES (#{deptName}, #{deptCode}, #{description}, #{location}, #{phone},
+                COALESCE(#{status}, 1), COALESCE(#{sortOrder}, 0), NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.clinic.entity.Department">
+        UPDATE department SET update_time = NOW()
+        <if test="deptName != null">, dept_name = #{deptName}</if>
+        <if test="deptCode != null">, dept_code = #{deptCode}</if>
+        <if test="description != null">, description = #{description}</if>
+        <if test="location != null">, location = #{location}</if>
+        <if test="phone != null">, phone = #{phone}</if>
+        <if test="sortOrder != null">, sort_order = #{sortOrder}</if>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE department SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

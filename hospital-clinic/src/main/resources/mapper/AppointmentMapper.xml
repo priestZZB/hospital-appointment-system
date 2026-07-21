@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.AppointmentMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.Appointment">
+        <id column="id" property="id"/>
+        <result column="appointment_no" property="appointmentNo"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="slot_id" property="slotId"/>
+        <result column="schedule_id" property="scheduleId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="appointment_date" property="appointmentDate"/>
+        <result column="period" property="period"/>
+        <result column="slot_seq" property="slotSeq"/>
+        <result column="register_fee" property="registerFee"/>
+        <result column="order_status" property="orderStatus"/>
+        <result column="visit_status" property="visitStatus"/>
+        <result column="is_revisit" property="isRevisit"/>
+        <result column="cancel_time" property="cancelTime"/>
+        <result column="cancel_reason" property="cancelReason"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.Appointment"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO appointment (appointment_no, patient_id, slot_id, schedule_id,
+                                 doctor_id, department_id, appointment_date, period,
+                                 slot_seq, register_fee, order_status, visit_status,
+                                 is_revisit, create_time, update_time)
+        VALUES (#{appointmentNo}, #{patientId}, #{slotId}, #{scheduleId},
+                #{doctorId}, #{departmentId}, #{appointmentDate}, #{period},
+                #{slotSeq}, #{registerFee}, #{orderStatus}, #{visitStatus},
+                COALESCE(#{isRevisit}, 0), NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
+               doctor_id, department_id, appointment_date, period, slot_seq,
+               register_fee, order_status, visit_status, is_revisit,
+               cancel_time, cancel_reason, create_time, update_time
+        FROM appointment
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByAppointmentNo" resultMap="BaseResultMap">
+        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
+               doctor_id, department_id, appointment_date, period, slot_seq,
+               register_fee, order_status, visit_status, is_revisit,
+               cancel_time, cancel_reason, create_time, update_time
+        FROM appointment
+        WHERE appointment_no = #{appointmentNo}
+    </select>
+
+    <select id="selectBySlotId" resultMap="BaseResultMap">
+        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
+               doctor_id, department_id, appointment_date, period, slot_seq,
+               register_fee, order_status, visit_status, is_revisit,
+               cancel_time, cancel_reason, create_time, update_time
+        FROM appointment
+        WHERE slot_id = #{slotId}
+        ORDER BY create_time DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
+               doctor_id, department_id, appointment_date, period, slot_seq,
+               register_fee, order_status, visit_status, is_revisit,
+               cancel_time, cancel_reason, create_time, update_time
+        FROM appointment
+        WHERE patient_id = #{patientId}
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 联表查询：预约 + 医生 + 科室 + 号源（解决 N+1 问题） -->
+    <resultMap id="DetailResultMap" type="com.hospital.clinic.vo.AppointmentVO">
+        <id column="id" property="id"/>
+        <result column="appointment_no" property="appointmentNo"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="slot_id" property="slotId"/>
+        <result column="schedule_id" property="scheduleId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="doctor_name" property="doctorName"/>
+        <result column="doctor_title" property="doctorTitle"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="department_name" property="departmentName"/>
+        <result column="appointment_date" property="appointmentDate"/>
+        <result column="period" property="period"/>
+        <result column="slot_seq" property="slotSeq"/>
+        <result column="slot_start" property="slotStart"/>
+        <result column="slot_end" property="slotEnd"/>
+        <result column="register_fee" property="registerFee"/>
+        <result column="order_status" property="orderStatus"/>
+        <result column="visit_status" property="visitStatus"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectByPatientIdWithDetail" resultMap="DetailResultMap">
+        SELECT a.id, a.appointment_no, a.patient_id, a.slot_id, a.schedule_id,
+               a.doctor_id, d.name AS doctor_name, d.title AS doctor_title,
+               a.department_id, dep.dept_name AS department_name,
+               a.appointment_date, a.period, a.slot_seq,
+               s.slot_start, s.slot_end,
+               a.register_fee, a.order_status, a.visit_status,
+               a.create_time, a.update_time
+        FROM appointment a
+        LEFT JOIN doctor d ON a.doctor_id = d.id
+        LEFT JOIN department dep ON a.department_id = dep.id
+        LEFT JOIN slot s ON a.slot_id = s.id
+        WHERE a.patient_id = #{patientId}
+        ORDER BY a.create_time DESC
+    </select>
+
+    <select id="selectByIdWithDetail" resultMap="DetailResultMap">
+        SELECT a.id, a.appointment_no, a.patient_id, a.slot_id, a.schedule_id,
+               a.doctor_id, d.name AS doctor_name, d.title AS doctor_title,
+               a.department_id, dep.dept_name AS department_name,
+               a.appointment_date, a.period, a.slot_seq,
+               s.slot_start, s.slot_end,
+               a.register_fee, a.order_status, a.visit_status,
+               a.create_time, a.update_time
+        FROM appointment a
+        LEFT JOIN doctor d ON a.doctor_id = d.id
+        LEFT JOIN department dep ON a.department_id = dep.id
+        LEFT JOIN slot s ON a.slot_id = s.id
+        WHERE a.id = #{id}
+    </select>
+
+    <update id="updateOrderStatus">
+        UPDATE appointment SET order_status = #{orderStatus}, update_time = NOW()
+        WHERE id = #{id}
+          AND order_status = #{expectedStatus}
+    </update>
+
+    <update id="cancel">
+        UPDATE appointment SET order_status = #{orderStatus},
+                               cancel_reason = #{cancelReason},
+                               cancel_time = NOW(),
+                               update_time = NOW()
+        WHERE id = #{id}
+          AND order_status NOT IN ('CANCELLED', 'REFUNDED', 'TIMEOUT')
+    </update>
+
+</mapper>

@@ -6,6 +6,7 @@ import com.hospital.common.result.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -16,15 +17,14 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 认证拦截器
+ * 认证拦截器（仅 Servlet MVC 应用激活，Gateway 不加载）。
  * <p>
  * Gateway 已完成 Token 验签并将用户信息注入 Header，
  * 本拦截器从 Header 中提取用户信息并写入 UserContext。
- * <p>
- * 白名单路径（如 login/register）由 WebMvcConfigurer 配置排除。
  */
 @Slf4j
 @Component
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class AuthInterceptor implements HandlerInterceptor {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

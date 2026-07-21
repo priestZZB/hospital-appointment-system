@@ -72,10 +72,7 @@ logging:
     com.hospital.gateway: DEBUG
     com.alibaba.cloud.sentinel: DEBUG
 
-# ==================== Gateway JWT 白名单 ====================
+# ==================== Gateway JWT 白名单（逗号分隔） ====================
 gateway:
   jwt:
-    whitelist:
-      - /api/auth/register
-      - /api/auth/login
-      - /api/ws/**
+    whitelist: /api/auth/register,/api/auth/login,/api/ws/**

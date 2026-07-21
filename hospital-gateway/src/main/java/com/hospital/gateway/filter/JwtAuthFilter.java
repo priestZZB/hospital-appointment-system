@@ -23,6 +23,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -45,10 +46,11 @@ public class JwtAuthFilter implements WebFilter, Ordered {
     private final ObjectMapper objectMapper;
 
     /**
-     * JWT 白名单路径（从 application.yml 读取）
+     * JWT 白名单路径（逗号分隔）。
+     * 优先从 Nacos 配置中心读取，不存在时使用本地默认值。
      */
-    @Value("${gateway.jwt.whitelist}")
-    private List<String> whitelist;
+    @Value("${gateway.jwt.whitelist:/api/auth/register,/api/auth/login,/api/ws/**}")
+    private String whitelistStr;
 
     /**
      * 过滤器优先级：值越小越先执行，放在 sentinel 之后
@@ -81,9 +83,8 @@ public class JwtAuthFilter implements WebFilter, Ordered {
             return writeUnauthorized(exchange, ErrorCodeEnum.TOKEN_INVALID);
         }
 
-        // ========== 4. Redis 黑名单校验 ==========
-        return redisTemplate.opsForSet()
-                .isMember("token:blacklist", token)
+        // ========== 4. Redis 黑名单校验（每个 token 独立 key） ==========
+        return redisTemplate.hasKey("token:blacklist:" + token)
                 .flatMap(isBlacklisted -> {
                     if (Boolean.TRUE.equals(isBlacklisted)) {
                         log.warn("[JWT] Token 在黑名单中, path={}", path);
@@ -114,16 +115,18 @@ public class JwtAuthFilter implements WebFilter, Ordered {
      * 判断路径是否在白名单中（支持 /api/ws/** 通配符）
      */
     private boolean isWhitelisted(String path) {
-        if (whitelist == null || whitelist.isEmpty()) {
+        if (whitelistStr == null || whitelistStr.isBlank()) {
             return false;
         }
-        for (String pattern : whitelist) {
-            if (pattern.endsWith("/**")) {
-                String prefix = pattern.substring(0, pattern.length() - 3);
+        List<String> patterns = Arrays.asList(whitelistStr.split(","));
+        for (String pattern : patterns) {
+            String trimmed = pattern.trim();
+            if (trimmed.endsWith("/**")) {
+                String prefix = trimmed.substring(0, trimmed.length() - 3);
                 if (path.startsWith(prefix)) {
                     return true;
                 }
-            } else if (path.equals(pattern)) {
+            } else if (path.equals(trimmed)) {
                 return true;
             }
         }

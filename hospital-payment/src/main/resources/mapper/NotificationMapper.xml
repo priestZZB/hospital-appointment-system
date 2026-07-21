@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.payment.mapper.NotificationMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.payment.entity.Notification">
+        <id column="id" property="id"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="notify_type" property="notifyType"/>
+        <result column="related_id" property="relatedId"/>
+        <result column="is_read" property="isRead"/>
+        <result column="read_time" property="readTime"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.payment.entity.Notification"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO notification (patient_id, title, content, notify_type,
+                                  related_id, is_read, create_time)
+        VALUES (#{patientId}, #{title}, #{content}, #{notifyType},
+                #{relatedId}, 0, NOW())
+    </insert>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT id, patient_id, title, content, notify_type, related_id,
+               is_read, read_time, create_time
+        FROM notification
+        WHERE patient_id = #{patientId}
+        ORDER BY create_time DESC
+    </select>
+
+    <update id="markAsRead">
+        UPDATE notification
+        SET is_read = 1, read_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

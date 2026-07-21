@@ -13,3 +13,28 @@ spring:
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin123
+    virtual-host: /
+    listener:
+      simple:
+        auto-startup: false    # 本地无 RabbitMQ 时不启动监听器
+
+jwt:
+  secret: hospital-appointment-system-jwt-secret-key-2026-must-be-at-least-32-chars
+  expiration: 7200
+
+xxl:
+  job:
+    enabled: false             # 本地无 XXL-JOB Admin 时关闭
+    admin:
+      addresses: http://localhost:8088/xxl-job-admin
+    accessToken: hospital-token
+    executor:
+      appname: payment-service
+      port: 9999
+      logpath: logs/xxl-job
+      logretentiondays: 7

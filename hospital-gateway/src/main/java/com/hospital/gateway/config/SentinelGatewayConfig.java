@@ -30,7 +30,8 @@ import java.util.List;
 public class SentinelGatewayConfig {
 
     /**
-     * 注入 Sentinel Gateway 过滤器（新版 API 需显式传入 ViewResolver 和 ServerCodecConfigurer）
+     * 注入 Sentinel Gateway 过滤器。
+     * ServerCodecConfigurer 由 WebFluxAutoConfiguration 自动提供。
      */
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.SlotMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.Slot">
+        <id column="id" property="id"/>
+        <result column="schedule_id" property="scheduleId"/>
+        <result column="slot_seq" property="slotSeq"/>
+        <result column="slot_start" property="slotStart"/>
+        <result column="slot_end" property="slotEnd"/>
+        <result column="status" property="status"/>
+        <result column="version" property="version"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="batchInsert" parameterType="com.hospital.clinic.entity.Slot">
+        INSERT INTO slot (schedule_id, slot_seq, slot_start, slot_end, status, version, create_time, update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.scheduleId}, #{item.slotSeq}, #{item.slotStart}, #{item.slotEnd},
+             'AVAILABLE', 0, NOW(), NOW())
+        </foreach>
+    </insert>
+
+    <select id="selectAvailableBySchedule" resultMap="BaseResultMap">
+        SELECT id, schedule_id, slot_seq, slot_start, slot_end, status, version, create_time, update_time
+        FROM slot
+        WHERE schedule_id = #{scheduleId}
+          AND status = 'AVAILABLE'
+        ORDER BY slot_seq ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, schedule_id, slot_seq, slot_start, slot_end, status, version, create_time, update_time
+        FROM slot
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAvailableByDeptAndDate" resultMap="BaseResultMap">
+        SELECT s.id, s.schedule_id, s.slot_seq, s.slot_start, s.slot_end, s.status, s.version, s.create_time, s.update_time
+        FROM slot s
+        INNER JOIN schedule sc ON s.schedule_id = sc.id
+        WHERE sc.department_id = #{departmentId}
+          AND sc.schedule_date = #{scheduleDate}
+          AND sc.status = 1
+          AND s.status = 'AVAILABLE'
+        ORDER BY s.slot_seq ASC
+    </select>
+
+    <update id="updateStatusWithVersion">
+        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
+        WHERE id = #{id}
+          AND status = 'AVAILABLE'
+          AND version = #{version}
+    </update>
+
+    <update id="releaseSlot">
+        UPDATE slot SET status = 'AVAILABLE', update_time = NOW()
+        WHERE id = #{id}
+          AND status = 'BOOKED'
+    </update>
+
+</mapper>

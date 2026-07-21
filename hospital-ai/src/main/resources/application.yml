@@ -2,6 +2,10 @@ server:
   port: 8086
 
 spring:
+  ai:
+    openai:
+      api-key: sk-placeholder-will-be-replaced-in-iteration-2
+      base-url: https://api.deepseek.com
   datasource:
     hikari:
       maximum-pool-size: 10

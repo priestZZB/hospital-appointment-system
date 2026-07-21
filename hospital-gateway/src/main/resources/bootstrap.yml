@@ -12,10 +12,13 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: redis123
       timeout: 3000ms
       lettuce:
         pool:
           max-active: 8
           max-idle: 4
           min-idle: 2
+
+jwt:
+  secret: hospital-appointment-system-jwt-secret-key-2026-must-be-at-least-32-chars
+  expiration: 7200

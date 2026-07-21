@@ -17,4 +17,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: redis123
+
+jwt:
+  secret: hospital-appointment-system-jwt-secret-key-2026-must-be-at-least-32-chars
+  expiration: 7200
