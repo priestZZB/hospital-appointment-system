@@ -27,7 +27,11 @@ public class PageDTO implements Serializable {
     public Integer getOffset() {
         int no = (pageNo == null || pageNo < 1) ? 1 : pageNo;
         int size = getEffectivePageSize();
-        return (no - 1) * size;
+        long offset = (long) (no - 1) * size;
+        if (offset > Integer.MAX_VALUE) {
+            offset = Integer.MAX_VALUE;
+        }
+        return (int) offset;
     }
 
     /**

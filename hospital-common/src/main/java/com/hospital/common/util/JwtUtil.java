@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * JWT 工具类
@@ -57,6 +58,7 @@ public class JwtUtil {
         Date now = new Date();
         Date expireDate = new Date(now.getTime() + expiration * 1000);
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .claim("roles", roles != null ? roles : Collections.emptyList())
                 .issuedAt(now)
@@ -90,9 +92,25 @@ public class JwtUtil {
     /**
      * 从 Token 中提取角色列表
      */
-    @SuppressWarnings("unchecked")
     public List<String> getRoles(String token) {
-        return parse(token).get("roles", List.class);
+        try {
+            List<?> rawList = parse(token).get("roles", List.class);
+            if (rawList == null) {
+                return Collections.emptyList();
+            }
+            for (Object o : rawList) {
+                if (!(o instanceof String)) {
+                    log.warn("[JWT] roles 中包含非 String 元素, 拒绝解析");
+                    return Collections.emptyList();
+                }
+            }
+            @SuppressWarnings("unchecked")
+            List<String> roles = (List<String>) rawList;
+            return roles;
+        } catch (Exception e) {
+            log.warn("[JWT] roles 解析异常: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     /**

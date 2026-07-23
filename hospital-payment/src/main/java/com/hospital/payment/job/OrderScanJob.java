@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 /**
  * XXL-JOB 定时任务：扫表兜底关单
  * <p>
- * 每 5 分钟扫描 local_message 表中超时未支付订单，触发关单。
+ * 每 5 分钟扫描 payment_order 表中超时未支付订单，触发关单。
  * 作为 RabbitMQ 延迟消息的兜底方案。
  */
 @Slf4j

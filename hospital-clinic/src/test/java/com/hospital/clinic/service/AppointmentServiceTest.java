@@ -219,12 +219,17 @@ class AppointmentServiceTest {
         appointment.setOrderStatus("PENDING_PAY");
 
         when(appointmentMapper.selectById(appointmentId)).thenReturn(appointment);
-        when(appointmentMapper.cancel(anyLong(), anyString(), anyString())).thenReturn(1);
+        Slot bookedSlot = new Slot();
+        bookedSlot.setId(1L);
+        bookedSlot.setStatus("BOOKED");
+        bookedSlot.setVersion(0);
+        when(slotMapper.selectById(1L)).thenReturn(bookedSlot);
+        when(appointmentMapper.cancel(anyLong(), anyString(), anyString(), anyString())).thenReturn(1);
 
         appointmentService.cancel(appointmentId, "行程变动");
 
-        verify(appointmentMapper, times(1)).cancel(eq(appointmentId), eq("CANCELLED"), eq("行程变动"));
-        verify(slotService, times(1)).releaseSlot(1L);
+        verify(appointmentMapper, times(1)).cancel(eq(appointmentId), eq("CANCELLED"), eq("行程变动"), eq("PENDING_PAY"));
+        verify(slotService, times(1)).releaseSlot(eq(1L), anyInt());
     }
 
     // ==================== 取消预约（已取消状态幂等拒绝） ====================
@@ -239,7 +244,7 @@ class AppointmentServiceTest {
         when(appointmentMapper.selectById(appointmentId)).thenReturn(appointment);
 
         assertThrows(BusinessException.class, () -> appointmentService.cancel(appointmentId, "重复取消"));
-        verify(appointmentMapper, never()).cancel(anyLong(), anyString(), anyString());
+        verify(appointmentMapper, never()).cancel(anyLong(), anyString(), anyString(), anyString());
     }
 
     // ==================== 取消预约（SQL 状态守卫返回 0） ====================
@@ -256,7 +261,7 @@ class AppointmentServiceTest {
 
         when(appointmentMapper.selectById(appointmentId)).thenReturn(appointment);
         // SQL 守卫返回 0（状态已被其他线程变更）
-        when(appointmentMapper.cancel(anyLong(), anyString(), anyString())).thenReturn(0);
+        when(appointmentMapper.cancel(anyLong(), anyString(), anyString(), anyString())).thenReturn(0);
 
         assertThrows(BusinessException.class, () -> appointmentService.cancel(appointmentId, "行程变动"));
     }

@@ -1,6 +1,8 @@
 package com.hospital.patient.controller;
 
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import com.hospital.patient.dto.RealnameReviewDTO;
@@ -41,6 +43,9 @@ public class RealnameController {
     @PutMapping("/{patientId}/review")
     public Result<Void> review(@PathVariable Long patientId,
                                @Valid @RequestBody RealnameReviewDTO dto) {
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
+        }
         realnameService.review(patientId, dto);
         return Result.ok();
     }

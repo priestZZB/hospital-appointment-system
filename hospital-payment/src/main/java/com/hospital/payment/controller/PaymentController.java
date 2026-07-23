@@ -27,7 +27,7 @@ public class PaymentController {
     /** 模拟支付 */
     @AuditLog(value = "模拟支付", operationType = "UPDATE")
     @PostMapping("/pay")
-    public Result<PaymentOrderVO> pay(@RequestParam Long orderId) {
+    public Result<PaymentOrderVO> pay(@RequestParam("orderId") Long orderId) {
         return Result.ok(paymentService.processPayment(orderId));
     }
 

@@ -31,6 +31,12 @@ public interface SlotMapper {
                                 @Param("status") String status,
                                 @Param("version") Integer version);
 
+    /** 统计某排班的可用号源数 */
+    int countAvailableBySchedule(@Param("scheduleId") Long scheduleId);
+
     /** 释放号源 */
-    int releaseSlot(@Param("id") Long id);
+    int releaseSlot(@Param("id") Long id, @Param("version") Integer version);
+
+    /** 批量取消号源（排班级联取消） */
+    int updateStatusByScheduleId(@Param("scheduleId") Long scheduleId, @Param("status") String status);
 }

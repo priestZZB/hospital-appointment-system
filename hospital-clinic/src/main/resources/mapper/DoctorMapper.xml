@@ -59,6 +59,26 @@
         WHERE user_id = #{userId}
     </select>
 
+    <select id="selectByDepartmentId" resultMap="BaseResultMap">
+        SELECT id, user_id, name, gender, phone, department_id, title,
+               specialty, introduction, status, create_time, update_time
+        FROM doctor
+        WHERE department_id = #{departmentId}
+          AND status = 1
+        ORDER BY id ASC
+    </select>
+
+    <select id="selectByIds" resultMap="BaseResultMap">
+        SELECT id, user_id, name, gender, phone, department_id, title,
+               specialty, introduction, status, create_time, update_time
+        FROM doctor
+        WHERE id IN
+        <foreach collection="ids" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        ORDER BY id ASC
+    </select>
+
     <insert id="insert" parameterType="com.hospital.clinic.entity.Doctor"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO doctor (user_id, name, gender, phone, department_id, title,

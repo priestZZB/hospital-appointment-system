@@ -17,8 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -81,14 +80,32 @@ public class SlotService {
     }
 
     /**
-     * 按科室+日期查询可用号源
+     * 按科室+日期查询可用号源（批量加载避免 N+1）
      */
     public List<SlotVO> listAvailable(Long departmentId, LocalDate date) {
         List<Slot> slots = slotMapper.selectAvailableByDeptAndDate(departmentId, date);
+        if (slots.isEmpty()) {
+            return List.of();
+        }
+
+        // 批量加载所有关联的排班
+        Set<Long> scheduleIds = slots.stream().map(Slot::getScheduleId).collect(Collectors.toSet());
+        List<Schedule> schedules = scheduleMapper.selectByIds(new ArrayList<>(scheduleIds));
+        Map<Long, Schedule> scheduleMap = schedules.stream()
+                .collect(Collectors.toMap(Schedule::getId, s -> s));
+
+        // 批量加载所有关联的医生
+        Set<Long> doctorIds = schedules.stream().map(Schedule::getDoctorId).collect(Collectors.toSet());
+        List<Doctor> doctors = doctorMapper.selectByIds(new ArrayList<>(doctorIds));
+        Map<Long, Doctor> doctorMap = doctors.stream()
+                .collect(Collectors.toMap(Doctor::getId, d -> d));
+
+        // 科室只加载一次（同一科室下所有排班共享）
+        Department dept = departmentMapper.selectById(departmentId);
+
         return slots.stream().map(s -> {
-            Schedule schedule = scheduleMapper.selectById(s.getScheduleId());
-            Doctor doctor = schedule != null ? doctorMapper.selectById(schedule.getDoctorId()) : null;
-            Department dept = departmentMapper.selectById(departmentId);
+            Schedule schedule = scheduleMap.get(s.getScheduleId());
+            Doctor doctor = schedule != null ? doctorMap.get(schedule.getDoctorId()) : null;
             return toVO(s, schedule, doctor, dept);
         }).collect(Collectors.toList());
     }
@@ -97,7 +114,7 @@ public class SlotService {
      * 查询某排班剩余可用号源数
      */
     public int countAvailableSlots(Long scheduleId) {
-        return slotMapper.selectAvailableBySchedule(scheduleId).size();
+        return slotMapper.countAvailableBySchedule(scheduleId);
     }
 
     // ==================== 内部方法 ====================
@@ -111,11 +128,15 @@ public class SlotService {
     }
 
     /**
-     * 释放号源
+     * 释放号源（带版本号乐观锁，防止重复释放）
      */
-    public void releaseSlot(Long slotId) {
-        slotMapper.releaseSlot(slotId);
-        log.info("[号源] 号源已释放: slotId={}", slotId);
+    public void releaseSlot(Long slotId, Integer version) {
+        int rows = slotMapper.releaseSlot(slotId, version);
+        if (rows == 0) {
+            log.warn("[号源] 号源释放失败（版本不匹配或状态异常）: slotId={}, version={}", slotId, version);
+        } else {
+            log.info("[号源] 号源已释放: slotId={}, version={}", slotId, version);
+        }
     }
 
     // ==================== 实体 → VO 转换 ====================

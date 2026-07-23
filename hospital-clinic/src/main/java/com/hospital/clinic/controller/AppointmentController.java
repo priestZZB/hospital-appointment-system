@@ -53,7 +53,7 @@ public class AppointmentController {
     /** 取消预约 */
     @AuditLog(value = "取消预约", operationType = "UPDATE")
     @PutMapping("/{id}/cancel")
-    public Result<Void> cancel(@PathVariable Long id, @RequestParam(required = false) String reason) {
+    public Result<Void> cancel(@PathVariable Long id, @RequestParam(value = "reason", required = false) String reason) {
         appointmentService.cancel(id, reason != null ? reason : "患者取消预约");
         return Result.ok();
     }

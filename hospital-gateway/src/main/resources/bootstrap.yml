@@ -1,6 +1,6 @@
 spring:
   application:
-    name: gateway
+    name: hospital-gateway
   cloud:
     nacos:
       discovery:

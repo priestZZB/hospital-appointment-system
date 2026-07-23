@@ -48,23 +48,17 @@ spring:
             allowedOriginPatterns: "*"
             allowedMethods: "*"
             allowedHeaders: "*"
-            allowCredentials: true
+            allowCredentials: false  # 开发环境关闭凭据，避免与 allowedOriginPatterns:* 冲突
             maxAge: 3600
 
     # ==================== Sentinel 控制台 ====================
     sentinel:
       transport:
-        dashboard: localhost:8080
+        dashboard: localhost:18080  # Sentinel 控制台地址，非网关自身端口，按实际部署配置
         port: 8719
       # 饥饿加载（避免首次访问慢）
       eager: true
-      # Sentinel Gateway 专用配置
-      scg:
-        fallback:
-          mode: response
-          response-status: 429
-          response-body: '{"code":1010,"message":"请求过于频繁，请稍后重试","data":null,"timestamp":0}'
-          content-type: application/json;charset=UTF-8
+      # Sentinel Gateway 专用配置（使用 Java 配置的 BlockRequestHandler，故注释 YAML fallback）
 
 # ==================== 日志 ====================
 logging:

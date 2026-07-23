@@ -1,5 +1,7 @@
 package com.hospital.patient.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -12,6 +14,8 @@ public class RealnameReviewDTO {
 
     /** 审核结果：2-通过 3-驳回 */
     @NotNull(message = "审核结果不能为空")
+    @Min(value = 2, message = "审核结果值非法，仅允许 2(通过) 或 3(驳回)")
+    @Max(value = 3, message = "审核结果值非法，仅允许 2(通过) 或 3(驳回)")
     private Integer verifyStatus;
 
     @NotBlank(message = "审核意见不能为空")

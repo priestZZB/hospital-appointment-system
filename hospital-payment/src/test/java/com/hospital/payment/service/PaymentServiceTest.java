@@ -2,7 +2,7 @@ package com.hospital.payment.service;
 
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.feign.AppointmentFeignClient;
-import LocalMessage;
+import com.hospital.payment.entity.LocalMessage;
 import com.hospital.payment.entity.PaymentOrder;
 import com.hospital.payment.mapper.LocalMessageMapper;
 import com.hospital.payment.mapper.PaymentOrderMapper;

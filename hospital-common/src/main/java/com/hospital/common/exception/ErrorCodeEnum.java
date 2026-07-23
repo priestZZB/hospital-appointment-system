@@ -27,7 +27,7 @@ public enum ErrorCodeEnum {
     NOT_LOGIN(1004, "未登录或令牌已过期"),
     TOKEN_EXPIRED(1005, "令牌已过期"),
     TOKEN_INVALID(1006, "令牌无效"),
-    TOKEN_BLACKLISTED(1007, "令牌已失效"),
+    TOKEN_BLACKLISTED(1007, "令牌已失效"), // 用于网关 JwtAuthFilter 检查 Redis 黑名单后返回
     RESOURCE_NOT_FOUND(1008, "资源不存在"),
     DUPLICATE_OPERATION(1009, "请勿重复操作"),
     RATE_LIMIT_EXCEEDED(1010, "请求过于频繁，请稍后重试"),

@@ -25,8 +25,8 @@ public class SlotController {
     /** 按科室+日期查询可用号源 */
     @GetMapping
     public Result<List<SlotVO>> listAvailable(
-            @RequestParam Long departmentId,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date) {
+            @RequestParam("departmentId") Long departmentId,
+            @RequestParam("date") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date) {
         return Result.ok(slotService.listAvailable(departmentId, date));
     }
 

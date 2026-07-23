@@ -39,8 +39,13 @@ public interface AppointmentMapper {
                           @Param("orderStatus") String orderStatus,
                           @Param("expectedStatus") String expectedStatus);
 
-    /** 取消预约（含原因） */
+    /** 取消预约（含原因，带预期状态防竞态覆盖） */
     int cancel(@Param("id") Long id,
                @Param("orderStatus") String orderStatus,
-               @Param("cancelReason") String cancelReason);
+               @Param("cancelReason") String cancelReason,
+               @Param("expectedStatus") String expectedStatus);
+
+    /** 排班级联取消：将某排班下所有待支付预约置为已取消 */
+    int cancelPendingPayByScheduleId(@Param("scheduleId") Long scheduleId,
+                                     @Param("cancelReason") String cancelReason);
 }

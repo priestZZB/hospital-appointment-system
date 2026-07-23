@@ -27,7 +27,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/register",
                         "/api/auth/login",
-                        "/api/patient/internal/**"   // Feign 内部调用不需要 Header
+                        "/api/patient/internal/**",   // Feign 内部调用不需要 Header
+                        "/api/payment/internal/**",   // Feign 内部调用不需要 Header
+                        "/api/clinic/internal/**"     // Feign 内部调用不需要 Header
                 );
     }
 }

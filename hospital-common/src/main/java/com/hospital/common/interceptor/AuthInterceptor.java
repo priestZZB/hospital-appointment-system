@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 认证拦截器（仅 Servlet MVC 应用激活，Gateway 不加载）。
@@ -48,11 +48,23 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        UserContext.setUserId(Long.valueOf(userId));
+        try {
+            UserContext.setUserId(Long.valueOf(userId));
+        } catch (NumberFormatException e) {
+            log.warn("[认证拦截] 无效的用户ID格式, uri={}, userId={}", request.getRequestURI(), userId);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            Result<Void> result = Result.fail(ErrorCodeEnum.NOT_LOGIN);
+            response.getWriter().write(MAPPER.writeValueAsString(result));
+            return false;
+        }
 
         List<String> roleList;
         if (roles != null && !roles.isBlank()) {
-            roleList = Arrays.asList(roles.split(","));
+            roleList = java.util.Arrays.stream(roles.split(","))
+                    .map(String::trim)
+                    .collect(Collectors.toList());
         } else {
             roleList = Collections.emptyList();
         }

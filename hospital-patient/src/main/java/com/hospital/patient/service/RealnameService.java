@@ -32,8 +32,9 @@ public class RealnameService {
         if (patient == null) {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "患者档案不存在");
         }
-        if (patient.getVerifyStatus() != null && patient.getVerifyStatus() == 1) {
-            throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, "实名认证正在审核中，请勿重复提交");
+        if (patient.getVerifyStatus() != null && (patient.getVerifyStatus() == 1 || patient.getVerifyStatus() == 2)) {
+            String msg = patient.getVerifyStatus() == 1 ? "实名认证正在审核中，请勿重复提交" : "已通过实名认证，无需重复提交";
+            throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, msg);
         }
 
         Patient update = new Patient();
@@ -55,6 +56,9 @@ public class RealnameService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void review(Long patientId, RealnameReviewDTO dto) {
+        if (dto.getVerifyStatus() != 2 && dto.getVerifyStatus() != 3) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "审核结果值非法，仅允许 2(通过) 或 3(驳回)");
+        }
         Patient patient = patientMapper.selectById(patientId);
         if (patient == null) {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "患者档案不存在");

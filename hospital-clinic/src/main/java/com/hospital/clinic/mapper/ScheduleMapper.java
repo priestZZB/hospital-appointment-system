@@ -24,6 +24,9 @@ public interface ScheduleMapper {
                                             @Param("startDate") LocalDate startDate,
                                             @Param("endDate") LocalDate endDate);
 
+    /** 根据主键批量查询 */
+    List<Schedule> selectByIds(@Param("ids") List<Long> ids);
+
     /** 按医生+日期+时段查重 */
     Schedule selectByDoctorDatePeriod(@Param("doctorId") Long doctorId,
                                       @Param("scheduleDate") LocalDate scheduleDate,

@@ -107,6 +107,10 @@ public class RoleService {
      * 为用户分配角色
      * <p>
      * 先移除用户所有已有角色，再插入新的角色关联。
+     * <p>
+     * TODO: 存在 TOCTOU 竞态条件 —— 两个并发请求同时调用此方法时，各自先读取、再删除、再插入，
+     *       后写入者会覆盖先写入者的结果，导致中间分配的 roles 丢失。
+     *       生产环境建议引入分布式锁（如 Redisson）或使用 SELECT ... FOR UPDATE 悲观锁解决。
      */
     @Transactional(rollbackFor = Exception.class)
     public void assignRole(AssignRoleDTO dto) {

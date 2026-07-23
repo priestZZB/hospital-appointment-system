@@ -1,5 +1,6 @@
 package com.hospital.auth.dto;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -16,6 +17,6 @@ public class AssignRoleDTO {
     private Long userId;
 
     /** 角色 ID 列表 */
-    @NotNull(message = "角色 ID 列表不能为空")
+    @NotEmpty(message = "角色 ID 列表不能为空")
     private List<Long> roleIds;
 }

@@ -27,7 +27,7 @@
     </insert>
 
     <delete id="deleteById">
-        DELETE FROM allergy WHERE id = #{id} AND patient_id = #{patientId}
+        DELETE FROM allergy WHERE id = #{id} AND patient_id = #{patientId} AND source = 'PATIENT'
     </delete>
 
 </mapper>

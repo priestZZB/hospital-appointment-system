@@ -1,7 +1,8 @@
 package com.hospital.clinic.vo;
 
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,7 +13,8 @@ import java.time.LocalTime;
  * 预约订单 VO
  */
 @Data
-@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AppointmentVO {
 
     private Long id;

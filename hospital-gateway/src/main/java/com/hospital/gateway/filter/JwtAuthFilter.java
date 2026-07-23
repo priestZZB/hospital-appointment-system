@@ -22,8 +22,8 @@ import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
+import org.springframework.util.AntPathMatcher;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -44,6 +44,7 @@ public class JwtAuthFilter implements WebFilter, Ordered {
     private final JwtUtil jwtUtil;
     private final ReactiveStringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     /**
      * JWT 白名单路径（逗号分隔）。
@@ -85,6 +86,10 @@ public class JwtAuthFilter implements WebFilter, Ordered {
 
         // ========== 4. Redis 黑名单校验（每个 token 独立 key） ==========
         return redisTemplate.hasKey("token:blacklist:" + token)
+                .onErrorResume(e -> {
+                    log.warn("[JWT] Redis 不可用，黑名单校验跳过: {}", e.getMessage());
+                    return Mono.just(false);
+                })
                 .flatMap(isBlacklisted -> {
                     if (Boolean.TRUE.equals(isBlacklisted)) {
                         log.warn("[JWT] Token 在黑名单中, path={}", path);
@@ -93,6 +98,10 @@ public class JwtAuthFilter implements WebFilter, Ordered {
 
                     // ========== 5. 注入用户信息 Header ==========
                     Long userId = jwtUtil.getUserId(token);
+                    if (userId == null) {
+                        log.warn("[JWT] Token 中未包含用户ID, path={}", path);
+                        return writeUnauthorized(exchange, ErrorCodeEnum.TOKEN_INVALID);
+                    }
                     List<String> roles = jwtUtil.getRoles(token);
                     String rolesStr = (roles != null && !roles.isEmpty())
                             ? String.join(",", roles)
@@ -118,15 +127,9 @@ public class JwtAuthFilter implements WebFilter, Ordered {
         if (whitelistStr == null || whitelistStr.isBlank()) {
             return false;
         }
-        List<String> patterns = Arrays.asList(whitelistStr.split(","));
+        String[] patterns = whitelistStr.split(",");
         for (String pattern : patterns) {
-            String trimmed = pattern.trim();
-            if (trimmed.endsWith("/**")) {
-                String prefix = trimmed.substring(0, trimmed.length() - 3);
-                if (path.startsWith(prefix)) {
-                    return true;
-                }
-            } else if (path.equals(trimmed)) {
+            if (antPathMatcher.match(pattern.trim(), path)) {
                 return true;
             }
         }
@@ -144,8 +147,8 @@ public class JwtAuthFilter implements WebFilter, Ordered {
         if (authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7).trim();
         }
-        // 兼容直接传 Token 的情况
-        return authHeader.trim();
+        // 非 Bearer 格式直接视为无效
+        return null;
     }
 
     /**

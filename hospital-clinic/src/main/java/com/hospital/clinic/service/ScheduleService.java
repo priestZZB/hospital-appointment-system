@@ -4,9 +4,11 @@ import com.hospital.clinic.dto.ScheduleCreateDTO;
 import com.hospital.clinic.entity.Department;
 import com.hospital.clinic.entity.Doctor;
 import com.hospital.clinic.entity.Schedule;
+import com.hospital.clinic.mapper.AppointmentMapper;
 import com.hospital.clinic.mapper.DepartmentMapper;
 import com.hospital.clinic.mapper.DoctorMapper;
 import com.hospital.clinic.mapper.ScheduleMapper;
+import com.hospital.clinic.mapper.SlotMapper;
 import com.hospital.clinic.vo.ScheduleVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -31,6 +34,8 @@ public class ScheduleService {
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
     private final DepartmentMapper departmentMapper;
+    private final SlotMapper slotMapper;
+    private final AppointmentMapper appointmentMapper;
     private final SlotService slotService;
 
     /**
@@ -85,14 +90,25 @@ public class ScheduleService {
     }
 
     /**
-     * 排班日历视图（按科室+日期范围查询）
+     * 排班日历视图（按科室+日期范围查询，批量加载避免 N+1）
      */
     public List<ScheduleVO> calendar(Long departmentId, LocalDate startDate, LocalDate endDate) {
         List<Schedule> schedules = scheduleMapper.selectByDeptAndDateRange(
                 departmentId, startDate, endDate);
+        if (schedules.isEmpty()) {
+            return List.of();
+        }
+
+        // 批量加载医生（同一个科室下的所有医生）
+        List<Doctor> deptDoctors = doctorMapper.selectByDepartmentId(departmentId);
+        Map<Long, Doctor> doctorMap = deptDoctors.stream()
+                .collect(Collectors.toMap(Doctor::getId, d -> d));
+
+        // 科室只加载一次
+        Department dept = departmentMapper.selectById(departmentId);
+
         return schedules.stream().map(s -> {
-            Doctor doctor = doctorMapper.selectById(s.getDoctorId());
-            Department dept = departmentMapper.selectById(s.getDepartmentId());
+            Doctor doctor = doctorMap.get(s.getDoctorId());
             int availableSlots = slotService.countAvailableSlots(s.getId());
             return toVO(s, doctor, dept, availableSlots);
         }).collect(Collectors.toList());
@@ -113,7 +129,7 @@ public class ScheduleService {
     }
 
     /**
-     * 取消排班
+     * 取消排班（级联取消关联号源和待支付预约）
      */
     @Transactional(rollbackFor = Exception.class)
     public void cancel(Long id) {
@@ -122,7 +138,16 @@ public class ScheduleService {
             throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
         }
         scheduleMapper.updateStatus(id, 0);
-        log.info("[排班] 排班已取消: id={}", id);
+
+        // 级联取消：将该排班下所有可用/已约号源标记为已取消
+        slotMapper.updateStatusByScheduleId(id, "CANCELLED");
+
+        // 级联取消：将该排班下所有待支付的预约标记为已取消
+        appointmentMapper.cancelPendingPayByScheduleId(id, "排班已取消");
+
+        // TODO: 迭代2 — 通知已预约的患者（PAID 状态的预约需要退款处理）
+
+        log.info("[排班] 排班已取消（级联处理完成）: id={}", id);
     }
 
     // ==================== 实体 → VO 转换 ====================

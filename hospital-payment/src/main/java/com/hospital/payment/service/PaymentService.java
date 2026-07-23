@@ -16,6 +16,8 @@ import com.hospital.payment.vo.PaymentOrderVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,10 @@ public class PaymentService {
     private final AppointmentFeignClient appointmentFeignClient;
     private final NotificationService notificationService;
     private final RabbitTemplate rabbitTemplate;
+
+    @Lazy
+    @Autowired
+    private PaymentService self;
 
     /**
      * 创建支付订单（内部调用，同一事务：insert order + insert local_message）
@@ -137,6 +143,7 @@ public class PaymentService {
             log.info("[支付] 已回调 clinic-service 确认锁定: appointmentId={}", order.getAppointmentId());
         } catch (Exception e) {
             log.error("[支付] 回调 clinic 确认锁定失败: appointmentId={}", order.getAppointmentId(), e);
+            throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR);
         }
 
         // 发送挂号成功通知
@@ -180,8 +187,11 @@ public class PaymentService {
         record.setStatus("COMPLETED");
         refundRecordMapper.insert(record);
 
-        // 更新订单为已退款
-        orderMapper.updateStatusWithVersion(order.getId(), "REFUNDED", order.getVersion());
+        // 更新订单为已退款（乐观锁）
+        int rows = orderMapper.updateStatusWithVersion(order.getId(), "REFUNDED", order.getVersion());
+        if (rows == 0) {
+            throw new BusinessException(ErrorCodeEnum.ORDER_EXPIRED);
+        }
 
         // Feign 回调 clinic 释放号源
         try {
@@ -238,15 +248,17 @@ public class PaymentService {
 
     /**
      * XXL-JOB 扫表兜底：扫描超时未支付订单
+     * <p>
+     * 注意：不在本方法加 @Transactional，每个 closeTimeoutOrder 自己管理事务。
+     * 生产环境建议改为分页查询，避免一次加载过多订单。
      */
-    @Transactional(rollbackFor = Exception.class)
     public void scanTimeoutOrders() {
         List<PaymentOrder> timeoutOrders = orderMapper.selectTimeoutOrders(
                 "PENDING", LocalDateTime.now());
         log.info("[扫表] 发现超时订单 {} 个", timeoutOrders.size());
         for (PaymentOrder order : timeoutOrders) {
             try {
-                closeTimeoutOrder(order.getOrderNo());
+                self.closeTimeoutOrder(order.getOrderNo());
             } catch (Exception e) {
                 log.error("[扫表] 关单失败: orderNo={}", order.getOrderNo(), e);
             }
@@ -267,14 +279,14 @@ public class PaymentService {
     // ==================== 私有方法 ====================
 
     private String generateOrderNo() {
-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String random = UUID.fastUUID().toString().substring(0, 6).toUpperCase();
+        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
+        String random = UUID.fastUUID().toString().substring(0, 8).toUpperCase();
         return "PAY" + date + random;
     }
 
     private String generateRefundNo() {
-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String random = UUID.fastUUID().toString().substring(0, 6).toUpperCase();
+        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
+        String random = UUID.fastUUID().toString().substring(0, 8).toUpperCase();
         return "REF" + date + random;
     }
 

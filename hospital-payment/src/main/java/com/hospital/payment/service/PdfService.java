@@ -10,10 +10,12 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 
 /**
@@ -42,10 +44,27 @@ public class PdfService {
             PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
 
+            // 加载支持中文的字体
+            PDType0Font fontChinese;
+            try {
+                fontChinese = PDType0Font.load(document, new File("C:/Windows/Fonts/simsun.ttc"));
+            } catch (Exception e) {
+                try {
+                    fontChinese = PDType0Font.load(document, new File("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"));
+                } catch (Exception e2) {
+                    log.warn("[PDF] 未找到系统 CJK 字体，使用默认字体（中文可能无法正确显示）", e2);
+                    fontChinese = null;
+                }
+            }
+
             try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
                 // 标题
                 cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA_BOLD, 20);
+                if (fontChinese != null) {
+                    cs.setFont(fontChinese, 20);
+                } else {
+                    cs.setFont(PDType1Font.HELVETICA_BOLD, 20);
+                }
                 cs.newLineAtOffset(200, 750);
                 cs.showText("Hospital Appointment Receipt");
                 cs.endText();
@@ -60,7 +79,11 @@ public class PdfService {
                 float lineHeight = 25;
 
                 cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA, 12);
+                if (fontChinese != null) {
+                    cs.setFont(fontChinese, 12);
+                } else {
+                    cs.setFont(PDType1Font.HELVETICA, 12);
+                }
 
                 cs.newLineAtOffset(50, y);
                 cs.showText("Order No: " + order.getOrderNo());
@@ -91,7 +114,11 @@ public class PdfService {
 
                 // 底部说明
                 cs.beginText();
-                cs.setFont(PDType1Font.HELVETICA_OBLIQUE, 10);
+                if (fontChinese != null) {
+                    cs.setFont(fontChinese, 10);
+                } else {
+                    cs.setFont(PDType1Font.HELVETICA_OBLIQUE, 10);
+                }
                 cs.newLineAtOffset(50, 100);
                 cs.showText("This is a simulated receipt for demonstration purposes.");
                 cs.endText();

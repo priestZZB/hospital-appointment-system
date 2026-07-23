@@ -58,6 +58,18 @@
           AND period = #{period}
     </select>
 
+    <select id="selectByIds" resultMap="BaseResultMap">
+        SELECT id, doctor_id, department_id, schedule_date, period,
+               period_start, period_end, total_slots, slot_duration,
+               register_fee, status, create_time, update_time
+        FROM schedule
+        WHERE id IN
+        <foreach collection="ids" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        ORDER BY id ASC
+    </select>
+
     <update id="updateStatus">
         UPDATE schedule SET status = #{status}, update_time = NOW()
         WHERE id = #{id}

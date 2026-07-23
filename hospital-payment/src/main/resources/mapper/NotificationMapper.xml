@@ -29,6 +29,7 @@
         FROM notification
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
+        LIMIT 100
     </select>
 
     <update id="markAsRead">

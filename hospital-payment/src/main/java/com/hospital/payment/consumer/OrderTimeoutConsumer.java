@@ -27,6 +27,7 @@ public class OrderTimeoutConsumer {
             paymentService.closeTimeoutOrder(orderNo);
         } catch (Exception e) {
             log.error("[MQ] 超时关单失败: orderNo={}", orderNo, e);
+            throw new RuntimeException("MQ 超时关单失败: " + orderNo, e);
         }
     }
 }

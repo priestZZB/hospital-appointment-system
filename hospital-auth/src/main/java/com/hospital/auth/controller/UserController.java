@@ -4,6 +4,9 @@ import com.hospital.auth.dto.UserPageQueryDTO;
 import com.hospital.auth.service.UserService;
 import com.hospital.auth.vo.UserVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,22 +32,35 @@ public class UserController {
     private final UserService userService;
 
     /**
-     * 分页查询用户列表
+     * 分页查询用户列表（仅管理员）
      */
     @GetMapping
     public Result<UserService.PageResult<UserVO>> pageQuery(@Valid UserPageQueryDTO dto) {
+        checkAdmin();
         return Result.ok(userService.pageQuery(dto));
     }
 
     /**
-     * 变更用户状态（启用/禁用）
+     * 变更用户状态（启用/禁用，仅管理员）
      */
     @AuditLog(value = "变更用户状态", operationType = "UPDATE")
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id,
                                      @RequestBody Map<String, Integer> body) {
+        checkAdmin();
         Integer status = body.get("status");
+        if (status == null) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "status 不能为空");
+        }
         userService.updateStatus(id, status);
         return Result.ok();
+    }
+
+    // ==================== 私有方法 ====================
+
+    private void checkAdmin() {
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
+        }
     }
 }

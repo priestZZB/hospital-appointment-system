@@ -78,10 +78,12 @@ public class AuthService {
 
         // 4. 分配默认角色 ROLE_PATIENT
         Role patientRole = roleMapper.selectByCode("ROLE_PATIENT");
-        if (patientRole != null) {
-            roleMapper.insertUserRole(user.getId(), patientRole.getId());
-            log.info("[注册] 角色分配: userId={}, role={}", user.getId(), patientRole.getRoleCode());
+        if (patientRole == null) {
+            log.error("[注册] 系统角色未初始化: roleCode=ROLE_PATIENT");
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "系统角色未初始化，请联系管理员");
         }
+        roleMapper.insertUserRole(user.getId(), patientRole.getId());
+        log.info("[注册] 角色分配: userId={}, role={}", user.getId(), patientRole.getRoleCode());
 
         // 5. 调用 patient-service 创建患者档案（内部 RPC，失败仅记录日志不阻断）
         try {
@@ -108,6 +110,7 @@ public class AuthService {
      * @param ip   客户端 IP
      * @return 登录凭证
      */
+    @Transactional(rollbackFor = Exception.class)
     public LoginVO login(LoginDTO dto, String ip) {
         // 1. 查用户
         User user = userMapper.findByPhone(dto.getPhone());

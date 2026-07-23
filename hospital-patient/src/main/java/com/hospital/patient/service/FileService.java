@@ -28,8 +28,19 @@ public class FileService {
      * @param file 上传的文件
      * @return 文件访问 URL
      */
+    private static final java.util.Set<String> ALLOWED_EXTENSIONS = java.util.Set.of("jpg", "jpeg", "png", "pdf", "doc", "docx");
+
     public String upload(MultipartFile file) {
-        String objectName = "patient/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String originalFilename = file.getOriginalFilename();
+        String extension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String extLower = extension.isEmpty() ? "" : extension.substring(1).toLowerCase();
+        if (!ALLOWED_EXTENSIONS.contains(extLower)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "不支持的文件类型，仅允许 " + ALLOWED_EXTENSIONS);
+        }
+        String objectName = "patient/" + UUID.randomUUID() + extension;
         try {
             minioClient.putObject(
                     PutObjectArgs.builder()

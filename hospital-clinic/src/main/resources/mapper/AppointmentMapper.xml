@@ -142,7 +142,18 @@
                                cancel_time = NOW(),
                                update_time = NOW()
         WHERE id = #{id}
-          AND order_status NOT IN ('CANCELLED', 'REFUNDED', 'TIMEOUT')
+          AND order_status = #{expectedStatus}
+    </update>
+
+    <update id="cancelPendingPayByScheduleId">
+        UPDATE appointment a
+        INNER JOIN slot s ON a.slot_id = s.id
+        SET a.order_status = 'CANCELLED',
+            a.cancel_reason = #{cancelReason},
+            a.cancel_time = NOW(),
+            a.update_time = NOW()
+        WHERE s.schedule_id = #{scheduleId}
+          AND a.order_status = 'PENDING_PAY'
     </update>
 
 </mapper>

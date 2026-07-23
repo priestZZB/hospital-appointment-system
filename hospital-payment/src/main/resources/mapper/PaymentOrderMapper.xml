@@ -56,7 +56,8 @@
 
     <update id="updateStatusWithVersion">
         UPDATE payment_order
-        SET status = #{status}, version = version + 1, update_time = NOW()
+        SET status = #{status}, version = version + 1,
+            cancel_time = NOW(), update_time = NOW()
         WHERE id = #{id} AND version = #{version}
     </update>
 
@@ -75,6 +76,7 @@
         WHERE status = #{status}
           AND expire_time &lt; #{now}
         ORDER BY expire_time ASC
+        LIMIT 100
     </select>
 
 </mapper>

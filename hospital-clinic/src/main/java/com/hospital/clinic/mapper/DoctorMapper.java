@@ -28,6 +28,12 @@ public interface DoctorMapper {
     /** 根据 userId 查询 */
     Doctor selectByUserId(@Param("userId") Long userId);
 
+    /** 根据科室查询所有医生 */
+    List<Doctor> selectByDepartmentId(@Param("departmentId") Long departmentId);
+
+    /** 根据主键批量查询 */
+    List<Doctor> selectByIds(@Param("ids") List<Long> ids);
+
     /** 插入 */
     int insert(Doctor doctor);
 

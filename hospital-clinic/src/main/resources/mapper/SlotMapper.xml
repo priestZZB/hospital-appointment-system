@@ -56,10 +56,24 @@
           AND version = #{version}
     </update>
 
+    <select id="countAvailableBySchedule" resultType="int">
+        SELECT COUNT(*)
+        FROM slot
+        WHERE schedule_id = #{scheduleId}
+          AND status = 'AVAILABLE'
+    </select>
+
     <update id="releaseSlot">
-        UPDATE slot SET status = 'AVAILABLE', update_time = NOW()
+        UPDATE slot SET status = 'AVAILABLE', version = version + 1, update_time = NOW()
         WHERE id = #{id}
           AND status = 'BOOKED'
+          AND version = #{version}
+    </update>
+
+    <update id="updateStatusByScheduleId">
+        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
+        WHERE schedule_id = #{scheduleId}
+          AND status IN ('AVAILABLE', 'BOOKED')
     </update>
 
 </mapper>

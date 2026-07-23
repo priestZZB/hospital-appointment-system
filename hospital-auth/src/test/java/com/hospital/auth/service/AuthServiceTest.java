@@ -23,10 +23,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -60,7 +62,7 @@ class AuthServiceTest {
     @Mock
     private StringRedisTemplate stringRedisTemplate;
     @Mock
-    private SetOperations<String, String> setOperations;
+    private ValueOperations<String, String> valueOperations;
     @Mock
     private PatientFeignClient patientFeignClient;
 
@@ -75,7 +77,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         // lenient: 并非所有测试都使用 Redis / insert，严格模式会触发 UnnecessaryStubbingException
-        lenient().when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+        lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
         // 模拟 MyBatis useGeneratedKeys 主键回填行为
         lenient().doAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -218,11 +220,8 @@ class AuthServiceTest {
         @DisplayName("正常登出将 Token 加入黑名单")
         void testLogoutSuccess() {
             when(jwtUtil.getRemainingSeconds(TEST_TOKEN)).thenReturn(3600L);
-            when(setOperations.add("token:blacklist", TEST_TOKEN)).thenReturn(1L);
-            when(stringRedisTemplate.expire(anyString(), any())).thenReturn(true);
-
             assertDoesNotThrow(() -> authService.logout(TEST_TOKEN));
-            verify(setOperations).add("token:blacklist", TEST_TOKEN);
+            verify(valueOperations).set(eq("token:blacklist:" + TEST_TOKEN), eq("1"), any(Duration.class));
         }
 
         @Test
@@ -230,7 +229,7 @@ class AuthServiceTest {
         void testLogoutEmptyToken() {
             assertDoesNotThrow(() -> authService.logout(null));
             assertDoesNotThrow(() -> authService.logout(""));
-            verify(setOperations, never()).add(anyString(), anyString());
+            verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
         }
 
         @Test
@@ -239,7 +238,7 @@ class AuthServiceTest {
             when(jwtUtil.getRemainingSeconds(TEST_TOKEN)).thenReturn(0L);
 
             authService.logout(TEST_TOKEN);
-            verify(setOperations, never()).add(anyString(), anyString());
+            verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
         }
     }
 
@@ -261,15 +260,13 @@ class AuthServiceTest {
             when(jwtUtil.getRemainingSeconds(TEST_TOKEN)).thenReturn(1800L);
             when(roleMapper.findByUserId(1L)).thenReturn(List.of(buildPatientRole()));
             when(jwtUtil.generate(1L, List.of("ROLE_PATIENT"))).thenReturn(newToken);
-            when(setOperations.add(anyString(), anyString())).thenReturn(1L);
-            when(stringRedisTemplate.expire(anyString(), any())).thenReturn(true);
 
             LoginVO result = authService.refresh(TEST_TOKEN);
 
             assertNotNull(result);
             assertEquals(newToken, result.getToken());
             // 旧 Token 应被加入黑名单
-            verify(setOperations).add("token:blacklist", TEST_TOKEN);
+            verify(valueOperations).set(eq("token:blacklist:" + TEST_TOKEN), eq("1"), any(Duration.class));
         }
 
         @Test

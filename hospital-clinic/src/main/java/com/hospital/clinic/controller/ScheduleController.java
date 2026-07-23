@@ -35,9 +35,9 @@ public class ScheduleController {
     /** 排班日历视图 */
     @GetMapping
     public Result<List<ScheduleVO>> calendar(
-            @RequestParam Long departmentId,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
+            @RequestParam("departmentId") Long departmentId,
+            @RequestParam("startDate") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam("endDate") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
         return Result.ok(scheduleService.calendar(departmentId, startDate, endDate));
     }
 

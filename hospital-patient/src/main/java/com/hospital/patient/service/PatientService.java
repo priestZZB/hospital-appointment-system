@@ -52,7 +52,12 @@ public class PatientService {
         if (dto.getName() != null) patient.setName(dto.getName());
         if (dto.getGender() != null) patient.setGender(dto.getGender());
         if (dto.getBirthDate() != null) patient.setBirthDate(dto.getBirthDate());
-        if (dto.getIdCard() != null) patient.setIdCard(dto.getIdCard());
+        if (dto.getIdCard() != null) {
+            if (Integer.valueOf(2).equals(patient.getVerifyStatus())) {
+                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "已认证的身份证号不可自行修改，请重新提交实名认证");
+            }
+            patient.setIdCard(dto.getIdCard());
+        }
         if (dto.getEmergencyContact() != null) patient.setEmergencyContact(dto.getEmergencyContact());
         if (dto.getEmergencyPhone() != null) patient.setEmergencyPhone(dto.getEmergencyPhone());
 
@@ -92,9 +97,16 @@ public class PatientService {
     // ==================== 实体 → VO 转换 ====================
 
     private PatientVO toVO(Patient p) {
+        // 脱敏身份证号：仅显示前6位和后4位
+        String maskedIdCard = p.getIdCard();
+        if (maskedIdCard != null && maskedIdCard.length() >= 8) {
+            maskedIdCard = maskedIdCard.substring(0, 6) + "********" + maskedIdCard.substring(maskedIdCard.length() - 4);
+        } else if (maskedIdCard != null) {
+            maskedIdCard = "********";
+        }
         return PatientVO.builder()
                 .id(p.getId()).userId(p.getUserId()).name(p.getName())
-                .gender(p.getGender()).birthDate(p.getBirthDate()).idCard(p.getIdCard())
+                .gender(p.getGender()).birthDate(p.getBirthDate()).idCard(maskedIdCard)
                 .phone(p.getPhone()).emergencyContact(p.getEmergencyContact())
                 .emergencyPhone(p.getEmergencyPhone()).verifyStatus(p.getVerifyStatus())
                 .idCardFrontUrl(p.getIdCardFrontUrl()).idCardBackUrl(p.getIdCardBackUrl())

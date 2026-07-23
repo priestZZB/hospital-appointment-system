@@ -25,7 +25,7 @@ public class DepartmentController {
 
     /** 科室列表 */
     @GetMapping
-    public Result<List<DepartmentVO>> list(@RequestParam(required = false) String keyword) {
+    public Result<List<DepartmentVO>> list(@RequestParam(value = "keyword", required = false) String keyword) {
         return Result.ok(departmentService.list(keyword));
     }
 
@@ -52,7 +52,7 @@ public class DepartmentController {
     /** 更新科室状态 */
     @AuditLog(value = "更新科室状态", operationType = "UPDATE")
     @PutMapping("/{id}/status")
-    public Result<Void> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
+    public Result<Void> updateStatus(@PathVariable Long id, @RequestParam("status") Integer status) {
         departmentService.updateStatus(id, status);
         return Result.ok();
     }

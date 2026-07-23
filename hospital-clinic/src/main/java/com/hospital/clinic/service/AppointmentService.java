@@ -59,6 +59,7 @@ public class AppointmentService {
 
     private static final String REPEAT_KEY_PREFIX = "repeat:appointment:";
     private static final String LOCK_KEY_PREFIX = "lock:slot:";
+    private static final String APPOINTMENT_LOCK_KEY_PREFIX = "lock:appointment:";
 
     /**
      * 挂号下单（核心流程）
@@ -67,11 +68,10 @@ public class AppointmentService {
      * 1. Feign 调用 patient-service 校验实名认证
      * 2. 查询号源状态是否为 AVAILABLE
      * 3. Redis 检查是否重复挂号
-     * 4. Redisson 分布式锁 + 乐观锁扣减号源
+     * 4. Redisson 分布式锁 + 乐观锁扣减号源 + 设置重复挂号键
      * 5. 插入 appointment 记录（PENDING_PAY）
      * 6. Feign 调用 payment-service 创建支付订单
-     * 7. Redis 设置重复挂号键
-     * 8. 释放分布式锁，返回预约信息
+     * 7. 释放分布式锁，返回预约信息
      * </pre>
      *
      * @param userId 用户 ID（来自 auth-service）
@@ -97,7 +97,7 @@ public class AppointmentService {
             patientId = toLong(patientIdObj);
 
             Object verifyStatus = patientInfo.get("verifyStatus");
-            if (verifyStatus == null || ((Number) verifyStatus).intValue() != 1) {
+            if (verifyStatus == null || ((Number) verifyStatus).intValue() != 2) {
                 throw new BusinessException(ErrorCodeEnum.PATIENT_NOT_VERIFIED);
             }
         } catch (BusinessException e) {
@@ -123,13 +123,8 @@ public class AppointmentService {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "号源与排班信息不一致");
         }
 
-        // ========== 第3步：Redis 防重复挂号 ==========
+        // ========== 第3步：Redisson 分布式锁 + 乐观锁扣减（锁内包含防重复校验） ==========
         String repeatKey = REPEAT_KEY_PREFIX + patientId + ":" + scheduleId;
-        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(repeatKey))) {
-            throw new BusinessException(ErrorCodeEnum.DUPLICATE_APPOINTMENT);
-        }
-
-        // ========== 第4步：Redisson 分布式锁 + 乐观锁扣减 ==========
         String lockKey = LOCK_KEY_PREFIX + slotId;
         RLock lock = redissonClient.getLock(lockKey);
         boolean locked = false;
@@ -140,10 +135,21 @@ public class AppointmentService {
                 throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "系统繁忙，请稍后重试");
             }
 
+            // Redis 防重复挂号（在锁内检查，防止同一排班不同号源的并发请求）
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(repeatKey))) {
+                throw new BusinessException(ErrorCodeEnum.DUPLICATE_APPOINTMENT);
+            }
+
             // 乐观锁扣减号源
             boolean deducted = slotService.deductSlot(slotId, slot.getVersion());
             if (!deducted) {
                 throw new BusinessException(ErrorCodeEnum.SLOT_NOT_ENOUGH);
+            }
+
+            // Redis 设置重复挂号键（在锁内设置，防止并发请求绕过检查）
+            long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
+            if (ttlSeconds > 0) {
+                stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
             }
 
         } catch (InterruptedException e) {
@@ -198,13 +204,7 @@ public class AppointmentService {
             throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR, "支付服务暂不可用，请稍后重试");
         }
 
-        // ========== 第7步：Redis 设置重复挂号键 ==========
-        long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
-        if (ttlSeconds > 0) {
-            stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
-        }
-
-        // ========== 第8步：组装返回 ==========
+        // ========== 第7步：组装返回 ==========
         return buildVO(appointment, doctor, dept, slot, paymentOrderId, paymentOrderNo);
     }
 
@@ -212,49 +212,71 @@ public class AppointmentService {
      * 取消预约
      * <p>
      * 仅允许取消 PENDING_PAY 或 PAID 状态的预约。
-     * 取消后释放号源，若已支付则触发退款。
+     * 使用 Redisson 分布式锁保证并发安全，在锁内重新读取预约状态，
+     * 取消后根据实际状态释放号源或触发退款。
      *
      * @param appointmentId 预约 ID
      * @param reason        取消原因
      */
     @Transactional(rollbackFor = Exception.class)
     public void cancel(Long appointmentId, String reason) {
-        Appointment appointment = appointmentMapper.selectById(appointmentId);
-        if (appointment == null) {
-            throw new BusinessException(ErrorCodeEnum.APPOINTMENT_NOT_FOUND);
-        }
+        String lockKey = APPOINTMENT_LOCK_KEY_PREFIX + appointmentId;
+        RLock lock = redissonClient.getLock(lockKey);
+        boolean locked = false;
+        try {
+            locked = lock.tryLock(5, 10, TimeUnit.SECONDS);
+            if (!locked) {
+                throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "系统繁忙，请稍后重试");
+            }
 
-        String status = appointment.getOrderStatus();
-        if ("CANCELLED".equals(status) || "REFUNDED".equals(status) || "TIMEOUT".equals(status)) {
-            throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约已取消或已过期");
-        }
+            // 在锁内重新读取预约，保证状态最新
+            Appointment appointment = appointmentMapper.selectById(appointmentId);
+            if (appointment == null) {
+                throw new BusinessException(ErrorCodeEnum.APPOINTMENT_NOT_FOUND);
+            }
 
-        // 取消预约（SQL 层面也做状态守卫，双重保险）
-        int rows = appointmentMapper.cancel(appointmentId, "CANCELLED", reason);
-        if (rows == 0) {
-            throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约状态已变更，请刷新重试");
-        }
-        log.info("[挂号] 预约已取消: appointmentId={}, reason={}", appointmentId, reason);
+            String status = appointment.getOrderStatus();
+            if ("CANCELLED".equals(status) || "REFUNDED".equals(status) || "TIMEOUT".equals(status)) {
+                throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约已取消或已过期");
+            }
 
-        // PENDING_PAY：直接释放号源
-        // PAID：由 payment-service 退款回调统一释放号源
-        if ("PENDING_PAY".equals(status)) {
-            slotService.releaseSlot(appointment.getSlotId());
-        }
+            // 取消预约（传入预期状态，防止竞态覆盖）
+            int rows = appointmentMapper.cancel(appointmentId, "CANCELLED", reason, status);
+            if (rows == 0) {
+                throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约状态已变更，请刷新重试");
+            }
+            log.info("[挂号] 预约已取消: appointmentId={}, reason={}", appointmentId, reason);
 
-        // 清除重复挂号键
-        String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
-        stringRedisTemplate.delete(repeatKey);
+            // PENDING_PAY：读取号源版本号后乐观锁释放
+            // PAID：由 payment-service 退款回调统一释放号源
+            if ("PENDING_PAY".equals(status)) {
+                Slot slot = slotMapper.selectById(appointment.getSlotId());
+                if (slot != null && "BOOKED".equals(slot.getStatus())) {
+                    slotService.releaseSlot(appointment.getSlotId(), slot.getVersion());
+                }
+            }
 
-        // 如果已支付，调用 payment 退款（payment 内部会回调 release-slot）
-        if ("PAID".equals(status)) {
-            Map<String, Object> refundDTO = new HashMap<>();
-            refundDTO.put("appointmentId", appointmentId);
-            refundDTO.put("refundReason", reason != null ? reason : "患者取消预约");
-            refundDTO.put("refundType", "PATIENT_CANCEL");
-            // 退款失败则抛异常回滚，保证数据一致性
-            paymentFeignClient.refund(refundDTO);
-            log.info("[挂号] 已触发退款: appointmentId={}", appointmentId);
+            // 清除重复挂号键
+            String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
+            stringRedisTemplate.delete(repeatKey);
+
+            // 如果已支付，调用 payment 退款（payment 内部会回调 release-slot）
+            if ("PAID".equals(status)) {
+                Map<String, Object> refundDTO = new HashMap<>();
+                refundDTO.put("appointmentId", appointmentId);
+                refundDTO.put("refundReason", reason != null ? reason : "患者取消预约");
+                refundDTO.put("refundType", "PATIENT_CANCEL");
+                // 退款失败则抛异常回滚，保证数据一致性
+                paymentFeignClient.refund(refundDTO);
+                log.info("[挂号] 已触发退款: appointmentId={}", appointmentId);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "取消预约操作被中断");
+        } finally {
+            if (locked && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 
@@ -318,7 +340,11 @@ public class AppointmentService {
             log.info("[挂号] 号源释放跳过（已被支付或已取消）: appointmentId={}", appointmentId);
             return;
         }
-        slotService.releaseSlot(appointment.getSlotId());
+        // 读取号源版本号，乐观锁释放
+        Slot slot = slotMapper.selectById(appointment.getSlotId());
+        if (slot != null && "BOOKED".equals(slot.getStatus())) {
+            slotService.releaseSlot(appointment.getSlotId(), slot.getVersion());
+        }
         String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
         stringRedisTemplate.delete(repeatKey);
         log.info("[挂号] 超时关单，号源已释放: appointmentId={}", appointmentId);
@@ -362,29 +388,29 @@ public class AppointmentService {
      */
     private AppointmentVO buildVO(Appointment a, Doctor doctor, Department dept, Slot slot,
                                   Long paymentOrderId, String paymentOrderNo) {
-        return AppointmentVO.builder()
-                .id(a.getId())
-                .appointmentNo(a.getAppointmentNo())
-                .patientId(a.getPatientId())
-                .slotId(a.getSlotId())
-                .scheduleId(a.getScheduleId())
-                .doctorId(a.getDoctorId())
-                .doctorName(doctor != null ? doctor.getName() : null)
-                .doctorTitle(doctor != null ? doctor.getTitle() : null)
-                .departmentId(a.getDepartmentId())
-                .departmentName(dept != null ? dept.getDeptName() : null)
-                .appointmentDate(a.getAppointmentDate())
-                .period(a.getPeriod())
-                .slotSeq(a.getSlotSeq())
-                .slotStart(slot.getSlotStart())
-                .slotEnd(slot.getSlotEnd())
-                .registerFee(a.getRegisterFee())
-                .orderStatus(a.getOrderStatus())
-                .visitStatus(a.getVisitStatus())
-                .paymentOrderId(paymentOrderId)
-                .paymentOrderNo(paymentOrderNo)
-                .createTime(a.getCreateTime())
-                .updateTime(a.getUpdateTime())
-                .build();
+        AppointmentVO vo = new AppointmentVO();
+        vo.setId(a.getId());
+        vo.setAppointmentNo(a.getAppointmentNo());
+        vo.setPatientId(a.getPatientId());
+        vo.setSlotId(a.getSlotId());
+        vo.setScheduleId(a.getScheduleId());
+        vo.setDoctorId(a.getDoctorId());
+        vo.setDoctorName(doctor != null ? doctor.getName() : null);
+        vo.setDoctorTitle(doctor != null ? doctor.getTitle() : null);
+        vo.setDepartmentId(a.getDepartmentId());
+        vo.setDepartmentName(dept != null ? dept.getDeptName() : null);
+        vo.setAppointmentDate(a.getAppointmentDate());
+        vo.setPeriod(a.getPeriod());
+        vo.setSlotSeq(a.getSlotSeq());
+        vo.setSlotStart(slot.getSlotStart());
+        vo.setSlotEnd(slot.getSlotEnd());
+        vo.setRegisterFee(a.getRegisterFee());
+        vo.setOrderStatus(a.getOrderStatus());
+        vo.setVisitStatus(a.getVisitStatus());
+        vo.setPaymentOrderId(paymentOrderId);
+        vo.setPaymentOrderNo(paymentOrderNo);
+        vo.setCreateTime(a.getCreateTime());
+        vo.setUpdateTime(a.getUpdateTime());
+        return vo;
     }
 }

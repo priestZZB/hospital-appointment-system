@@ -23,14 +23,14 @@ public class AppointmentInternalController {
 
     /** payment-service 支付成功后确认号源锁定 */
     @PostMapping("/confirm-lock")
-    public Map<String, Object> confirmLock(@RequestParam Long appointmentId) {
+    public Map<String, Object> confirmLock(@RequestParam("appointmentId") Long appointmentId) {
         appointmentService.confirmLock(appointmentId);
         return Map.of("success", true);
     }
 
     /** payment-service 超时关单后释放号源 */
     @PostMapping("/release-slot")
-    public Map<String, Object> releaseSlot(@RequestParam Long appointmentId) {
+    public Map<String, Object> releaseSlot(@RequestParam("appointmentId") Long appointmentId) {
         appointmentService.releaseSlotByPayment(appointmentId);
         return Map.of("success", true);
     }
