@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.medsupply.mapper.ExamItemMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.medsupply.entity.ExamItem">
+        <id column="id" property="id"/>
+        <result column="item_code" property="itemCode"/>
+        <result column="item_name" property="itemName"/>
+        <result column="item_type" property="itemType"/>
+        <result column="reference_price" property="referencePrice"/>
+        <result column="exec_dept" property="execDept"/>
+        <result column="precautions" property="precautions"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT * FROM exam_item
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (item_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR item_code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="itemType != null and itemType != ''">
+                AND item_type = #{itemType}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM exam_item
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (item_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR item_code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="itemType != null and itemType != ''">
+                AND item_type = #{itemType}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM exam_item WHERE id = #{id}
+    </select>
+
+    <select id="selectByCode" resultMap="BaseResultMap">
+        SELECT * FROM exam_item WHERE item_code = #{itemCode}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.medsupply.entity.ExamItem"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO exam_item (item_code, item_name, item_type, reference_price,
+                               exec_dept, precautions, status, create_time, update_time)
+        VALUES (#{itemCode}, #{itemName}, #{itemType}, #{referencePrice},
+                #{execDept}, #{precautions}, #{status}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.medsupply.entity.ExamItem">
+        UPDATE exam_item
+        <set>
+            <if test="itemName != null">item_name = #{itemName},</if>
+            <if test="itemType != null">item_type = #{itemType},</if>
+            <if test="referencePrice != null">reference_price = #{referencePrice},</if>
+            <if test="execDept != null">exec_dept = #{execDept},</if>
+            <if test="precautions != null">precautions = #{precautions},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE exam_item SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

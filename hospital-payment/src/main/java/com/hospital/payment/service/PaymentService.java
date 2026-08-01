@@ -193,12 +193,13 @@ public class PaymentService {
             throw new BusinessException(ErrorCodeEnum.ORDER_EXPIRED);
         }
 
-        // Feign 回调 clinic 释放号源
+        // Feign 回调 clinic 释放号源并标记预约已退款
         try {
             appointmentFeignClient.releaseSlot(appointmentId);
-            log.info("[退款] 已回调 clinic 释放号源: appointmentId={}", appointmentId);
+            appointmentFeignClient.markRefunded(appointmentId);
+            log.info("[退款] 已回调 clinic 释放号源并标记退款: appointmentId={}", appointmentId);
         } catch (Exception e) {
-            log.error("[退款] 回调 clinic 释放号源失败: appointmentId={}", appointmentId, e);
+            log.error("[退款] 回调 clinic 失败: appointmentId={}", appointmentId, e);
         }
 
         // 发送退款通知

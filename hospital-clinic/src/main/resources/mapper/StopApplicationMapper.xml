@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.StopApplicationMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.StopApplication">
+        <id column="id" property="id"/>
+        <result column="schedule_id" property="scheduleId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="apply_reason" property="applyReason"/>
+        <result column="status" property="status"/>
+        <result column="approve_comment" property="approveComment"/>
+        <result column="approved_by" property="approvedBy"/>
+        <result column="approve_time" property="approveTime"/>
+        <result column="affected_count" property="affectedCount"/>
+        <result column="refund_total" property="refundTotal"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.StopApplication"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO stop_application (schedule_id, doctor_id, apply_reason,
+                                      status, approve_comment, approved_by,
+                                      approve_time, affected_count, refund_total,
+                                      create_time, update_time)
+        VALUES (#{scheduleId}, #{doctorId}, #{applyReason},
+                #{status}, #{approveComment}, #{approvedBy},
+                #{approveTime}, #{affectedCount}, #{refundTotal},
+                NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM stop_application WHERE id = #{id}
+    </select>
+
+    <select id="selectByScheduleId" resultMap="BaseResultMap">
+        SELECT * FROM stop_application
+        WHERE schedule_id = #{scheduleId}
+          AND status = 'PENDING'
+        LIMIT 1
+    </select>
+
+    <select id="selectByStatus" resultMap="BaseResultMap">
+        SELECT * FROM stop_application
+        WHERE status = #{status}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*) FROM stop_application WHERE status = #{status}
+    </select>
+
+    <select id="selectByDoctorId" resultMap="BaseResultMap">
+        SELECT * FROM stop_application
+        WHERE doctor_id = #{doctorId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <update id="updateApproval">
+        UPDATE stop_application
+        SET status = #{status},
+            approve_comment = #{approveComment},
+            approved_by = #{approvedBy},
+            approve_time = NOW(),
+            affected_count = #{affectedCount},
+            refund_total = #{refundTotal},
+            update_time = NOW()
+        WHERE id = #{id}
+          AND status = #{expectedStatus}
+    </update>
+
+</mapper>

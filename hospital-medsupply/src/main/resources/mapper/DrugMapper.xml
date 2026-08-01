@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.medsupply.mapper.DrugMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.medsupply.entity.Drug">
+        <id column="id" property="id"/>
+        <result column="drug_code" property="drugCode"/>
+        <result column="drug_name" property="drugName"/>
+        <result column="generic_name" property="genericName"/>
+        <result column="specification" property="specification"/>
+        <result column="dosage_form" property="dosageForm"/>
+        <result column="manufacturer" property="manufacturer"/>
+        <result column="reference_price" property="referencePrice"/>
+        <result column="unit" property="unit"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT * FROM drug
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (drug_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR drug_code LIKE CONCAT('%', #{keyword}, '%')
+                     OR generic_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM drug
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (drug_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR drug_code LIKE CONCAT('%', #{keyword}, '%')
+                     OR generic_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM drug WHERE id = #{id}
+    </select>
+
+    <select id="selectByCode" resultMap="BaseResultMap">
+        SELECT * FROM drug WHERE drug_code = #{drugCode}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.medsupply.entity.Drug"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO drug (drug_code, drug_name, generic_name, specification,
+                          dosage_form, manufacturer, reference_price, unit,
+                          description, status, create_time, update_time)
+        VALUES (#{drugCode}, #{drugName}, #{genericName}, #{specification},
+                #{dosageForm}, #{manufacturer}, #{referencePrice}, #{unit},
+                #{description}, #{status}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.medsupply.entity.Drug">
+        UPDATE drug
+        <set>
+            <if test="drugName != null">drug_name = #{drugName},</if>
+            <if test="genericName != null">generic_name = #{genericName},</if>
+            <if test="specification != null">specification = #{specification},</if>
+            <if test="dosageForm != null">dosage_form = #{dosageForm},</if>
+            <if test="manufacturer != null">manufacturer = #{manufacturer},</if>
+            <if test="referencePrice != null">reference_price = #{referencePrice},</if>
+            <if test="unit != null">unit = #{unit},</if>
+            <if test="description != null">description = #{description},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE drug SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

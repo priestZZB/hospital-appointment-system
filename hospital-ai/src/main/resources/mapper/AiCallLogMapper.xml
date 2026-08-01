@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.ai.mapper.AiCallLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.ai.entity.AiCallLog">
+        <id column="id" property="id"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="symptom_input" property="symptomInput"/>
+        <result column="model_name" property="modelName"/>
+        <result column="request_text" property="requestText"/>
+        <result column="response_text" property="responseText"/>
+        <result column="recommend_dept_id" property="recommendDeptId"/>
+        <result column="recommend_dept_name" property="recommendDeptName"/>
+        <result column="confidence" property="confidence"/>
+        <result column="is_degraded" property="isDegraded"/>
+        <result column="degraded_reason" property="degradedReason"/>
+        <result column="execution_time_ms" property="executionTimeMs"/>
+        <result column="status" property="status"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.ai.entity.AiCallLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_call_log (patient_id, symptom_input, model_name,
+                                 request_text, response_text,
+                                 recommend_dept_id, recommend_dept_name,
+                                 confidence, is_degraded, degraded_reason,
+                                 execution_time_ms, status, error_message, create_time)
+        VALUES (#{patientId}, #{symptomInput}, #{modelName},
+                #{requestText}, #{responseText},
+                #{recommendDeptId}, #{recommendDeptName},
+                #{confidence}, #{isDegraded}, #{degradedReason},
+                #{executionTimeMs}, #{status}, #{errorMessage}, NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM ai_call_log WHERE id = #{id}
+    </select>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT * FROM ai_call_log
+        WHERE patient_id = #{patientId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByPatientId" resultType="long">
+        SELECT COUNT(*) FROM ai_call_log
+        WHERE patient_id = #{patientId}
+    </select>
+
+</mapper>

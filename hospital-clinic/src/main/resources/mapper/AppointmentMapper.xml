@@ -156,4 +156,49 @@
           AND a.order_status = 'PENDING_PAY'
     </update>
 
+    <select id="selectByScheduleId" resultMap="BaseResultMap">
+        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
+               doctor_id, department_id, appointment_date, period, slot_seq,
+               register_fee, order_status, visit_status, is_revisit,
+               cancel_time, cancel_reason, create_time, update_time
+        FROM appointment
+        WHERE schedule_id = #{scheduleId}
+    </select>
+
+    <update id="updateVisitStatus">
+        UPDATE appointment SET visit_status = #{visitStatus}, update_time = NOW()
+        WHERE id = #{id}
+        <if test="expectedStatus != null">
+          AND visit_status = #{expectedStatus}
+        </if>
+    </update>
+
+    <!-- ==================== BI 统计 ==================== -->
+
+    <select id="countByDate" resultType="long">
+        SELECT COUNT(*) FROM appointment
+        WHERE appointment_date = #{date}
+    </select>
+
+    <select id="countCompletedByDate" resultType="long">
+        SELECT COUNT(*) FROM appointment
+        WHERE appointment_date = #{date}
+          AND visit_status = 'COMPLETED'
+    </select>
+
+    <select id="sumRevenueByDate" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(register_fee), 0) FROM appointment
+        WHERE appointment_date = #{date}
+          AND order_status IN ('PAID', 'COMPLETED')
+    </select>
+
+    <select id="countGroupByDept" resultType="java.util.HashMap">
+        SELECT dep.dept_name AS deptName, COUNT(*) AS count
+        FROM appointment a
+        LEFT JOIN department dep ON a.department_id = dep.id
+        WHERE a.appointment_date = #{date}
+        GROUP BY a.department_id, dep.dept_name
+        ORDER BY count DESC
+    </select>
+
 </mapper>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.medsupply.mapper.DrugDispenseMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.medsupply.entity.DrugDispense">
+        <id column="id" property="id"/>
+        <result column="prescription_id" property="prescriptionId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="status" property="status"/>
+        <result column="review_operator_id" property="reviewOperatorId"/>
+        <result column="review_comment" property="reviewComment"/>
+        <result column="review_time" property="reviewTime"/>
+        <result column="dispense_operator_id" property="dispenseOperatorId"/>
+        <result column="dispense_time" property="dispenseTime"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.medsupply.entity.DrugDispense"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO drug_dispense (prescription_id, patient_id, status,
+                                   review_operator_id, review_comment, review_time,
+                                   dispense_operator_id, dispense_time, create_time)
+        VALUES (#{prescriptionId}, #{patientId}, #{status},
+                #{reviewOperatorId}, #{reviewComment}, #{reviewTime},
+                #{dispenseOperatorId}, #{dispenseTime}, NOW())
+    </insert>
+
+    <select id="selectByPrescriptionId" resultMap="BaseResultMap">
+        SELECT * FROM drug_dispense WHERE prescription_id = #{prescriptionId}
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM drug_dispense WHERE id = #{id}
+    </select>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT * FROM drug_dispense
+        WHERE patient_id = #{patientId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByPatientId" resultType="long">
+        SELECT COUNT(*) FROM drug_dispense
+        WHERE patient_id = #{patientId}
+    </select>
+
+    <update id="updateReview">
+        UPDATE drug_dispense
+        SET status = #{status},
+            review_comment = #{reviewComment},
+            review_operator_id = #{reviewOperatorId},
+            review_time = NOW()
+        WHERE id = #{id}
+          AND status = 'PENDING_REVIEW'
+    </update>
+
+    <update id="updateDispensed">
+        UPDATE drug_dispense
+        SET status = #{status},
+            dispense_operator_id = #{dispenseOperatorId},
+            dispense_time = NOW()
+        WHERE id = #{id}
+          AND status = 'REVIEW_PASSED'
+    </update>
+
+</mapper>

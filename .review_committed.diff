@@ -1,0 +1,1946 @@
+diff --git a/hospital-auth/src/main/java/com/hospital/auth/controller/AuthController.java b/hospital-auth/src/main/java/com/hospital/auth/controller/AuthController.java
+index f2fa95e..879f167 100644
+--- a/hospital-auth/src/main/java/com/hospital/auth/controller/AuthController.java
++++ b/hospital-auth/src/main/java/com/hospital/auth/controller/AuthController.java
+@@ -87,6 +87,9 @@ public class AuthController {
+      */
+     private String getClientIp(HttpServletRequest request) {
+         String ip = request.getHeader("X-Forwarded-For");
++        if (ip != null && ip.contains(",")) {
++            ip = ip.split(",")[0].trim();
++        }
+         if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
+             ip = request.getHeader("X-Real-IP");
+         }
+diff --git a/hospital-auth/src/main/java/com/hospital/auth/controller/RoleController.java b/hospital-auth/src/main/java/com/hospital/auth/controller/RoleController.java
+index a72eb7b..10c8cc7 100644
+--- a/hospital-auth/src/main/java/com/hospital/auth/controller/RoleController.java
++++ b/hospital-auth/src/main/java/com/hospital/auth/controller/RoleController.java
+@@ -6,6 +6,9 @@ import com.hospital.auth.dto.UpdateRoleDTO;
+ import com.hospital.auth.service.RoleService;
+ import com.hospital.auth.vo.RoleVO;
+ import com.hospital.common.annotation.AuditLog;
++import com.hospital.common.exception.BusinessException;
++import com.hospital.common.exception.ErrorCodeEnum;
++import com.hospital.common.interceptor.UserContext;
+ import com.hospital.common.result.Result;
+ import jakarta.validation.Valid;
+ import lombok.RequiredArgsConstructor;
+@@ -49,40 +52,52 @@ public class RoleController {
+     }
+ 
+     /**
+-     * 创建角色
++     * 创建角色（仅管理员）
+      */
+     @AuditLog(value = "创建角色", operationType = "INSERT")
+     @PostMapping
+     public Result<RoleVO> create(@Valid @RequestBody CreateRoleDTO dto) {
++        checkAdmin();
+         return Result.ok(roleService.create(dto));
+     }
+ 
+     /**
+-     * 更新角色
++     * 更新角色（仅管理员）
+      */
+     @AuditLog(value = "更新角色", operationType = "UPDATE")
+     @PutMapping("/{id}")
+     public Result<RoleVO> update(@PathVariable Long id, @Valid @RequestBody UpdateRoleDTO dto) {
++        checkAdmin();
+         return Result.ok(roleService.update(id, dto));
+     }
+ 
+     /**
+-     * 删除角色
++     * 删除角色（仅管理员）
+      */
+     @AuditLog(value = "删除角色", operationType = "DELETE")
+     @DeleteMapping("/{id}")
+     public Result<Void> delete(@PathVariable Long id) {
++        checkAdmin();
+         roleService.delete(id);
+         return Result.ok();
+     }
+ 
+     /**
+-     * 为用户分配角色
++     * 为用户分配角色（仅管理员）
+      */
+     @AuditLog(value = "分配角色", operationType = "UPDATE")
+     @PostMapping("/assign")
+     public Result<Void> assign(@Valid @RequestBody AssignRoleDTO dto) {
++        checkAdmin();
+         roleService.assignRole(dto);
+         return Result.ok();
+     }
++
++    // ==================== 私有方法 ====================
++
++    private void checkAdmin() {
++        if (!UserContext.hasRole("ROLE_ADMIN")) {
++            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
++        }
++    }
+ }
+diff --git a/hospital-auth/src/main/java/com/hospital/auth/controller/UserController.java b/hospital-auth/src/main/java/com/hospital/auth/controller/UserController.java
+index 23bfe95..2157353 100644
+--- a/hospital-auth/src/main/java/com/hospital/auth/controller/UserController.java
++++ b/hospital-auth/src/main/java/com/hospital/auth/controller/UserController.java
+@@ -4,6 +4,9 @@ import com.hospital.auth.dto.UserPageQueryDTO;
+ import com.hospital.auth.service.UserService;
+ import com.hospital.auth.vo.UserVO;
+ import com.hospital.common.annotation.AuditLog;
++import com.hospital.common.exception.BusinessException;
++import com.hospital.common.exception.ErrorCodeEnum;
++import com.hospital.common.interceptor.UserContext;
+ import com.hospital.common.result.Result;
+ import jakarta.validation.Valid;
+ import lombok.RequiredArgsConstructor;
+@@ -29,22 +32,35 @@ public class UserController {
+     private final UserService userService;
+ 
+     /**
+-     * 分页查询用户列表
++     * 分页查询用户列表（仅管理员）
+      */
+     @GetMapping
+     public Result<UserService.PageResult<UserVO>> pageQuery(@Valid UserPageQueryDTO dto) {
++        checkAdmin();
+         return Result.ok(userService.pageQuery(dto));
+     }
+ 
+     /**
+-     * 变更用户状态（启用/禁用）
++     * 变更用户状态（启用/禁用，仅管理员）
+      */
+     @AuditLog(value = "变更用户状态", operationType = "UPDATE")
+     @PutMapping("/{id}/status")
+     public Result<Void> updateStatus(@PathVariable Long id,
+                                      @RequestBody Map<String, Integer> body) {
++        checkAdmin();
+         Integer status = body.get("status");
++        if (status == null) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "status 不能为空");
++        }
+         userService.updateStatus(id, status);
+         return Result.ok();
+     }
++
++    // ==================== 私有方法 ====================
++
++    private void checkAdmin() {
++        if (!UserContext.hasRole("ROLE_ADMIN")) {
++            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
++        }
++    }
+ }
+diff --git a/hospital-auth/src/main/java/com/hospital/auth/dto/AssignRoleDTO.java b/hospital-auth/src/main/java/com/hospital/auth/dto/AssignRoleDTO.java
+index 7d8b287..b153f75 100644
+--- a/hospital-auth/src/main/java/com/hospital/auth/dto/AssignRoleDTO.java
++++ b/hospital-auth/src/main/java/com/hospital/auth/dto/AssignRoleDTO.java
+@@ -1,5 +1,6 @@
+ package com.hospital.auth.dto;
+ 
++import jakarta.validation.constraints.NotEmpty;
+ import jakarta.validation.constraints.NotNull;
+ import lombok.Data;
+ 
+@@ -16,6 +17,6 @@ public class AssignRoleDTO {
+     private Long userId;
+ 
+     /** 角色 ID 列表 */
+-    @NotNull(message = "角色 ID 列表不能为空")
++    @NotEmpty(message = "角色 ID 列表不能为空")
+     private List<Long> roleIds;
+ }
+diff --git a/hospital-auth/src/main/java/com/hospital/auth/service/AuthService.java b/hospital-auth/src/main/java/com/hospital/auth/service/AuthService.java
+index 46aef45..29adacd 100644
+--- a/hospital-auth/src/main/java/com/hospital/auth/service/AuthService.java
++++ b/hospital-auth/src/main/java/com/hospital/auth/service/AuthService.java
+@@ -78,10 +78,12 @@ public class AuthService {
+ 
+         // 4. 分配默认角色 ROLE_PATIENT
+         Role patientRole = roleMapper.selectByCode("ROLE_PATIENT");
+-        if (patientRole != null) {
+-            roleMapper.insertUserRole(user.getId(), patientRole.getId());
+-            log.info("[注册] 角色分配: userId={}, role={}", user.getId(), patientRole.getRoleCode());
++        if (patientRole == null) {
++            log.error("[注册] 系统角色未初始化: roleCode=ROLE_PATIENT");
++            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "系统角色未初始化，请联系管理员");
+         }
++        roleMapper.insertUserRole(user.getId(), patientRole.getId());
++        log.info("[注册] 角色分配: userId={}, role={}", user.getId(), patientRole.getRoleCode());
+ 
+         // 5. 调用 patient-service 创建患者档案（内部 RPC，失败仅记录日志不阻断）
+         try {
+@@ -108,6 +110,7 @@ public class AuthService {
+      * @param ip   客户端 IP
+      * @return 登录凭证
+      */
++    @Transactional(rollbackFor = Exception.class)
+     public LoginVO login(LoginDTO dto, String ip) {
+         // 1. 查用户
+         User user = userMapper.findByPhone(dto.getPhone());
+diff --git a/hospital-auth/src/main/java/com/hospital/auth/service/RoleService.java b/hospital-auth/src/main/java/com/hospital/auth/service/RoleService.java
+index 8f7d92e..7621233 100644
+--- a/hospital-auth/src/main/java/com/hospital/auth/service/RoleService.java
++++ b/hospital-auth/src/main/java/com/hospital/auth/service/RoleService.java
+@@ -107,6 +107,10 @@ public class RoleService {
+      * 为用户分配角色
+      * <p>
+      * 先移除用户所有已有角色，再插入新的角色关联。
++     * <p>
++     * TODO: 存在 TOCTOU 竞态条件 —— 两个并发请求同时调用此方法时，各自先读取、再删除、再插入，
++     *       后写入者会覆盖先写入者的结果，导致中间分配的 roles 丢失。
++     *       生产环境建议引入分布式锁（如 Redisson）或使用 SELECT ... FOR UPDATE 悲观锁解决。
+      */
+     @Transactional(rollbackFor = Exception.class)
+     public void assignRole(AssignRoleDTO dto) {
+diff --git a/hospital-auth/src/main/resources/application.yml b/hospital-auth/src/main/resources/application.yml
+index 597dd4e..2f0a2d8 100644
+--- a/hospital-auth/src/main/resources/application.yml
++++ b/hospital-auth/src/main/resources/application.yml
+@@ -16,7 +16,7 @@ mybatis:
+   type-aliases-package: com.hospital.auth.entity
+   configuration:
+     map-underscore-to-camel-case: true
+-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
++    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+ 
+ springdoc:
+   api-docs:
+diff --git a/hospital-auth/src/test/java/com/hospital/auth/service/AuthServiceTest.java b/hospital-auth/src/test/java/com/hospital/auth/service/AuthServiceTest.java
+index 808a07e..c772b00 100644
+--- a/hospital-auth/src/test/java/com/hospital/auth/service/AuthServiceTest.java
++++ b/hospital-auth/src/test/java/com/hospital/auth/service/AuthServiceTest.java
+@@ -23,10 +23,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
+ import org.mockito.InjectMocks;
+ import org.mockito.Mock;
+ import org.mockito.junit.jupiter.MockitoExtension;
+-import org.springframework.data.redis.core.SetOperations;
+ import org.springframework.data.redis.core.StringRedisTemplate;
++import org.springframework.data.redis.core.ValueOperations;
+ import org.springframework.security.crypto.password.PasswordEncoder;
+ 
++import java.time.Duration;
+ import java.util.Collections;
+ import java.util.List;
+ 
+@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.anyLong;
+ import static org.mockito.ArgumentMatchers.anyString;
++import static org.mockito.ArgumentMatchers.eq;
+ import static org.mockito.Mockito.doAnswer;
+ import static org.mockito.Mockito.lenient;
+ import static org.mockito.Mockito.never;
+@@ -60,7 +62,7 @@ class AuthServiceTest {
+     @Mock
+     private StringRedisTemplate stringRedisTemplate;
+     @Mock
+-    private SetOperations<String, String> setOperations;
++    private ValueOperations<String, String> valueOperations;
+     @Mock
+     private PatientFeignClient patientFeignClient;
+ 
+@@ -75,7 +77,7 @@ class AuthServiceTest {
+     @BeforeEach
+     void setUp() {
+         // lenient: 并非所有测试都使用 Redis / insert，严格模式会触发 UnnecessaryStubbingException
+-        lenient().when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
++        lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+         // 模拟 MyBatis useGeneratedKeys 主键回填行为
+         lenient().doAnswer(invocation -> {
+             User user = invocation.getArgument(0);
+@@ -218,11 +220,8 @@ class AuthServiceTest {
+         @DisplayName("正常登出将 Token 加入黑名单")
+         void testLogoutSuccess() {
+             when(jwtUtil.getRemainingSeconds(TEST_TOKEN)).thenReturn(3600L);
+-            when(setOperations.add("token:blacklist", TEST_TOKEN)).thenReturn(1L);
+-            when(stringRedisTemplate.expire(anyString(), any())).thenReturn(true);
+-
+             assertDoesNotThrow(() -> authService.logout(TEST_TOKEN));
+-            verify(setOperations).add("token:blacklist", TEST_TOKEN);
++            verify(valueOperations).set(eq("token:blacklist:" + TEST_TOKEN), eq("1"), any(Duration.class));
+         }
+ 
+         @Test
+@@ -230,7 +229,7 @@ class AuthServiceTest {
+         void testLogoutEmptyToken() {
+             assertDoesNotThrow(() -> authService.logout(null));
+             assertDoesNotThrow(() -> authService.logout(""));
+-            verify(setOperations, never()).add(anyString(), anyString());
++            verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+         }
+ 
+         @Test
+@@ -239,7 +238,7 @@ class AuthServiceTest {
+             when(jwtUtil.getRemainingSeconds(TEST_TOKEN)).thenReturn(0L);
+ 
+             authService.logout(TEST_TOKEN);
+-            verify(setOperations, never()).add(anyString(), anyString());
++            verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+         }
+     }
+ 
+@@ -261,15 +260,13 @@ class AuthServiceTest {
+             when(jwtUtil.getRemainingSeconds(TEST_TOKEN)).thenReturn(1800L);
+             when(roleMapper.findByUserId(1L)).thenReturn(List.of(buildPatientRole()));
+             when(jwtUtil.generate(1L, List.of("ROLE_PATIENT"))).thenReturn(newToken);
+-            when(setOperations.add(anyString(), anyString())).thenReturn(1L);
+-            when(stringRedisTemplate.expire(anyString(), any())).thenReturn(true);
+ 
+             LoginVO result = authService.refresh(TEST_TOKEN);
+ 
+             assertNotNull(result);
+             assertEquals(newToken, result.getToken());
+             // 旧 Token 应被加入黑名单
+-            verify(setOperations).add("token:blacklist", TEST_TOKEN);
++            verify(valueOperations).set(eq("token:blacklist:" + TEST_TOKEN), eq("1"), any(Duration.class));
+         }
+ 
+         @Test
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentController.java b/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentController.java
+index b6a8ef6..a9b49c8 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentController.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentController.java
+@@ -53,7 +53,7 @@ public class AppointmentController {
+     /** 取消预约 */
+     @AuditLog(value = "取消预约", operationType = "UPDATE")
+     @PutMapping("/{id}/cancel")
+-    public Result<Void> cancel(@PathVariable Long id, @RequestParam(required = false) String reason) {
++    public Result<Void> cancel(@PathVariable Long id, @RequestParam(value = "reason", required = false) String reason) {
+         appointmentService.cancel(id, reason != null ? reason : "患者取消预约");
+         return Result.ok();
+     }
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentInternalController.java b/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentInternalController.java
+index ac9c479..2192bd3 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentInternalController.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/controller/AppointmentInternalController.java
+@@ -23,14 +23,14 @@ public class AppointmentInternalController {
+ 
+     /** payment-service 支付成功后确认号源锁定 */
+     @PostMapping("/confirm-lock")
+-    public Map<String, Object> confirmLock(@RequestParam Long appointmentId) {
++    public Map<String, Object> confirmLock(@RequestParam("appointmentId") Long appointmentId) {
+         appointmentService.confirmLock(appointmentId);
+         return Map.of("success", true);
+     }
+ 
+     /** payment-service 超时关单后释放号源 */
+     @PostMapping("/release-slot")
+-    public Map<String, Object> releaseSlot(@RequestParam Long appointmentId) {
++    public Map<String, Object> releaseSlot(@RequestParam("appointmentId") Long appointmentId) {
+         appointmentService.releaseSlotByPayment(appointmentId);
+         return Map.of("success", true);
+     }
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/controller/DepartmentController.java b/hospital-clinic/src/main/java/com/hospital/clinic/controller/DepartmentController.java
+index 35c52c0..ee3822b 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/controller/DepartmentController.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/controller/DepartmentController.java
+@@ -25,7 +25,7 @@ public class DepartmentController {
+ 
+     /** 科室列表 */
+     @GetMapping
+-    public Result<List<DepartmentVO>> list(@RequestParam(required = false) String keyword) {
++    public Result<List<DepartmentVO>> list(@RequestParam(value = "keyword", required = false) String keyword) {
+         return Result.ok(departmentService.list(keyword));
+     }
+ 
+@@ -52,7 +52,7 @@ public class DepartmentController {
+     /** 更新科室状态 */
+     @AuditLog(value = "更新科室状态", operationType = "UPDATE")
+     @PutMapping("/{id}/status")
+-    public Result<Void> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
++    public Result<Void> updateStatus(@PathVariable Long id, @RequestParam("status") Integer status) {
+         departmentService.updateStatus(id, status);
+         return Result.ok();
+     }
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/controller/ScheduleController.java b/hospital-clinic/src/main/java/com/hospital/clinic/controller/ScheduleController.java
+index 811347a..e46e62c 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/controller/ScheduleController.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/controller/ScheduleController.java
+@@ -35,9 +35,9 @@ public class ScheduleController {
+     /** 排班日历视图 */
+     @GetMapping
+     public Result<List<ScheduleVO>> calendar(
+-            @RequestParam Long departmentId,
+-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
++            @RequestParam("departmentId") Long departmentId,
++            @RequestParam("startDate") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
++            @RequestParam("endDate") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
+         return Result.ok(scheduleService.calendar(departmentId, startDate, endDate));
+     }
+ 
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/controller/SlotController.java b/hospital-clinic/src/main/java/com/hospital/clinic/controller/SlotController.java
+index 7cbff58..f1da318 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/controller/SlotController.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/controller/SlotController.java
+@@ -25,8 +25,8 @@ public class SlotController {
+     /** 按科室+日期查询可用号源 */
+     @GetMapping
+     public Result<List<SlotVO>> listAvailable(
+-            @RequestParam Long departmentId,
+-            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date) {
++            @RequestParam("departmentId") Long departmentId,
++            @RequestParam("date") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date) {
+         return Result.ok(slotService.listAvailable(departmentId, date));
+     }
+ 
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/AppointmentMapper.java b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/AppointmentMapper.java
+index abece78..aab5158 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/AppointmentMapper.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/AppointmentMapper.java
+@@ -39,8 +39,13 @@ public interface AppointmentMapper {
+                           @Param("orderStatus") String orderStatus,
+                           @Param("expectedStatus") String expectedStatus);
+ 
+-    /** 取消预约（含原因） */
++    /** 取消预约（含原因，带预期状态防竞态覆盖） */
+     int cancel(@Param("id") Long id,
+                @Param("orderStatus") String orderStatus,
+-               @Param("cancelReason") String cancelReason);
++               @Param("cancelReason") String cancelReason,
++               @Param("expectedStatus") String expectedStatus);
++
++    /** 排班级联取消：将某排班下所有待支付预约置为已取消 */
++    int cancelPendingPayByScheduleId(@Param("scheduleId") Long scheduleId,
++                                     @Param("cancelReason") String cancelReason);
+ }
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/DoctorMapper.java b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/DoctorMapper.java
+index 09f52ec..95cb91f 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/DoctorMapper.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/DoctorMapper.java
+@@ -28,6 +28,12 @@ public interface DoctorMapper {
+     /** 根据 userId 查询 */
+     Doctor selectByUserId(@Param("userId") Long userId);
+ 
++    /** 根据科室查询所有医生 */
++    List<Doctor> selectByDepartmentId(@Param("departmentId") Long departmentId);
++
++    /** 根据主键批量查询 */
++    List<Doctor> selectByIds(@Param("ids") List<Long> ids);
++
+     /** 插入 */
+     int insert(Doctor doctor);
+ 
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/ScheduleMapper.java b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/ScheduleMapper.java
+index 8ccf513..b36eb01 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/ScheduleMapper.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/ScheduleMapper.java
+@@ -24,6 +24,9 @@ public interface ScheduleMapper {
+                                             @Param("startDate") LocalDate startDate,
+                                             @Param("endDate") LocalDate endDate);
+ 
++    /** 根据主键批量查询 */
++    List<Schedule> selectByIds(@Param("ids") List<Long> ids);
++
+     /** 按医生+日期+时段查重 */
+     Schedule selectByDoctorDatePeriod(@Param("doctorId") Long doctorId,
+                                       @Param("scheduleDate") LocalDate scheduleDate,
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/SlotMapper.java b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/SlotMapper.java
+index 181dc41..3626bea 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/mapper/SlotMapper.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/mapper/SlotMapper.java
+@@ -31,6 +31,12 @@ public interface SlotMapper {
+                                 @Param("status") String status,
+                                 @Param("version") Integer version);
+ 
++    /** 统计某排班的可用号源数 */
++    int countAvailableBySchedule(@Param("scheduleId") Long scheduleId);
++
+     /** 释放号源 */
+-    int releaseSlot(@Param("id") Long id);
++    int releaseSlot(@Param("id") Long id, @Param("version") Integer version);
++
++    /** 批量取消号源（排班级联取消） */
++    int updateStatusByScheduleId(@Param("scheduleId") Long scheduleId, @Param("status") String status);
+ }
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/service/AppointmentService.java b/hospital-clinic/src/main/java/com/hospital/clinic/service/AppointmentService.java
+index d275ed5..f034b37 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/service/AppointmentService.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/service/AppointmentService.java
+@@ -59,6 +59,7 @@ public class AppointmentService {
+ 
+     private static final String REPEAT_KEY_PREFIX = "repeat:appointment:";
+     private static final String LOCK_KEY_PREFIX = "lock:slot:";
++    private static final String APPOINTMENT_LOCK_KEY_PREFIX = "lock:appointment:";
+ 
+     /**
+      * 挂号下单（核心流程）
+@@ -67,11 +68,10 @@ public class AppointmentService {
+      * 1. Feign 调用 patient-service 校验实名认证
+      * 2. 查询号源状态是否为 AVAILABLE
+      * 3. Redis 检查是否重复挂号
+-     * 4. Redisson 分布式锁 + 乐观锁扣减号源
++     * 4. Redisson 分布式锁 + 乐观锁扣减号源 + 设置重复挂号键
+      * 5. 插入 appointment 记录（PENDING_PAY）
+      * 6. Feign 调用 payment-service 创建支付订单
+-     * 7. Redis 设置重复挂号键
+-     * 8. 释放分布式锁，返回预约信息
++     * 7. 释放分布式锁，返回预约信息
+      * </pre>
+      *
+      * @param userId 用户 ID（来自 auth-service）
+@@ -97,7 +97,7 @@ public class AppointmentService {
+             patientId = toLong(patientIdObj);
+ 
+             Object verifyStatus = patientInfo.get("verifyStatus");
+-            if (verifyStatus == null || ((Number) verifyStatus).intValue() != 1) {
++            if (verifyStatus == null || ((Number) verifyStatus).intValue() != 2) {
+                 throw new BusinessException(ErrorCodeEnum.PATIENT_NOT_VERIFIED);
+             }
+         } catch (BusinessException e) {
+@@ -123,13 +123,8 @@ public class AppointmentService {
+             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "号源与排班信息不一致");
+         }
+ 
+-        // ========== 第3步：Redis 防重复挂号 ==========
++        // ========== 第3步：Redisson 分布式锁 + 乐观锁扣减（锁内包含防重复校验） ==========
+         String repeatKey = REPEAT_KEY_PREFIX + patientId + ":" + scheduleId;
+-        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(repeatKey))) {
+-            throw new BusinessException(ErrorCodeEnum.DUPLICATE_APPOINTMENT);
+-        }
+-
+-        // ========== 第4步：Redisson 分布式锁 + 乐观锁扣减 ==========
+         String lockKey = LOCK_KEY_PREFIX + slotId;
+         RLock lock = redissonClient.getLock(lockKey);
+         boolean locked = false;
+@@ -140,12 +135,23 @@ public class AppointmentService {
+                 throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "系统繁忙，请稍后重试");
+             }
+ 
++            // Redis 防重复挂号（在锁内检查，防止同一排班不同号源的并发请求）
++            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(repeatKey))) {
++                throw new BusinessException(ErrorCodeEnum.DUPLICATE_APPOINTMENT);
++            }
++
+             // 乐观锁扣减号源
+             boolean deducted = slotService.deductSlot(slotId, slot.getVersion());
+             if (!deducted) {
+                 throw new BusinessException(ErrorCodeEnum.SLOT_NOT_ENOUGH);
+             }
+ 
++            // Redis 设置重复挂号键（在锁内设置，防止并发请求绕过检查）
++            long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
++            if (ttlSeconds > 0) {
++                stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
++            }
++
+         } catch (InterruptedException e) {
+             Thread.currentThread().interrupt();
+             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "挂号操作被中断");
+@@ -198,13 +204,7 @@ public class AppointmentService {
+             throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR, "支付服务暂不可用，请稍后重试");
+         }
+ 
+-        // ========== 第7步：Redis 设置重复挂号键 ==========
+-        long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
+-        if (ttlSeconds > 0) {
+-            stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
+-        }
+-
+-        // ========== 第8步：组装返回 ==========
++        // ========== 第7步：组装返回 ==========
+         return buildVO(appointment, doctor, dept, slot, paymentOrderId, paymentOrderNo);
+     }
+ 
+@@ -212,49 +212,71 @@ public class AppointmentService {
+      * 取消预约
+      * <p>
+      * 仅允许取消 PENDING_PAY 或 PAID 状态的预约。
+-     * 取消后释放号源，若已支付则触发退款。
++     * 使用 Redisson 分布式锁保证并发安全，在锁内重新读取预约状态，
++     * 取消后根据实际状态释放号源或触发退款。
+      *
+      * @param appointmentId 预约 ID
+      * @param reason        取消原因
+      */
+     @Transactional(rollbackFor = Exception.class)
+     public void cancel(Long appointmentId, String reason) {
+-        Appointment appointment = appointmentMapper.selectById(appointmentId);
+-        if (appointment == null) {
+-            throw new BusinessException(ErrorCodeEnum.APPOINTMENT_NOT_FOUND);
+-        }
+-
+-        String status = appointment.getOrderStatus();
+-        if ("CANCELLED".equals(status) || "REFUNDED".equals(status) || "TIMEOUT".equals(status)) {
+-            throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约已取消或已过期");
+-        }
++        String lockKey = APPOINTMENT_LOCK_KEY_PREFIX + appointmentId;
++        RLock lock = redissonClient.getLock(lockKey);
++        boolean locked = false;
++        try {
++            locked = lock.tryLock(5, 10, TimeUnit.SECONDS);
++            if (!locked) {
++                throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "系统繁忙，请稍后重试");
++            }
+ 
+-        // 取消预约（SQL 层面也做状态守卫，双重保险）
+-        int rows = appointmentMapper.cancel(appointmentId, "CANCELLED", reason);
+-        if (rows == 0) {
+-            throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约状态已变更，请刷新重试");
+-        }
+-        log.info("[挂号] 预约已取消: appointmentId={}, reason={}", appointmentId, reason);
++            // 在锁内重新读取预约，保证状态最新
++            Appointment appointment = appointmentMapper.selectById(appointmentId);
++            if (appointment == null) {
++                throw new BusinessException(ErrorCodeEnum.APPOINTMENT_NOT_FOUND);
++            }
+ 
+-        // PENDING_PAY：直接释放号源
+-        // PAID：由 payment-service 退款回调统一释放号源
+-        if ("PENDING_PAY".equals(status)) {
+-            slotService.releaseSlot(appointment.getSlotId());
+-        }
++            String status = appointment.getOrderStatus();
++            if ("CANCELLED".equals(status) || "REFUNDED".equals(status) || "TIMEOUT".equals(status)) {
++                throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约已取消或已过期");
++            }
+ 
+-        // 清除重复挂号键
+-        String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
+-        stringRedisTemplate.delete(repeatKey);
++            // 取消预约（传入预期状态，防止竞态覆盖）
++            int rows = appointmentMapper.cancel(appointmentId, "CANCELLED", reason, status);
++            if (rows == 0) {
++                throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约状态已变更，请刷新重试");
++            }
++            log.info("[挂号] 预约已取消: appointmentId={}, reason={}", appointmentId, reason);
++
++            // PENDING_PAY：读取号源版本号后乐观锁释放
++            // PAID：由 payment-service 退款回调统一释放号源
++            if ("PENDING_PAY".equals(status)) {
++                Slot slot = slotMapper.selectById(appointment.getSlotId());
++                if (slot != null && "BOOKED".equals(slot.getStatus())) {
++                    slotService.releaseSlot(appointment.getSlotId(), slot.getVersion());
++                }
++            }
+ 
+-        // 如果已支付，调用 payment 退款（payment 内部会回调 release-slot）
+-        if ("PAID".equals(status)) {
+-            Map<String, Object> refundDTO = new HashMap<>();
+-            refundDTO.put("appointmentId", appointmentId);
+-            refundDTO.put("refundReason", reason != null ? reason : "患者取消预约");
+-            refundDTO.put("refundType", "PATIENT_CANCEL");
+-            // 退款失败则抛异常回滚，保证数据一致性
+-            paymentFeignClient.refund(refundDTO);
+-            log.info("[挂号] 已触发退款: appointmentId={}", appointmentId);
++            // 清除重复挂号键
++            String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
++            stringRedisTemplate.delete(repeatKey);
++
++            // 如果已支付，调用 payment 退款（payment 内部会回调 release-slot）
++            if ("PAID".equals(status)) {
++                Map<String, Object> refundDTO = new HashMap<>();
++                refundDTO.put("appointmentId", appointmentId);
++                refundDTO.put("refundReason", reason != null ? reason : "患者取消预约");
++                refundDTO.put("refundType", "PATIENT_CANCEL");
++                // 退款失败则抛异常回滚，保证数据一致性
++                paymentFeignClient.refund(refundDTO);
++                log.info("[挂号] 已触发退款: appointmentId={}", appointmentId);
++            }
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "取消预约操作被中断");
++        } finally {
++            if (locked && lock.isHeldByCurrentThread()) {
++                lock.unlock();
++            }
+         }
+     }
+ 
+@@ -318,7 +340,11 @@ public class AppointmentService {
+             log.info("[挂号] 号源释放跳过（已被支付或已取消）: appointmentId={}", appointmentId);
+             return;
+         }
+-        slotService.releaseSlot(appointment.getSlotId());
++        // 读取号源版本号，乐观锁释放
++        Slot slot = slotMapper.selectById(appointment.getSlotId());
++        if (slot != null && "BOOKED".equals(slot.getStatus())) {
++            slotService.releaseSlot(appointment.getSlotId(), slot.getVersion());
++        }
+         String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
+         stringRedisTemplate.delete(repeatKey);
+         log.info("[挂号] 超时关单，号源已释放: appointmentId={}", appointmentId);
+@@ -362,29 +388,29 @@ public class AppointmentService {
+      */
+     private AppointmentVO buildVO(Appointment a, Doctor doctor, Department dept, Slot slot,
+                                   Long paymentOrderId, String paymentOrderNo) {
+-        return AppointmentVO.builder()
+-                .id(a.getId())
+-                .appointmentNo(a.getAppointmentNo())
+-                .patientId(a.getPatientId())
+-                .slotId(a.getSlotId())
+-                .scheduleId(a.getScheduleId())
+-                .doctorId(a.getDoctorId())
+-                .doctorName(doctor != null ? doctor.getName() : null)
+-                .doctorTitle(doctor != null ? doctor.getTitle() : null)
+-                .departmentId(a.getDepartmentId())
+-                .departmentName(dept != null ? dept.getDeptName() : null)
+-                .appointmentDate(a.getAppointmentDate())
+-                .period(a.getPeriod())
+-                .slotSeq(a.getSlotSeq())
+-                .slotStart(slot.getSlotStart())
+-                .slotEnd(slot.getSlotEnd())
+-                .registerFee(a.getRegisterFee())
+-                .orderStatus(a.getOrderStatus())
+-                .visitStatus(a.getVisitStatus())
+-                .paymentOrderId(paymentOrderId)
+-                .paymentOrderNo(paymentOrderNo)
+-                .createTime(a.getCreateTime())
+-                .updateTime(a.getUpdateTime())
+-                .build();
++        AppointmentVO vo = new AppointmentVO();
++        vo.setId(a.getId());
++        vo.setAppointmentNo(a.getAppointmentNo());
++        vo.setPatientId(a.getPatientId());
++        vo.setSlotId(a.getSlotId());
++        vo.setScheduleId(a.getScheduleId());
++        vo.setDoctorId(a.getDoctorId());
++        vo.setDoctorName(doctor != null ? doctor.getName() : null);
++        vo.setDoctorTitle(doctor != null ? doctor.getTitle() : null);
++        vo.setDepartmentId(a.getDepartmentId());
++        vo.setDepartmentName(dept != null ? dept.getDeptName() : null);
++        vo.setAppointmentDate(a.getAppointmentDate());
++        vo.setPeriod(a.getPeriod());
++        vo.setSlotSeq(a.getSlotSeq());
++        vo.setSlotStart(slot.getSlotStart());
++        vo.setSlotEnd(slot.getSlotEnd());
++        vo.setRegisterFee(a.getRegisterFee());
++        vo.setOrderStatus(a.getOrderStatus());
++        vo.setVisitStatus(a.getVisitStatus());
++        vo.setPaymentOrderId(paymentOrderId);
++        vo.setPaymentOrderNo(paymentOrderNo);
++        vo.setCreateTime(a.getCreateTime());
++        vo.setUpdateTime(a.getUpdateTime());
++        return vo;
+     }
+ }
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/service/ScheduleService.java b/hospital-clinic/src/main/java/com/hospital/clinic/service/ScheduleService.java
+index 04ea4c6..1e1b98c 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/service/ScheduleService.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/service/ScheduleService.java
+@@ -4,9 +4,11 @@ import com.hospital.clinic.dto.ScheduleCreateDTO;
+ import com.hospital.clinic.entity.Department;
+ import com.hospital.clinic.entity.Doctor;
+ import com.hospital.clinic.entity.Schedule;
++import com.hospital.clinic.mapper.AppointmentMapper;
+ import com.hospital.clinic.mapper.DepartmentMapper;
+ import com.hospital.clinic.mapper.DoctorMapper;
+ import com.hospital.clinic.mapper.ScheduleMapper;
++import com.hospital.clinic.mapper.SlotMapper;
+ import com.hospital.clinic.vo.ScheduleVO;
+ import com.hospital.common.exception.BusinessException;
+ import com.hospital.common.exception.ErrorCodeEnum;
+@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
+ import java.math.BigDecimal;
+ import java.time.LocalDate;
+ import java.util.List;
++import java.util.Map;
+ import java.util.stream.Collectors;
+ 
+ /**
+@@ -31,6 +34,8 @@ public class ScheduleService {
+     private final ScheduleMapper scheduleMapper;
+     private final DoctorMapper doctorMapper;
+     private final DepartmentMapper departmentMapper;
++    private final SlotMapper slotMapper;
++    private final AppointmentMapper appointmentMapper;
+     private final SlotService slotService;
+ 
+     /**
+@@ -85,14 +90,25 @@ public class ScheduleService {
+     }
+ 
+     /**
+-     * 排班日历视图（按科室+日期范围查询）
++     * 排班日历视图（按科室+日期范围查询，批量加载避免 N+1）
+      */
+     public List<ScheduleVO> calendar(Long departmentId, LocalDate startDate, LocalDate endDate) {
+         List<Schedule> schedules = scheduleMapper.selectByDeptAndDateRange(
+                 departmentId, startDate, endDate);
++        if (schedules.isEmpty()) {
++            return List.of();
++        }
++
++        // 批量加载医生（同一个科室下的所有医生）
++        List<Doctor> deptDoctors = doctorMapper.selectByDepartmentId(departmentId);
++        Map<Long, Doctor> doctorMap = deptDoctors.stream()
++                .collect(Collectors.toMap(Doctor::getId, d -> d));
++
++        // 科室只加载一次
++        Department dept = departmentMapper.selectById(departmentId);
++
+         return schedules.stream().map(s -> {
+-            Doctor doctor = doctorMapper.selectById(s.getDoctorId());
+-            Department dept = departmentMapper.selectById(s.getDepartmentId());
++            Doctor doctor = doctorMap.get(s.getDoctorId());
+             int availableSlots = slotService.countAvailableSlots(s.getId());
+             return toVO(s, doctor, dept, availableSlots);
+         }).collect(Collectors.toList());
+@@ -113,7 +129,7 @@ public class ScheduleService {
+     }
+ 
+     /**
+-     * 取消排班
++     * 取消排班（级联取消关联号源和待支付预约）
+      */
+     @Transactional(rollbackFor = Exception.class)
+     public void cancel(Long id) {
+@@ -122,7 +138,16 @@ public class ScheduleService {
+             throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
+         }
+         scheduleMapper.updateStatus(id, 0);
+-        log.info("[排班] 排班已取消: id={}", id);
++
++        // 级联取消：将该排班下所有可用/已约号源标记为已取消
++        slotMapper.updateStatusByScheduleId(id, "CANCELLED");
++
++        // 级联取消：将该排班下所有待支付的预约标记为已取消
++        appointmentMapper.cancelPendingPayByScheduleId(id, "排班已取消");
++
++        // TODO: 迭代2 — 通知已预约的患者（PAID 状态的预约需要退款处理）
++
++        log.info("[排班] 排班已取消（级联处理完成）: id={}", id);
+     }
+ 
+     // ==================== 实体 → VO 转换 ====================
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/service/SlotService.java b/hospital-clinic/src/main/java/com/hospital/clinic/service/SlotService.java
+index 8d37d46..5089f80 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/service/SlotService.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/service/SlotService.java
+@@ -17,8 +17,7 @@ import org.springframework.stereotype.Service;
+ 
+ import java.time.LocalDate;
+ import java.time.LocalTime;
+-import java.util.ArrayList;
+-import java.util.List;
++import java.util.*;
+ import java.util.stream.Collectors;
+ 
+ /**
+@@ -81,14 +80,32 @@ public class SlotService {
+     }
+ 
+     /**
+-     * 按科室+日期查询可用号源
++     * 按科室+日期查询可用号源（批量加载避免 N+1）
+      */
+     public List<SlotVO> listAvailable(Long departmentId, LocalDate date) {
+         List<Slot> slots = slotMapper.selectAvailableByDeptAndDate(departmentId, date);
++        if (slots.isEmpty()) {
++            return List.of();
++        }
++
++        // 批量加载所有关联的排班
++        Set<Long> scheduleIds = slots.stream().map(Slot::getScheduleId).collect(Collectors.toSet());
++        List<Schedule> schedules = scheduleMapper.selectByIds(new ArrayList<>(scheduleIds));
++        Map<Long, Schedule> scheduleMap = schedules.stream()
++                .collect(Collectors.toMap(Schedule::getId, s -> s));
++
++        // 批量加载所有关联的医生
++        Set<Long> doctorIds = schedules.stream().map(Schedule::getDoctorId).collect(Collectors.toSet());
++        List<Doctor> doctors = doctorMapper.selectByIds(new ArrayList<>(doctorIds));
++        Map<Long, Doctor> doctorMap = doctors.stream()
++                .collect(Collectors.toMap(Doctor::getId, d -> d));
++
++        // 科室只加载一次（同一科室下所有排班共享）
++        Department dept = departmentMapper.selectById(departmentId);
++
+         return slots.stream().map(s -> {
+-            Schedule schedule = scheduleMapper.selectById(s.getScheduleId());
+-            Doctor doctor = schedule != null ? doctorMapper.selectById(schedule.getDoctorId()) : null;
+-            Department dept = departmentMapper.selectById(departmentId);
++            Schedule schedule = scheduleMap.get(s.getScheduleId());
++            Doctor doctor = schedule != null ? doctorMap.get(schedule.getDoctorId()) : null;
+             return toVO(s, schedule, doctor, dept);
+         }).collect(Collectors.toList());
+     }
+@@ -97,7 +114,7 @@ public class SlotService {
+      * 查询某排班剩余可用号源数
+      */
+     public int countAvailableSlots(Long scheduleId) {
+-        return slotMapper.selectAvailableBySchedule(scheduleId).size();
++        return slotMapper.countAvailableBySchedule(scheduleId);
+     }
+ 
+     // ==================== 内部方法 ====================
+@@ -111,11 +128,15 @@ public class SlotService {
+     }
+ 
+     /**
+-     * 释放号源
++     * 释放号源（带版本号乐观锁，防止重复释放）
+      */
+-    public void releaseSlot(Long slotId) {
+-        slotMapper.releaseSlot(slotId);
+-        log.info("[号源] 号源已释放: slotId={}", slotId);
++    public void releaseSlot(Long slotId, Integer version) {
++        int rows = slotMapper.releaseSlot(slotId, version);
++        if (rows == 0) {
++            log.warn("[号源] 号源释放失败（版本不匹配或状态异常）: slotId={}, version={}", slotId, version);
++        } else {
++            log.info("[号源] 号源已释放: slotId={}, version={}", slotId, version);
++        }
+     }
+ 
+     // ==================== 实体 → VO 转换 ====================
+diff --git a/hospital-clinic/src/main/java/com/hospital/clinic/vo/AppointmentVO.java b/hospital-clinic/src/main/java/com/hospital/clinic/vo/AppointmentVO.java
+index 9cc9f8a..088cde7 100644
+--- a/hospital-clinic/src/main/java/com/hospital/clinic/vo/AppointmentVO.java
++++ b/hospital-clinic/src/main/java/com/hospital/clinic/vo/AppointmentVO.java
+@@ -1,7 +1,8 @@
+ package com.hospital.clinic.vo;
+ 
+-import lombok.Builder;
++import lombok.AllArgsConstructor;
+ import lombok.Data;
++import lombok.NoArgsConstructor;
+ 
+ import java.math.BigDecimal;
+ import java.time.LocalDate;
+@@ -12,7 +13,8 @@ import java.time.LocalTime;
+  * 预约订单 VO
+  */
+ @Data
+-@Builder
++@NoArgsConstructor
++@AllArgsConstructor
+ public class AppointmentVO {
+ 
+     private Long id;
+diff --git a/hospital-clinic/src/main/resources/mapper/AppointmentMapper.xml b/hospital-clinic/src/main/resources/mapper/AppointmentMapper.xml
+index 3b7af9b..ba65b2e 100644
+--- a/hospital-clinic/src/main/resources/mapper/AppointmentMapper.xml
++++ b/hospital-clinic/src/main/resources/mapper/AppointmentMapper.xml
+@@ -142,7 +142,18 @@
+                                cancel_time = NOW(),
+                                update_time = NOW()
+         WHERE id = #{id}
+-          AND order_status NOT IN ('CANCELLED', 'REFUNDED', 'TIMEOUT')
++          AND order_status = #{expectedStatus}
++    </update>
++
++    <update id="cancelPendingPayByScheduleId">
++        UPDATE appointment a
++        INNER JOIN slot s ON a.slot_id = s.id
++        SET a.order_status = 'CANCELLED',
++            a.cancel_reason = #{cancelReason},
++            a.cancel_time = NOW(),
++            a.update_time = NOW()
++        WHERE s.schedule_id = #{scheduleId}
++          AND a.order_status = 'PENDING_PAY'
+     </update>
+ 
+ </mapper>
+diff --git a/hospital-clinic/src/main/resources/mapper/DoctorMapper.xml b/hospital-clinic/src/main/resources/mapper/DoctorMapper.xml
+index c746887..f0488a0 100644
+--- a/hospital-clinic/src/main/resources/mapper/DoctorMapper.xml
++++ b/hospital-clinic/src/main/resources/mapper/DoctorMapper.xml
+@@ -59,6 +59,26 @@
+         WHERE user_id = #{userId}
+     </select>
+ 
++    <select id="selectByDepartmentId" resultMap="BaseResultMap">
++        SELECT id, user_id, name, gender, phone, department_id, title,
++               specialty, introduction, status, create_time, update_time
++        FROM doctor
++        WHERE department_id = #{departmentId}
++          AND status = 1
++        ORDER BY id ASC
++    </select>
++
++    <select id="selectByIds" resultMap="BaseResultMap">
++        SELECT id, user_id, name, gender, phone, department_id, title,
++               specialty, introduction, status, create_time, update_time
++        FROM doctor
++        WHERE id IN
++        <foreach collection="ids" item="item" open="(" separator="," close=")">
++            #{item}
++        </foreach>
++        ORDER BY id ASC
++    </select>
++
+     <insert id="insert" parameterType="com.hospital.clinic.entity.Doctor"
+             useGeneratedKeys="true" keyProperty="id">
+         INSERT INTO doctor (user_id, name, gender, phone, department_id, title,
+diff --git a/hospital-clinic/src/main/resources/mapper/ScheduleMapper.xml b/hospital-clinic/src/main/resources/mapper/ScheduleMapper.xml
+index e0adb81..50a2981 100644
+--- a/hospital-clinic/src/main/resources/mapper/ScheduleMapper.xml
++++ b/hospital-clinic/src/main/resources/mapper/ScheduleMapper.xml
+@@ -58,6 +58,18 @@
+           AND period = #{period}
+     </select>
+ 
++    <select id="selectByIds" resultMap="BaseResultMap">
++        SELECT id, doctor_id, department_id, schedule_date, period,
++               period_start, period_end, total_slots, slot_duration,
++               register_fee, status, create_time, update_time
++        FROM schedule
++        WHERE id IN
++        <foreach collection="ids" item="item" open="(" separator="," close=")">
++            #{item}
++        </foreach>
++        ORDER BY id ASC
++    </select>
++
+     <update id="updateStatus">
+         UPDATE schedule SET status = #{status}, update_time = NOW()
+         WHERE id = #{id}
+diff --git a/hospital-clinic/src/main/resources/mapper/SlotMapper.xml b/hospital-clinic/src/main/resources/mapper/SlotMapper.xml
+index cee3e59..d23420f 100644
+--- a/hospital-clinic/src/main/resources/mapper/SlotMapper.xml
++++ b/hospital-clinic/src/main/resources/mapper/SlotMapper.xml
+@@ -56,10 +56,24 @@
+           AND version = #{version}
+     </update>
+ 
++    <select id="countAvailableBySchedule" resultType="int">
++        SELECT COUNT(*)
++        FROM slot
++        WHERE schedule_id = #{scheduleId}
++          AND status = 'AVAILABLE'
++    </select>
++
+     <update id="releaseSlot">
+-        UPDATE slot SET status = 'AVAILABLE', update_time = NOW()
++        UPDATE slot SET status = 'AVAILABLE', version = version + 1, update_time = NOW()
+         WHERE id = #{id}
+           AND status = 'BOOKED'
++          AND version = #{version}
++    </update>
++
++    <update id="updateStatusByScheduleId">
++        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
++        WHERE schedule_id = #{scheduleId}
++          AND status IN ('AVAILABLE', 'BOOKED')
+     </update>
+ 
+ </mapper>
+diff --git a/hospital-clinic/src/test/java/com/hospital/clinic/service/AppointmentServiceTest.java b/hospital-clinic/src/test/java/com/hospital/clinic/service/AppointmentServiceTest.java
+index 512cc19..95204e1 100644
+--- a/hospital-clinic/src/test/java/com/hospital/clinic/service/AppointmentServiceTest.java
++++ b/hospital-clinic/src/test/java/com/hospital/clinic/service/AppointmentServiceTest.java
+@@ -219,12 +219,17 @@ class AppointmentServiceTest {
+         appointment.setOrderStatus("PENDING_PAY");
+ 
+         when(appointmentMapper.selectById(appointmentId)).thenReturn(appointment);
+-        when(appointmentMapper.cancel(anyLong(), anyString(), anyString())).thenReturn(1);
++        Slot bookedSlot = new Slot();
++        bookedSlot.setId(1L);
++        bookedSlot.setStatus("BOOKED");
++        bookedSlot.setVersion(0);
++        when(slotMapper.selectById(1L)).thenReturn(bookedSlot);
++        when(appointmentMapper.cancel(anyLong(), anyString(), anyString(), anyString())).thenReturn(1);
+ 
+         appointmentService.cancel(appointmentId, "行程变动");
+ 
+-        verify(appointmentMapper, times(1)).cancel(eq(appointmentId), eq("CANCELLED"), eq("行程变动"));
+-        verify(slotService, times(1)).releaseSlot(1L);
++        verify(appointmentMapper, times(1)).cancel(eq(appointmentId), eq("CANCELLED"), eq("行程变动"), eq("PENDING_PAY"));
++        verify(slotService, times(1)).releaseSlot(eq(1L), anyInt());
+     }
+ 
+     // ==================== 取消预约（已取消状态幂等拒绝） ====================
+@@ -239,7 +244,7 @@ class AppointmentServiceTest {
+         when(appointmentMapper.selectById(appointmentId)).thenReturn(appointment);
+ 
+         assertThrows(BusinessException.class, () -> appointmentService.cancel(appointmentId, "重复取消"));
+-        verify(appointmentMapper, never()).cancel(anyLong(), anyString(), anyString());
++        verify(appointmentMapper, never()).cancel(anyLong(), anyString(), anyString(), anyString());
+     }
+ 
+     // ==================== 取消预约（SQL 状态守卫返回 0） ====================
+@@ -256,7 +261,7 @@ class AppointmentServiceTest {
+ 
+         when(appointmentMapper.selectById(appointmentId)).thenReturn(appointment);
+         // SQL 守卫返回 0（状态已被其他线程变更）
+-        when(appointmentMapper.cancel(anyLong(), anyString(), anyString())).thenReturn(0);
++        when(appointmentMapper.cancel(anyLong(), anyString(), anyString(), anyString())).thenReturn(0);
+ 
+         assertThrows(BusinessException.class, () -> appointmentService.cancel(appointmentId, "行程变动"));
+     }
+diff --git a/hospital-common/src/main/java/com/hospital/common/config/WebMvcConfig.java b/hospital-common/src/main/java/com/hospital/common/config/WebMvcConfig.java
+index 8df76aa..124dad3 100644
+--- a/hospital-common/src/main/java/com/hospital/common/config/WebMvcConfig.java
++++ b/hospital-common/src/main/java/com/hospital/common/config/WebMvcConfig.java
+@@ -27,7 +27,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
+                 .excludePathPatterns(
+                         "/api/auth/register",
+                         "/api/auth/login",
+-                        "/api/patient/internal/**"   // Feign 内部调用不需要 Header
++                        "/api/patient/internal/**",   // Feign 内部调用不需要 Header
++                        "/api/payment/internal/**",   // Feign 内部调用不需要 Header
++                        "/api/clinic/internal/**"     // Feign 内部调用不需要 Header
+                 );
+     }
+ }
+diff --git a/hospital-common/src/main/java/com/hospital/common/dto/PageDTO.java b/hospital-common/src/main/java/com/hospital/common/dto/PageDTO.java
+index 20d67a8..97ab767 100644
+--- a/hospital-common/src/main/java/com/hospital/common/dto/PageDTO.java
++++ b/hospital-common/src/main/java/com/hospital/common/dto/PageDTO.java
+@@ -27,7 +27,11 @@ public class PageDTO implements Serializable {
+     public Integer getOffset() {
+         int no = (pageNo == null || pageNo < 1) ? 1 : pageNo;
+         int size = getEffectivePageSize();
+-        return (no - 1) * size;
++        long offset = (long) (no - 1) * size;
++        if (offset > Integer.MAX_VALUE) {
++            offset = Integer.MAX_VALUE;
++        }
++        return (int) offset;
+     }
+ 
+     /**
+diff --git a/hospital-common/src/main/java/com/hospital/common/exception/ErrorCodeEnum.java b/hospital-common/src/main/java/com/hospital/common/exception/ErrorCodeEnum.java
+index 68954e7..e8d0093 100644
+--- a/hospital-common/src/main/java/com/hospital/common/exception/ErrorCodeEnum.java
++++ b/hospital-common/src/main/java/com/hospital/common/exception/ErrorCodeEnum.java
+@@ -27,7 +27,7 @@ public enum ErrorCodeEnum {
+     NOT_LOGIN(1004, "未登录或令牌已过期"),
+     TOKEN_EXPIRED(1005, "令牌已过期"),
+     TOKEN_INVALID(1006, "令牌无效"),
+-    TOKEN_BLACKLISTED(1007, "令牌已失效"),
++    TOKEN_BLACKLISTED(1007, "令牌已失效"), // 用于网关 JwtAuthFilter 检查 Redis 黑名单后返回
+     RESOURCE_NOT_FOUND(1008, "资源不存在"),
+     DUPLICATE_OPERATION(1009, "请勿重复操作"),
+     RATE_LIMIT_EXCEEDED(1010, "请求过于频繁，请稍后重试"),
+diff --git a/hospital-common/src/main/java/com/hospital/common/exception/GlobalExceptionHandler.java b/hospital-common/src/main/java/com/hospital/common/exception/GlobalExceptionHandler.java
+index 01c0487..f1005c1 100644
+--- a/hospital-common/src/main/java/com/hospital/common/exception/GlobalExceptionHandler.java
++++ b/hospital-common/src/main/java/com/hospital/common/exception/GlobalExceptionHandler.java
+@@ -3,12 +3,20 @@ package com.hospital.common.exception;
+ import com.hospital.common.result.Result;
+ import feign.FeignException;
+ import jakarta.servlet.http.HttpServletRequest;
++import jakarta.validation.ConstraintViolationException;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.converter.HttpMessageNotReadableException;
++import org.springframework.web.HttpRequestMethodNotSupportedException;
+ import org.springframework.web.bind.MethodArgumentNotValidException;
++import org.springframework.web.bind.MissingServletRequestParameterException;
++import org.springframework.validation.BindException;
+ import org.springframework.web.bind.annotation.ExceptionHandler;
++import org.springframework.web.bind.annotation.ResponseStatus;
+ import org.springframework.web.bind.annotation.RestControllerAdvice;
+ 
++import java.util.Objects;
+ import java.util.stream.Collectors;
+ 
+ /**
+@@ -36,14 +44,81 @@ public class GlobalExceptionHandler {
+     @ExceptionHandler(MethodArgumentNotValidException.class)
+     public Result<Void> handleValidation(MethodArgumentNotValidException e, HttpServletRequest request) {
+         String detail = e.getBindingResult().getFieldErrors().stream()
+-                .map(f -> f.getField() + ":" + f.getDefaultMessage())
++                .map(f -> f.getField() + ":" + Objects.toString(f.getDefaultMessage(), ""))
+                 .collect(Collectors.joining("; "));
+         log.warn("[参数校验失败] uri={}, detail={}", request.getRequestURI(), detail);
+         return Result.fail(ErrorCodeEnum.PARAM_ERROR.getCode(), detail);
+     }
+ 
+     /**
+-     * Feign 远程调用异常
++     * 请求体格式错误（如 JSON 解析失败）
++     */
++    @ExceptionHandler(HttpMessageNotReadableException.class)
++    public Result<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException e, HttpServletRequest request) {
++        log.warn("[请求体格式错误] uri={}, message={}", request.getRequestURI(), e.getMessage());
++        return Result.fail(ErrorCodeEnum.PARAM_ERROR);
++    }
++
++    /**
++     * 缺少必填请求参数
++     */
++    @ExceptionHandler(MissingServletRequestParameterException.class)
++    public Result<Void> handleMissingParam(MissingServletRequestParameterException e, HttpServletRequest request) {
++        log.warn("[缺少请求参数] uri={}, param={}", request.getRequestURI(), e.getParameterName());
++        return Result.fail(ErrorCodeEnum.PARAM_MISSING);
++    }
++
++    /**
++     * 参数绑定异常（表单提交）
++     */
++    @ExceptionHandler(BindException.class)
++    public Result<Void> handleBindException(BindException e, HttpServletRequest request) {
++        String detail = e.getFieldErrors().stream()
++                .map(f -> f.getField() + ":" + Objects.toString(f.getDefaultMessage(), ""))
++                .collect(Collectors.joining("; "));
++        log.warn("[参数绑定失败] uri={}, detail={}", request.getRequestURI(), detail);
++        return Result.fail(ErrorCodeEnum.PARAM_ERROR.getCode(), detail);
++    }
++
++    /**
++     * 请求方法不支持
++     */
++    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
++    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
++    public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
++        log.warn("[请求方法不支持] uri={}, method={}", request.getRequestURI(), e.getMethod());
++        return Result.fail(405, "请求方法不支持");
++    }
++
++    /**
++     * 参数违规异常（如 @RequestParam 校验失败）
++     */
++    @ExceptionHandler(ConstraintViolationException.class)
++    public Result<Void> handleConstraintViolation(ConstraintViolationException e, HttpServletRequest request) {
++        log.warn("[参数违规] uri={}, message={}", request.getRequestURI(), e.getMessage());
++        return Result.fail(ErrorCodeEnum.PARAM_ERROR);
++    }
++
++    /**
++     * Feign 远程调用异常 — 4xx 客户端错误
++     */
++    @ExceptionHandler(FeignException.FeignClientException.class)
++    public Result<Void> handleFeignClientException(FeignException.FeignClientException e, HttpServletRequest request) {
++        log.warn("[远程调用失败-客户端错误] uri={}, status={}, message={}", request.getRequestURI(), e.status(), e.getMessage());
++        return Result.fail(ErrorCodeEnum.REMOTE_SERVICE_ERROR);
++    }
++
++    /**
++     * Feign 远程调用异常 — 5xx 服务端错误
++     */
++    @ExceptionHandler(FeignException.FeignServerException.class)
++    public Result<Void> handleFeignServerException(FeignException.FeignServerException e, HttpServletRequest request) {
++        log.error("[远程调用失败-服务端错误] uri={}, status={}, message={}", request.getRequestURI(), e.status(), e.getMessage());
++        return Result.fail(ErrorCodeEnum.REMOTE_SERVICE_ERROR);
++    }
++
++    /**
++     * Feign 远程调用异常 — 其他（无状态或网络异常）
+      */
+     @ExceptionHandler(FeignException.class)
+     public Result<Void> handleFeignException(FeignException e, HttpServletRequest request) {
+diff --git a/hospital-common/src/main/java/com/hospital/common/interceptor/AuthInterceptor.java b/hospital-common/src/main/java/com/hospital/common/interceptor/AuthInterceptor.java
+index 6748c51..2e891f4 100644
+--- a/hospital-common/src/main/java/com/hospital/common/interceptor/AuthInterceptor.java
++++ b/hospital-common/src/main/java/com/hospital/common/interceptor/AuthInterceptor.java
+@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
+ import org.springframework.web.servlet.HandlerInterceptor;
+ 
+ import java.nio.charset.StandardCharsets;
+-import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.List;
++import java.util.stream.Collectors;
+ 
+ /**
+  * 认证拦截器（仅 Servlet MVC 应用激活，Gateway 不加载）。
+@@ -48,11 +48,23 @@ public class AuthInterceptor implements HandlerInterceptor {
+             return false;
+         }
+ 
+-        UserContext.setUserId(Long.valueOf(userId));
++        try {
++            UserContext.setUserId(Long.valueOf(userId));
++        } catch (NumberFormatException e) {
++            log.warn("[认证拦截] 无效的用户ID格式, uri={}, userId={}", request.getRequestURI(), userId);
++            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
++            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
++            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
++            Result<Void> result = Result.fail(ErrorCodeEnum.NOT_LOGIN);
++            response.getWriter().write(MAPPER.writeValueAsString(result));
++            return false;
++        }
+ 
+         List<String> roleList;
+         if (roles != null && !roles.isBlank()) {
+-            roleList = Arrays.asList(roles.split(","));
++            roleList = java.util.Arrays.stream(roles.split(","))
++                    .map(String::trim)
++                    .collect(Collectors.toList());
+         } else {
+             roleList = Collections.emptyList();
+         }
+diff --git a/hospital-common/src/main/java/com/hospital/common/util/JwtUtil.java b/hospital-common/src/main/java/com/hospital/common/util/JwtUtil.java
+index 2069434..3afab20 100644
+--- a/hospital-common/src/main/java/com/hospital/common/util/JwtUtil.java
++++ b/hospital-common/src/main/java/com/hospital/common/util/JwtUtil.java
+@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
+ import java.util.Collections;
+ import java.util.Date;
+ import java.util.List;
++import java.util.UUID;
+ 
+ /**
+  * JWT 工具类
+@@ -57,6 +58,7 @@ public class JwtUtil {
+         Date now = new Date();
+         Date expireDate = new Date(now.getTime() + expiration * 1000);
+         return Jwts.builder()
++                .id(UUID.randomUUID().toString())
+                 .subject(String.valueOf(userId))
+                 .claim("roles", roles != null ? roles : Collections.emptyList())
+                 .issuedAt(now)
+@@ -90,9 +92,25 @@ public class JwtUtil {
+     /**
+      * 从 Token 中提取角色列表
+      */
+-    @SuppressWarnings("unchecked")
+     public List<String> getRoles(String token) {
+-        return parse(token).get("roles", List.class);
++        try {
++            List<?> rawList = parse(token).get("roles", List.class);
++            if (rawList == null) {
++                return Collections.emptyList();
++            }
++            for (Object o : rawList) {
++                if (!(o instanceof String)) {
++                    log.warn("[JWT] roles 中包含非 String 元素, 拒绝解析");
++                    return Collections.emptyList();
++                }
++            }
++            @SuppressWarnings("unchecked")
++            List<String> roles = (List<String>) rawList;
++            return roles;
++        } catch (Exception e) {
++            log.warn("[JWT] roles 解析异常: {}", e.getMessage());
++            return Collections.emptyList();
++        }
+     }
+ 
+     /**
+diff --git a/hospital-gateway/src/main/java/com/hospital/gateway/filter/JwtAuthFilter.java b/hospital-gateway/src/main/java/com/hospital/gateway/filter/JwtAuthFilter.java
+index 050e888..f1b3f4a 100644
+--- a/hospital-gateway/src/main/java/com/hospital/gateway/filter/JwtAuthFilter.java
++++ b/hospital-gateway/src/main/java/com/hospital/gateway/filter/JwtAuthFilter.java
+@@ -22,8 +22,8 @@ import org.springframework.web.server.WebFilter;
+ import org.springframework.web.server.WebFilterChain;
+ import reactor.core.publisher.Mono;
+ 
++import org.springframework.util.AntPathMatcher;
+ import java.nio.charset.StandardCharsets;
+-import java.util.Arrays;
+ import java.util.List;
+ 
+ /**
+@@ -44,6 +44,7 @@ public class JwtAuthFilter implements WebFilter, Ordered {
+     private final JwtUtil jwtUtil;
+     private final ReactiveStringRedisTemplate redisTemplate;
+     private final ObjectMapper objectMapper;
++    private final AntPathMatcher antPathMatcher = new AntPathMatcher();
+ 
+     /**
+      * JWT 白名单路径（逗号分隔）。
+@@ -85,6 +86,10 @@ public class JwtAuthFilter implements WebFilter, Ordered {
+ 
+         // ========== 4. Redis 黑名单校验（每个 token 独立 key） ==========
+         return redisTemplate.hasKey("token:blacklist:" + token)
++                .onErrorResume(e -> {
++                    log.warn("[JWT] Redis 不可用，黑名单校验跳过: {}", e.getMessage());
++                    return Mono.just(false);
++                })
+                 .flatMap(isBlacklisted -> {
+                     if (Boolean.TRUE.equals(isBlacklisted)) {
+                         log.warn("[JWT] Token 在黑名单中, path={}", path);
+@@ -93,6 +98,10 @@ public class JwtAuthFilter implements WebFilter, Ordered {
+ 
+                     // ========== 5. 注入用户信息 Header ==========
+                     Long userId = jwtUtil.getUserId(token);
++                    if (userId == null) {
++                        log.warn("[JWT] Token 中未包含用户ID, path={}", path);
++                        return writeUnauthorized(exchange, ErrorCodeEnum.TOKEN_INVALID);
++                    }
+                     List<String> roles = jwtUtil.getRoles(token);
+                     String rolesStr = (roles != null && !roles.isEmpty())
+                             ? String.join(",", roles)
+@@ -118,15 +127,9 @@ public class JwtAuthFilter implements WebFilter, Ordered {
+         if (whitelistStr == null || whitelistStr.isBlank()) {
+             return false;
+         }
+-        List<String> patterns = Arrays.asList(whitelistStr.split(","));
++        String[] patterns = whitelistStr.split(",");
+         for (String pattern : patterns) {
+-            String trimmed = pattern.trim();
+-            if (trimmed.endsWith("/**")) {
+-                String prefix = trimmed.substring(0, trimmed.length() - 3);
+-                if (path.startsWith(prefix)) {
+-                    return true;
+-                }
+-            } else if (path.equals(trimmed)) {
++            if (antPathMatcher.match(pattern.trim(), path)) {
+                 return true;
+             }
+         }
+@@ -144,8 +147,8 @@ public class JwtAuthFilter implements WebFilter, Ordered {
+         if (authHeader.startsWith("Bearer ")) {
+             return authHeader.substring(7).trim();
+         }
+-        // 兼容直接传 Token 的情况
+-        return authHeader.trim();
++        // 非 Bearer 格式直接视为无效
++        return null;
+     }
+ 
+     /**
+diff --git a/hospital-gateway/src/main/resources/application.yml b/hospital-gateway/src/main/resources/application.yml
+index 2c694c3..da9ecd9 100644
+--- a/hospital-gateway/src/main/resources/application.yml
++++ b/hospital-gateway/src/main/resources/application.yml
+@@ -48,23 +48,17 @@ spring:
+             allowedOriginPatterns: "*"
+             allowedMethods: "*"
+             allowedHeaders: "*"
+-            allowCredentials: true
++            allowCredentials: false  # 开发环境关闭凭据，避免与 allowedOriginPatterns:* 冲突
+             maxAge: 3600
+ 
+     # ==================== Sentinel 控制台 ====================
+     sentinel:
+       transport:
+-        dashboard: localhost:8080
++        dashboard: localhost:18080  # Sentinel 控制台地址，非网关自身端口，按实际部署配置
+         port: 8719
+       # 饥饿加载（避免首次访问慢）
+       eager: true
+-      # Sentinel Gateway 专用配置
+-      scg:
+-        fallback:
+-          mode: response
+-          response-status: 429
+-          response-body: '{"code":1010,"message":"请求过于频繁，请稍后重试","data":null,"timestamp":0}'
+-          content-type: application/json;charset=UTF-8
++      # Sentinel Gateway 专用配置（使用 Java 配置的 BlockRequestHandler，故注释 YAML fallback）
+ 
+ # ==================== 日志 ====================
+ logging:
+diff --git a/hospital-gateway/src/main/resources/bootstrap.yml b/hospital-gateway/src/main/resources/bootstrap.yml
+index cd936ee..b4a23d1 100644
+--- a/hospital-gateway/src/main/resources/bootstrap.yml
++++ b/hospital-gateway/src/main/resources/bootstrap.yml
+@@ -1,6 +1,6 @@
+ spring:
+   application:
+-    name: gateway
++    name: hospital-gateway
+   cloud:
+     nacos:
+       discovery:
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/controller/FileController.java b/hospital-patient/src/main/java/com/hospital/patient/controller/FileController.java
+index 8cd5c23..fc931c8 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/controller/FileController.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/controller/FileController.java
+@@ -1,6 +1,8 @@
+ package com.hospital.patient.controller;
+ 
+ import com.hospital.common.annotation.AuditLog;
++import com.hospital.common.exception.BusinessException;
++import com.hospital.common.exception.ErrorCodeEnum;
+ import com.hospital.common.result.Result;
+ import com.hospital.patient.service.FileService;
+ import lombok.RequiredArgsConstructor;
+@@ -11,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
+ import org.springframework.web.bind.annotation.RestController;
+ import org.springframework.web.multipart.MultipartFile;
+ 
++import java.util.Set;
++
+ /**
+  * 文件上传接口
+  */
+@@ -22,10 +26,28 @@ public class FileController {
+ 
+     private final FileService fileService;
+ 
++    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "pdf", "doc", "docx");
++    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024L; // 10MB
++
+     /** 上传文件（头像/证件等），返回访问 URL */
+     @AuditLog(value = "上传文件", operationType = "INSERT")
+     @PostMapping("/upload")
+     public Result<String> upload(@RequestParam("file") MultipartFile file) {
++        if (file == null || file.isEmpty()) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "上传文件不能为空");
++        }
++        if (file.getSize() > MAX_FILE_SIZE) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "文件大小不能超过 10MB");
++        }
++        String filename = file.getOriginalFilename();
++        if (filename != null && filename.contains(".")) {
++            String ext = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
++            if (!ALLOWED_EXTENSIONS.contains(ext)) {
++                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "不支持的文件类型，仅允许 " + ALLOWED_EXTENSIONS);
++            }
++        } else {
++            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "无法识别的文件类型");
++        }
+         return Result.ok(fileService.upload(file));
+     }
+ }
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/controller/PatientInternalController.java b/hospital-patient/src/main/java/com/hospital/patient/controller/PatientInternalController.java
+index 3ab2de5..0983934 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/controller/PatientInternalController.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/controller/PatientInternalController.java
+@@ -1,9 +1,12 @@
+ package com.hospital.patient.controller;
+ 
++import com.hospital.common.exception.BusinessException;
++import com.hospital.common.exception.ErrorCodeEnum;
+ import com.hospital.common.feign.dto.CreatePatientDTO;
+ import com.hospital.patient.entity.Patient;
+ import com.hospital.patient.mapper.PatientMapper;
+ import com.hospital.patient.service.PatientService;
++import jakarta.validation.Valid;
+ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.web.bind.annotation.GetMapping;
+@@ -18,6 +21,10 @@ import java.util.Map;
+ 
+ /**
+  * 患者档案内部接口（供 Feign 调用）
++ * <p>
++ * WARNING: 这些内部端点依赖网络层隔离（仅限内网访问），
++ * 建议在网关或 Kubernetes 网络策略层面限制外部流量。
++ * 生产环境应配置 internal.api.token 头部校验或 mTLS。
+  */
+ @Slf4j
+ @RestController
+@@ -30,7 +37,16 @@ public class PatientInternalController {
+ 
+     /** Feign: auth-service 注册时创建患者档案 */
+     @PostMapping("/create")
+-    public Long createPatient(@RequestBody CreatePatientDTO dto) {
++    public Long createPatient(@Valid @RequestBody CreatePatientDTO dto) {
++        if (dto.getUserId() == null) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "userId 不能为空");
++        }
++        if (dto.getName() == null || dto.getName().isBlank()) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "name 不能为空");
++        }
++        if (dto.getPhone() == null || dto.getPhone().isBlank()) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "phone 不能为空");
++        }
+         Patient patient = new Patient();
+         patient.setUserId(dto.getUserId());
+         patient.setName(dto.getName());
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/controller/RealnameController.java b/hospital-patient/src/main/java/com/hospital/patient/controller/RealnameController.java
+index 742d463..1149b2e 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/controller/RealnameController.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/controller/RealnameController.java
+@@ -1,6 +1,8 @@
+ package com.hospital.patient.controller;
+ 
+ import com.hospital.common.annotation.AuditLog;
++import com.hospital.common.exception.BusinessException;
++import com.hospital.common.exception.ErrorCodeEnum;
+ import com.hospital.common.interceptor.UserContext;
+ import com.hospital.common.result.Result;
+ import com.hospital.patient.dto.RealnameReviewDTO;
+@@ -41,6 +43,9 @@ public class RealnameController {
+     @PutMapping("/{patientId}/review")
+     public Result<Void> review(@PathVariable Long patientId,
+                                @Valid @RequestBody RealnameReviewDTO dto) {
++        if (!UserContext.hasRole("ROLE_ADMIN")) {
++            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
++        }
+         realnameService.review(patientId, dto);
+         return Result.ok();
+     }
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/dto/RealnameReviewDTO.java b/hospital-patient/src/main/java/com/hospital/patient/dto/RealnameReviewDTO.java
+index 59e6457..25eb461 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/dto/RealnameReviewDTO.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/dto/RealnameReviewDTO.java
+@@ -1,5 +1,7 @@
+ package com.hospital.patient.dto;
+ 
++import jakarta.validation.constraints.Max;
++import jakarta.validation.constraints.Min;
+ import jakarta.validation.constraints.NotBlank;
+ import jakarta.validation.constraints.NotNull;
+ import lombok.Data;
+@@ -12,6 +14,8 @@ public class RealnameReviewDTO {
+ 
+     /** 审核结果：2-通过 3-驳回 */
+     @NotNull(message = "审核结果不能为空")
++    @Min(value = 2, message = "审核结果值非法，仅允许 2(通过) 或 3(驳回)")
++    @Max(value = 3, message = "审核结果值非法，仅允许 2(通过) 或 3(驳回)")
+     private Integer verifyStatus;
+ 
+     @NotBlank(message = "审核意见不能为空")
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/service/FileService.java b/hospital-patient/src/main/java/com/hospital/patient/service/FileService.java
+index f28b05f..c5178c5 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/service/FileService.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/service/FileService.java
+@@ -28,8 +28,19 @@ public class FileService {
+      * @param file 上传的文件
+      * @return 文件访问 URL
+      */
++    private static final java.util.Set<String> ALLOWED_EXTENSIONS = java.util.Set.of("jpg", "jpeg", "png", "pdf", "doc", "docx");
++
+     public String upload(MultipartFile file) {
+-        String objectName = "patient/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
++        String originalFilename = file.getOriginalFilename();
++        String extension = "";
++        if (originalFilename != null && originalFilename.contains(".")) {
++            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
++        }
++        String extLower = extension.isEmpty() ? "" : extension.substring(1).toLowerCase();
++        if (!ALLOWED_EXTENSIONS.contains(extLower)) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "不支持的文件类型，仅允许 " + ALLOWED_EXTENSIONS);
++        }
++        String objectName = "patient/" + UUID.randomUUID() + extension;
+         try {
+             minioClient.putObject(
+                     PutObjectArgs.builder()
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/service/PatientService.java b/hospital-patient/src/main/java/com/hospital/patient/service/PatientService.java
+index 8e56717..cf9327f 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/service/PatientService.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/service/PatientService.java
+@@ -52,7 +52,12 @@ public class PatientService {
+         if (dto.getName() != null) patient.setName(dto.getName());
+         if (dto.getGender() != null) patient.setGender(dto.getGender());
+         if (dto.getBirthDate() != null) patient.setBirthDate(dto.getBirthDate());
+-        if (dto.getIdCard() != null) patient.setIdCard(dto.getIdCard());
++        if (dto.getIdCard() != null) {
++            if (Integer.valueOf(2).equals(patient.getVerifyStatus())) {
++                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "已认证的身份证号不可自行修改，请重新提交实名认证");
++            }
++            patient.setIdCard(dto.getIdCard());
++        }
+         if (dto.getEmergencyContact() != null) patient.setEmergencyContact(dto.getEmergencyContact());
+         if (dto.getEmergencyPhone() != null) patient.setEmergencyPhone(dto.getEmergencyPhone());
+ 
+@@ -92,9 +97,16 @@ public class PatientService {
+     // ==================== 实体 → VO 转换 ====================
+ 
+     private PatientVO toVO(Patient p) {
++        // 脱敏身份证号：仅显示前6位和后4位
++        String maskedIdCard = p.getIdCard();
++        if (maskedIdCard != null && maskedIdCard.length() >= 8) {
++            maskedIdCard = maskedIdCard.substring(0, 6) + "********" + maskedIdCard.substring(maskedIdCard.length() - 4);
++        } else if (maskedIdCard != null) {
++            maskedIdCard = "********";
++        }
+         return PatientVO.builder()
+                 .id(p.getId()).userId(p.getUserId()).name(p.getName())
+-                .gender(p.getGender()).birthDate(p.getBirthDate()).idCard(p.getIdCard())
++                .gender(p.getGender()).birthDate(p.getBirthDate()).idCard(maskedIdCard)
+                 .phone(p.getPhone()).emergencyContact(p.getEmergencyContact())
+                 .emergencyPhone(p.getEmergencyPhone()).verifyStatus(p.getVerifyStatus())
+                 .idCardFrontUrl(p.getIdCardFrontUrl()).idCardBackUrl(p.getIdCardBackUrl())
+diff --git a/hospital-patient/src/main/java/com/hospital/patient/service/RealnameService.java b/hospital-patient/src/main/java/com/hospital/patient/service/RealnameService.java
+index e3b5c1b..b8a6d82 100644
+--- a/hospital-patient/src/main/java/com/hospital/patient/service/RealnameService.java
++++ b/hospital-patient/src/main/java/com/hospital/patient/service/RealnameService.java
+@@ -32,8 +32,9 @@ public class RealnameService {
+         if (patient == null) {
+             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "患者档案不存在");
+         }
+-        if (patient.getVerifyStatus() != null && patient.getVerifyStatus() == 1) {
+-            throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, "实名认证正在审核中，请勿重复提交");
++        if (patient.getVerifyStatus() != null && (patient.getVerifyStatus() == 1 || patient.getVerifyStatus() == 2)) {
++            String msg = patient.getVerifyStatus() == 1 ? "实名认证正在审核中，请勿重复提交" : "已通过实名认证，无需重复提交";
++            throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, msg);
+         }
+ 
+         Patient update = new Patient();
+@@ -55,6 +56,9 @@ public class RealnameService {
+      */
+     @Transactional(rollbackFor = Exception.class)
+     public void review(Long patientId, RealnameReviewDTO dto) {
++        if (dto.getVerifyStatus() != 2 && dto.getVerifyStatus() != 3) {
++            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "审核结果值非法，仅允许 2(通过) 或 3(驳回)");
++        }
+         Patient patient = patientMapper.selectById(patientId);
+         if (patient == null) {
+             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "患者档案不存在");
+diff --git a/hospital-patient/src/main/resources/application.yml b/hospital-patient/src/main/resources/application.yml
+index 6270733..e004880 100644
+--- a/hospital-patient/src/main/resources/application.yml
++++ b/hospital-patient/src/main/resources/application.yml
+@@ -2,6 +2,10 @@ server:
+   port: 8082
+ 
+ spring:
++  servlet:
++    multipart:
++      max-file-size: 10MB
++      max-request-size: 10MB
+   datasource:
+     hikari:
+       maximum-pool-size: 10
+diff --git a/hospital-patient/src/main/resources/mapper/AllergyMapper.xml b/hospital-patient/src/main/resources/mapper/AllergyMapper.xml
+index a997d64..c096ba2 100644
+--- a/hospital-patient/src/main/resources/mapper/AllergyMapper.xml
++++ b/hospital-patient/src/main/resources/mapper/AllergyMapper.xml
+@@ -27,7 +27,7 @@
+     </insert>
+ 
+     <delete id="deleteById">
+-        DELETE FROM allergy WHERE id = #{id} AND patient_id = #{patientId}
++        DELETE FROM allergy WHERE id = #{id} AND patient_id = #{patientId} AND source = 'PATIENT'
+     </delete>
+ 
+ </mapper>
+diff --git a/hospital-payment/src/main/java/com/hospital/payment/consumer/OrderTimeoutConsumer.java b/hospital-payment/src/main/java/com/hospital/payment/consumer/OrderTimeoutConsumer.java
+index 4aa4a8b..0fa2d47 100644
+--- a/hospital-payment/src/main/java/com/hospital/payment/consumer/OrderTimeoutConsumer.java
++++ b/hospital-payment/src/main/java/com/hospital/payment/consumer/OrderTimeoutConsumer.java
+@@ -27,6 +27,7 @@ public class OrderTimeoutConsumer {
+             paymentService.closeTimeoutOrder(orderNo);
+         } catch (Exception e) {
+             log.error("[MQ] 超时关单失败: orderNo={}", orderNo, e);
++            throw new RuntimeException("MQ 超时关单失败: " + orderNo, e);
+         }
+     }
+ }
+diff --git a/hospital-payment/src/main/java/com/hospital/payment/controller/PaymentController.java b/hospital-payment/src/main/java/com/hospital/payment/controller/PaymentController.java
+index 62a63c2..95298ee 100644
+--- a/hospital-payment/src/main/java/com/hospital/payment/controller/PaymentController.java
++++ b/hospital-payment/src/main/java/com/hospital/payment/controller/PaymentController.java
+@@ -27,7 +27,7 @@ public class PaymentController {
+     /** 模拟支付 */
+     @AuditLog(value = "模拟支付", operationType = "UPDATE")
+     @PostMapping("/pay")
+-    public Result<PaymentOrderVO> pay(@RequestParam Long orderId) {
++    public Result<PaymentOrderVO> pay(@RequestParam("orderId") Long orderId) {
+         return Result.ok(paymentService.processPayment(orderId));
+     }
+ 
+diff --git a/hospital-payment/src/main/java/com/hospital/payment/job/OrderScanJob.java b/hospital-payment/src/main/java/com/hospital/payment/job/OrderScanJob.java
+index 23e21f7..e6c311b 100644
+--- a/hospital-payment/src/main/java/com/hospital/payment/job/OrderScanJob.java
++++ b/hospital-payment/src/main/java/com/hospital/payment/job/OrderScanJob.java
+@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
+ /**
+  * XXL-JOB 定时任务：扫表兜底关单
+  * <p>
+- * 每 5 分钟扫描 local_message 表中超时未支付订单，触发关单。
++ * 每 5 分钟扫描 payment_order 表中超时未支付订单，触发关单。
+  * 作为 RabbitMQ 延迟消息的兜底方案。
+  */
+ @Slf4j
+diff --git a/hospital-payment/src/main/java/com/hospital/payment/service/PaymentService.java b/hospital-payment/src/main/java/com/hospital/payment/service/PaymentService.java
+index ce34ccc..a3be92d 100644
+--- a/hospital-payment/src/main/java/com/hospital/payment/service/PaymentService.java
++++ b/hospital-payment/src/main/java/com/hospital/payment/service/PaymentService.java
+@@ -16,6 +16,8 @@ import com.hospital.payment.vo.PaymentOrderVO;
+ import lombok.RequiredArgsConstructor;
+ import lombok.extern.slf4j.Slf4j;
+ import org.springframework.amqp.rabbit.core.RabbitTemplate;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.context.annotation.Lazy;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+@@ -42,6 +44,10 @@ public class PaymentService {
+     private final NotificationService notificationService;
+     private final RabbitTemplate rabbitTemplate;
+ 
++    @Lazy
++    @Autowired
++    private PaymentService self;
++
+     /**
+      * 创建支付订单（内部调用，同一事务：insert order + insert local_message）
+      *
+@@ -137,6 +143,7 @@ public class PaymentService {
+             log.info("[支付] 已回调 clinic-service 确认锁定: appointmentId={}", order.getAppointmentId());
+         } catch (Exception e) {
+             log.error("[支付] 回调 clinic 确认锁定失败: appointmentId={}", order.getAppointmentId(), e);
++            throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR);
+         }
+ 
+         // 发送挂号成功通知
+@@ -180,8 +187,11 @@ public class PaymentService {
+         record.setStatus("COMPLETED");
+         refundRecordMapper.insert(record);
+ 
+-        // 更新订单为已退款
+-        orderMapper.updateStatusWithVersion(order.getId(), "REFUNDED", order.getVersion());
++        // 更新订单为已退款（乐观锁）
++        int rows = orderMapper.updateStatusWithVersion(order.getId(), "REFUNDED", order.getVersion());
++        if (rows == 0) {
++            throw new BusinessException(ErrorCodeEnum.ORDER_EXPIRED);
++        }
+ 
+         // Feign 回调 clinic 释放号源
+         try {
+@@ -238,15 +248,17 @@ public class PaymentService {
+ 
+     /**
+      * XXL-JOB 扫表兜底：扫描超时未支付订单
++     * <p>
++     * 注意：不在本方法加 @Transactional，每个 closeTimeoutOrder 自己管理事务。
++     * 生产环境建议改为分页查询，避免一次加载过多订单。
+      */
+-    @Transactional(rollbackFor = Exception.class)
+     public void scanTimeoutOrders() {
+         List<PaymentOrder> timeoutOrders = orderMapper.selectTimeoutOrders(
+                 "PENDING", LocalDateTime.now());
+         log.info("[扫表] 发现超时订单 {} 个", timeoutOrders.size());
+         for (PaymentOrder order : timeoutOrders) {
+             try {
+-                closeTimeoutOrder(order.getOrderNo());
++                self.closeTimeoutOrder(order.getOrderNo());
+             } catch (Exception e) {
+                 log.error("[扫表] 关单失败: orderNo={}", order.getOrderNo(), e);
+             }
+@@ -267,14 +279,14 @@ public class PaymentService {
+     // ==================== 私有方法 ====================
+ 
+     private String generateOrderNo() {
+-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+-        String random = UUID.fastUUID().toString().substring(0, 6).toUpperCase();
++        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
++        String random = UUID.fastUUID().toString().substring(0, 8).toUpperCase();
+         return "PAY" + date + random;
+     }
+ 
+     private String generateRefundNo() {
+-        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+-        String random = UUID.fastUUID().toString().substring(0, 6).toUpperCase();
++        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
++        String random = UUID.fastUUID().toString().substring(0, 8).toUpperCase();
+         return "REF" + date + random;
+     }
+ 
+diff --git a/hospital-payment/src/main/java/com/hospital/payment/service/PdfService.java b/hospital-payment/src/main/java/com/hospital/payment/service/PdfService.java
+index e7d3190..6dbeda7 100644
+--- a/hospital-payment/src/main/java/com/hospital/payment/service/PdfService.java
++++ b/hospital-payment/src/main/java/com/hospital/payment/service/PdfService.java
+@@ -10,10 +10,12 @@ import org.apache.pdfbox.pdmodel.PDDocument;
+ import org.apache.pdfbox.pdmodel.PDPage;
+ import org.apache.pdfbox.pdmodel.PDPageContentStream;
+ import org.apache.pdfbox.pdmodel.common.PDRectangle;
++import org.apache.pdfbox.pdmodel.font.PDType0Font;
+ import org.apache.pdfbox.pdmodel.font.PDType1Font;
+ import org.springframework.stereotype.Service;
+ 
+ import java.io.ByteArrayOutputStream;
++import java.io.File;
+ import java.io.IOException;
+ 
+ /**
+@@ -42,10 +44,27 @@ public class PdfService {
+             PDPage page = new PDPage(PDRectangle.A4);
+             document.addPage(page);
+ 
++            // 加载支持中文的字体
++            PDType0Font fontChinese;
++            try {
++                fontChinese = PDType0Font.load(document, new File("C:/Windows/Fonts/simsun.ttc"));
++            } catch (Exception e) {
++                try {
++                    fontChinese = PDType0Font.load(document, new File("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"));
++                } catch (Exception e2) {
++                    log.warn("[PDF] 未找到系统 CJK 字体，使用默认字体（中文可能无法正确显示）", e2);
++                    fontChinese = null;
++                }
++            }
++
+             try (PDPageContentStream cs = new PDPageContentStream(document, page)) {
+                 // 标题
+                 cs.beginText();
+-                cs.setFont(PDType1Font.HELVETICA_BOLD, 20);
++                if (fontChinese != null) {
++                    cs.setFont(fontChinese, 20);
++                } else {
++                    cs.setFont(PDType1Font.HELVETICA_BOLD, 20);
++                }
+                 cs.newLineAtOffset(200, 750);
+                 cs.showText("Hospital Appointment Receipt");
+                 cs.endText();
+@@ -60,7 +79,11 @@ public class PdfService {
+                 float lineHeight = 25;
+ 
+                 cs.beginText();
+-                cs.setFont(PDType1Font.HELVETICA, 12);
++                if (fontChinese != null) {
++                    cs.setFont(fontChinese, 12);
++                } else {
++                    cs.setFont(PDType1Font.HELVETICA, 12);
++                }
+ 
+                 cs.newLineAtOffset(50, y);
+                 cs.showText("Order No: " + order.getOrderNo());
+@@ -91,7 +114,11 @@ public class PdfService {
+ 
+                 // 底部说明
+                 cs.beginText();
+-                cs.setFont(PDType1Font.HELVETICA_OBLIQUE, 10);
++                if (fontChinese != null) {
++                    cs.setFont(fontChinese, 10);
++                } else {
++                    cs.setFont(PDType1Font.HELVETICA_OBLIQUE, 10);
++                }
+                 cs.newLineAtOffset(50, 100);
+                 cs.showText("This is a simulated receipt for demonstration purposes.");
+                 cs.endText();
+diff --git a/hospital-payment/src/main/resources/mapper/NotificationMapper.xml b/hospital-payment/src/main/resources/mapper/NotificationMapper.xml
+index b6bcc37..2ea49bd 100644
+--- a/hospital-payment/src/main/resources/mapper/NotificationMapper.xml
++++ b/hospital-payment/src/main/resources/mapper/NotificationMapper.xml
+@@ -29,6 +29,7 @@
+         FROM notification
+         WHERE patient_id = #{patientId}
+         ORDER BY create_time DESC
++        LIMIT 100
+     </select>
+ 
+     <update id="markAsRead">
+diff --git a/hospital-payment/src/main/resources/mapper/PaymentOrderMapper.xml b/hospital-payment/src/main/resources/mapper/PaymentOrderMapper.xml
+index b4b5191..8aadd6d 100644
+--- a/hospital-payment/src/main/resources/mapper/PaymentOrderMapper.xml
++++ b/hospital-payment/src/main/resources/mapper/PaymentOrderMapper.xml
+@@ -56,7 +56,8 @@
+ 
+     <update id="updateStatusWithVersion">
+         UPDATE payment_order
+-        SET status = #{status}, version = version + 1, update_time = NOW()
++        SET status = #{status}, version = version + 1,
++            cancel_time = NOW(), update_time = NOW()
+         WHERE id = #{id} AND version = #{version}
+     </update>
+ 
+@@ -75,6 +76,7 @@
+         WHERE status = #{status}
+           AND expire_time &lt; #{now}
+         ORDER BY expire_time ASC
++        LIMIT 100
+     </select>
+ 
+ </mapper>
+diff --git a/hospital-payment/src/test/java/com/hospital/payment/service/PaymentServiceTest.java b/hospital-payment/src/test/java/com/hospital/payment/service/PaymentServiceTest.java
+index b7e2799..e88637f 100644
+--- a/hospital-payment/src/test/java/com/hospital/payment/service/PaymentServiceTest.java
++++ b/hospital-payment/src/test/java/com/hospital/payment/service/PaymentServiceTest.java
+@@ -2,7 +2,7 @@ package com.hospital.payment.service;
+ 
+ import com.hospital.common.exception.BusinessException;
+ import com.hospital.common.feign.AppointmentFeignClient;
+-import LocalMessage;
++import com.hospital.payment.entity.LocalMessage;
+ import com.hospital.payment.entity.PaymentOrder;
+ import com.hospital.payment.mapper.LocalMessageMapper;
+ import com.hospital.payment.mapper.PaymentOrderMapper;
+diff --git a/pom.xml b/pom.xml
+index 49fcb95..fdec805 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -135,6 +135,7 @@
+                     <configuration>
+                         <release>21</release>
+                         <encoding>UTF-8</encoding>
++                        <parameters>true</parameters>
+                     </configuration>
+                 </plugin>
+                 <plugin>
+@@ -144,5 +145,11 @@
+                 </plugin>
+             </plugins>
+         </pluginManagement>
++        <plugins>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-compiler-plugin</artifactId>
++            </plugin>
++        </plugins>
+     </build>
+ </project>

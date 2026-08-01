@@ -97,7 +97,13 @@ public class JwtAuthFilter implements WebFilter, Ordered {
                     }
 
                     // ========== 5. 注入用户信息 Header ==========
-                    Long userId = jwtUtil.getUserId(token);
+                    Long userId;
+                    try {
+                        userId = jwtUtil.getUserId(token);
+                    } catch (NumberFormatException e) {
+                        log.warn("[JWT] Token 中 userId 非数字格式, path={}", path);
+                        return writeUnauthorized(exchange, ErrorCodeEnum.TOKEN_INVALID);
+                    }
                     if (userId == null) {
                         log.warn("[JWT] Token 中未包含用户ID, path={}", path);
                         return writeUnauthorized(exchange, ErrorCodeEnum.TOKEN_INVALID);

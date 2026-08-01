@@ -31,4 +31,13 @@ public interface AppointmentFeignClient {
      */
     @PostMapping("/internal/release-slot")
     Map<String, Object> releaseSlot(@RequestParam("appointmentId") Long appointmentId);
+
+    /**
+     * 标记预约已退款（payment-service 退款后回调）
+     *
+     * @param appointmentId 预约 ID
+     * @return 结果 Map
+     */
+    @PostMapping("/internal/mark-refunded")
+    Map<String, Object> markRefunded(@RequestParam("appointmentId") Long appointmentId);
 }

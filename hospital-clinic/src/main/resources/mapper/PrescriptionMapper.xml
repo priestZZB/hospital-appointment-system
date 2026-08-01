@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.PrescriptionMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.Prescription">
+        <id column="id" property="id"/>
+        <result column="prescription_no" property="prescriptionNo"/>
+        <result column="medical_record_id" property="medicalRecordId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="status" property="status"/>
+        <result column="review_comment" property="reviewComment"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.Prescription"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO prescription (prescription_no, medical_record_id, patient_id,
+                                  doctor_id, status, review_comment, create_time)
+        VALUES (#{prescriptionNo}, #{medicalRecordId}, #{patientId},
+                #{doctorId}, #{status}, #{reviewComment}, NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM prescription WHERE id = #{id}
+    </select>
+
+    <select id="selectByNo" resultMap="BaseResultMap">
+        SELECT * FROM prescription WHERE prescription_no = #{prescriptionNo}
+    </select>
+
+    <select id="selectByMedicalRecordId" resultMap="BaseResultMap">
+        SELECT * FROM prescription
+        WHERE medical_record_id = #{medicalRecordId}
+        ORDER BY create_time ASC
+    </select>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT * FROM prescription
+        WHERE patient_id = #{patientId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByPatientId" resultType="long">
+        SELECT COUNT(*) FROM prescription WHERE patient_id = #{patientId}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE prescription
+        SET status = #{status}, review_comment = #{reviewComment}
+        WHERE id = #{id}
+          AND status = #{expectedStatus}
+    </update>
+
+</mapper>

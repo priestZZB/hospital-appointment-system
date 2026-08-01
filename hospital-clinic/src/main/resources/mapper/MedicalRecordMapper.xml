@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.clinic.mapper.MedicalRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.hospital.clinic.entity.MedicalRecord">
+        <id column="id" property="id"/>
+        <result column="appointment_id" property="appointmentId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="chief_complaint" property="chiefComplaint"/>
+        <result column="present_illness" property="presentIllness"/>
+        <result column="past_history" property="pastHistory"/>
+        <result column="temperature" property="temperature"/>
+        <result column="pulse" property="pulse"/>
+        <result column="respiration" property="respiration"/>
+        <result column="blood_pressure" property="bloodPressure"/>
+        <result column="diagnosis_code" property="diagnosisCode"/>
+        <result column="diagnosis_desc" property="diagnosisDesc"/>
+        <result column="treatment_opinion" property="treatmentOpinion"/>
+        <result column="referral_dept_id" property="referralDeptId"/>
+        <result column="referral_reason" property="referralReason"/>
+        <result column="status" property="status"/>
+        <result column="is_return_visit" property="isReturnVisit"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.hospital.clinic.entity.MedicalRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO medical_record (appointment_id, patient_id, doctor_id, department_id,
+                                    chief_complaint, present_illness, past_history,
+                                    temperature, pulse, respiration, blood_pressure,
+                                    diagnosis_code, diagnosis_desc, treatment_opinion,
+                                    referral_dept_id, referral_reason, status, is_return_visit,
+                                    create_time, update_time)
+        VALUES (#{appointmentId}, #{patientId}, #{doctorId}, #{departmentId},
+                #{chiefComplaint}, #{presentIllness}, #{pastHistory},
+                #{temperature}, #{pulse}, #{respiration}, #{bloodPressure},
+                #{diagnosisCode}, #{diagnosisDesc}, #{treatmentOpinion},
+                #{referralDeptId}, #{referralReason}, #{status}, #{isReturnVisit},
+                NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT * FROM medical_record WHERE id = #{id}
+    </select>
+
+    <select id="selectByAppointmentId" resultMap="BaseResultMap">
+        SELECT * FROM medical_record WHERE appointment_id = #{appointmentId}
+    </select>
+
+    <update id="update" parameterType="com.hospital.clinic.entity.MedicalRecord">
+        UPDATE medical_record
+        <set>
+            <if test="chiefComplaint != null">chief_complaint = #{chiefComplaint},</if>
+            <if test="presentIllness != null">present_illness = #{presentIllness},</if>
+            <if test="pastHistory != null">past_history = #{pastHistory},</if>
+            <if test="temperature != null">temperature = #{temperature},</if>
+            <if test="pulse != null">pulse = #{pulse},</if>
+            <if test="respiration != null">respiration = #{respiration},</if>
+            <if test="bloodPressure != null">blood_pressure = #{bloodPressure},</if>
+            <if test="diagnosisCode != null">diagnosis_code = #{diagnosisCode},</if>
+            <if test="diagnosisDesc != null">diagnosis_desc = #{diagnosisDesc},</if>
+            <if test="treatmentOpinion != null">treatment_opinion = #{treatmentOpinion},</if>
+            <if test="referralDeptId != null">referral_dept_id = #{referralDeptId},</if>
+            <if test="referralReason != null">referral_reason = #{referralReason},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="isReturnVisit != null">is_return_visit = #{isReturnVisit},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE medical_record SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByPatientId" resultMap="BaseResultMap">
+        SELECT * FROM medical_record
+        WHERE patient_id = #{patientId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByPatientId" resultType="long">
+        SELECT COUNT(*) FROM medical_record WHERE patient_id = #{patientId}
+    </select>
+
+    <select id="selectByDoctorId" resultMap="BaseResultMap">
+        SELECT * FROM medical_record
+        WHERE doctor_id = #{doctorId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+</mapper>

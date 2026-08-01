@@ -28,6 +28,13 @@ public class AppointmentInternalController {
         return Map.of("success", true);
     }
 
+    /** payment-service 退款后标记预约已退款 */
+    @PostMapping("/mark-refunded")
+    public Map<String, Object> markRefunded(@RequestParam("appointmentId") Long appointmentId) {
+        appointmentService.markAsRefunded(appointmentId);
+        return Map.of("success", true);
+    }
+
     /** payment-service 超时关单后释放号源 */
     @PostMapping("/release-slot")
     public Map<String, Object> releaseSlot(@RequestParam("appointmentId") Long appointmentId) {

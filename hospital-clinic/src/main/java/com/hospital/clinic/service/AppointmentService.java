@@ -146,12 +146,6 @@ public class AppointmentService {
                 throw new BusinessException(ErrorCodeEnum.SLOT_NOT_ENOUGH);
             }
 
-            // Redis 设置重复挂号键（在锁内设置，防止并发请求绕过检查）
-            long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
-            if (ttlSeconds > 0) {
-                stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
-            }
-
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR, "挂号操作被中断");
@@ -161,7 +155,7 @@ public class AppointmentService {
             }
         }
 
-        // ========== 第5步：创建预约记录 ==========
+        // ========== 第4步：创建预约记录 ==========
         Doctor doctor = doctorMapper.selectById(schedule.getDoctorId());
         Department dept = departmentMapper.selectById(schedule.getDepartmentId());
 
@@ -204,7 +198,13 @@ public class AppointmentService {
             throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR, "支付服务暂不可用，请稍后重试");
         }
 
-        // ========== 第7步：组装返回 ==========
+        // ========== 第7步：设置重复挂号键（必须在支付订单创建成功之后） ==========
+        long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
+        if (ttlSeconds > 0) {
+            stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
+        }
+
+        // ========== 第8步：组装返回 ==========
         return buildVO(appointment, doctor, dept, slot, paymentOrderId, paymentOrderNo);
     }
 
@@ -323,6 +323,26 @@ public class AppointmentService {
             return;
         }
         log.info("[挂号] 支付成功，号源已确认锁定: appointmentId={}", appointmentId);
+    }
+
+    /**
+     * 退款后标记预约已退款（payment-service 退款回调）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void markAsRefunded(Long appointmentId) {
+        // 仅 PAID 可转为 REFUNDED
+        int rows = appointmentMapper.updateOrderStatus(appointmentId, "REFUNDED", "PAID");
+        if (rows == 0) {
+            log.warn("[挂号] 标记退款失败（状态不匹配）: appointmentId={}", appointmentId);
+            return;
+        }
+        // 清除重复挂号键
+        Appointment appointment = appointmentMapper.selectById(appointmentId);
+        if (appointment != null) {
+            String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
+            stringRedisTemplate.delete(repeatKey);
+        }
+        log.info("[挂号] 退款已标记: appointmentId={}", appointmentId);
     }
 
     /**
