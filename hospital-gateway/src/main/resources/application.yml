@@ -1,6 +1,26 @@
 server:
   port: 8080
 
+springdoc:
+  swagger-ui:
+    enabled: true
+    urls-primary-name: auth-service
+    urls:
+      - name: auth-service / 认证授权中心
+        url: /v3/api-docs/auth-service
+      - name: patient-service / 患者档案中心
+        url: /v3/api-docs/patient-service
+      - name: clinic-service / 核心诊疗服务
+        url: /v3/api-docs/clinic-service
+      - name: payment-service / 支付调度服务
+        url: /v3/api-docs/payment-service
+      - name: medsupply-service / 医辅物资服务
+        url: /v3/api-docs/medsupply-service
+      - name: ai-service / AI辅助服务
+        url: /v3/api-docs/ai-service
+  api-docs:
+    enabled: true
+
 spring:
   cloud:
     gateway:
@@ -40,6 +60,43 @@ spring:
           uri: lb://ai-service
           predicates:
             - Path=/api/ai/**
+        # ==================== Swagger 文档聚合路由 ====================
+        - id: auth-service-swagger
+          uri: lb://auth-service
+          predicates:
+            - Path=/v3/api-docs/auth-service
+          filters:
+            - RewritePath=/v3/api-docs/auth-service, /v3/api-docs
+        - id: patient-service-swagger
+          uri: lb://patient-service
+          predicates:
+            - Path=/v3/api-docs/patient-service
+          filters:
+            - RewritePath=/v3/api-docs/patient-service, /v3/api-docs
+        - id: clinic-service-swagger
+          uri: lb://clinic-service
+          predicates:
+            - Path=/v3/api-docs/clinic-service
+          filters:
+            - RewritePath=/v3/api-docs/clinic-service, /v3/api-docs
+        - id: medsupply-service-swagger
+          uri: lb://medsupply-service
+          predicates:
+            - Path=/v3/api-docs/medsupply-service
+          filters:
+            - RewritePath=/v3/api-docs/medsupply-service, /v3/api-docs
+        - id: payment-service-swagger
+          uri: lb://payment-service
+          predicates:
+            - Path=/v3/api-docs/payment-service
+          filters:
+            - RewritePath=/v3/api-docs/payment-service, /v3/api-docs
+        - id: ai-service-swagger
+          uri: lb://ai-service
+          predicates:
+            - Path=/v3/api-docs/ai-service
+          filters:
+            - RewritePath=/v3/api-docs/ai-service, /v3/api-docs
 
       # ==================== 全局 CORS 跨域 ====================
       globalcors:
@@ -69,4 +126,4 @@ logging:
 # ==================== Gateway JWT 白名单（逗号分隔） ====================
 gateway:
   jwt:
-    whitelist: /api/auth/register,/api/auth/login,/api/ws/**
+    whitelist: /api/auth/register,/api/auth/login,/api/ws/**,/v3/api-docs/**,/swagger-ui.html,/swagger-ui/**,/webjars/**

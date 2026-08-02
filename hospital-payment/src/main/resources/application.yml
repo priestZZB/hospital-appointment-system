@@ -2,6 +2,8 @@ server:
   port: 8085
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     hikari:
       maximum-pool-size: 10
@@ -19,12 +21,9 @@ mybatis:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 springdoc:
+  packages-to-scan: com.hospital.payment
   api-docs:
     enabled: true
-knife4j:
-  enable: true
-  setting:
-    language: zh_cn
 
 logging:
   level:

@@ -50,7 +50,7 @@ public class JwtAuthFilter implements WebFilter, Ordered {
      * JWT 白名单路径（逗号分隔）。
      * 优先从 Nacos 配置中心读取，不存在时使用本地默认值。
      */
-    @Value("${gateway.jwt.whitelist:/api/auth/register,/api/auth/login,/api/ws/**}")
+    @Value("${gateway.jwt.whitelist:/api/auth/register,/api/auth/login,/api/ws/**,/v3/api-docs/**,/swagger-ui.html,/swagger-ui/**,/webjars/**}")
     private String whitelistStr;
 
     /**
