@@ -135,7 +135,7 @@ public class JwtUtil {
         try {
             parse(token);
             return true;
-        } catch (JwtException e) {
+        } catch (JwtException | IllegalArgumentException e) {
             log.debug("Token 校验失败: {}", e.getMessage());
             return false;
         }

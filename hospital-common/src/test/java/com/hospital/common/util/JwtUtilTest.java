@@ -122,7 +122,7 @@ class JwtUtilTest {
         @Test
         @DisplayName("null Token parse 时抛异常")
         void testNullToken() {
-            assertThrows(JwtException.class, () -> jwtUtil.parse(null));
+            assertThrows(IllegalArgumentException.class, () -> jwtUtil.parse(null));
         }
 
         @Test

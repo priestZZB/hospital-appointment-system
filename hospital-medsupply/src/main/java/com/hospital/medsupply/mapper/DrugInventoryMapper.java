@@ -4,6 +4,8 @@ import com.hospital.medsupply.entity.DrugInventory;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
  * 药品库存表 Mapper
  */

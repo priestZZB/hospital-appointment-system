@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -227,10 +228,10 @@ class AiServiceTest {
     // ==================== 辅助方法 ====================
 
     private ChatResponse createChatResponse(String content) {
-        Generation generation = mock(Generation.class);
-        var output = mock(org.springframework.ai.chat.messages.AssistantMessage.class);
-        when(output.getContent()).thenReturn(content);
-        when(generation.getOutput()).thenReturn(output);
+        // AssistantMessage 的 getText() 是 AbstractMessage 的 final 方法，Mockito 无法 stub
+        // 直接用 concrete instance 而非 mock
+        AssistantMessage output = new AssistantMessage(content);
+        Generation generation = new Generation(output);
         return new ChatResponse(List.of(generation));
     }
 }

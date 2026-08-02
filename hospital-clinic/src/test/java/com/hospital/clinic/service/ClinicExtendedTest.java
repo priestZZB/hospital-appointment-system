@@ -7,10 +7,14 @@ import com.hospital.clinic.entity.Schedule;
 import com.hospital.clinic.mapper.AppointmentMapper;
 import com.hospital.clinic.mapper.CheckinMapper;
 import com.hospital.clinic.mapper.DepartmentMapper;
+import com.hospital.clinic.mapper.DoctorMapper;
 import com.hospital.clinic.mapper.ScheduleMapper;
+import com.hospital.clinic.mapper.StopApplicationMapper;
 import com.hospital.clinic.vo.CallMessageVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.feign.PatientFeignClient;
+import com.hospital.common.interceptor.UserContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,11 +25,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,6 +64,8 @@ class ClinicExtendedTest {
         private StringRedisTemplate stringRedisTemplate;
         @Mock
         private ZSetOperations<String, String> zSetOperations;
+        @Mock
+        private PatientFeignClient patientFeignClient;
 
         @InjectMocks
         private CheckinService checkinService;
@@ -69,6 +78,9 @@ class ClinicExtendedTest {
         @Test
         @DisplayName("签到成功加入排队队列")
         void shouldCheckinAndEnqueue() {
+            Long userId = 1L;
+            Map<String, Object> patientInfo = Map.of("id", 1L, "userId", userId, "verifyStatus", 2, "name", "患者1");
+
             // given
             Appointment appt = new Appointment();
             appt.setId(100L);
@@ -82,6 +94,7 @@ class ClinicExtendedTest {
             schedule.setScheduleDate(java.time.LocalDate.now());
             schedule.setPeriodStart(java.time.LocalTime.now().minusMinutes(10));
 
+            when(patientFeignClient.getByUserId(userId)).thenReturn(patientInfo);
             when(appointmentMapper.selectById(100L)).thenReturn(appt);
             when(scheduleMapper.selectById(10L)).thenReturn(schedule);
             when(checkinMapper.selectByAppointmentId(100L)).thenReturn(null);
@@ -92,7 +105,7 @@ class ClinicExtendedTest {
             // when
             com.hospital.clinic.dto.CheckinDTO dto = new com.hospital.clinic.dto.CheckinDTO();
             dto.setAppointmentId(100L);
-            var result = checkinService.checkin(1L, dto);
+            var result = checkinService.checkin(userId, dto);
 
             // then
             assertNotNull(result);
@@ -103,6 +116,9 @@ class ClinicExtendedTest {
         @Test
         @DisplayName("重复签到应抛异常")
         void shouldRejectDuplicateCheckin() {
+            Long userId = 1L;
+            Map<String, Object> patientInfo = Map.of("id", 1L, "userId", userId, "verifyStatus", 2, "name", "患者1");
+
             Appointment appt = new Appointment();
             appt.setId(100L);
             appt.setPatientId(1L);
@@ -116,6 +132,7 @@ class ClinicExtendedTest {
             Checkin existing = new Checkin();
             existing.setId(1L);
 
+            when(patientFeignClient.getByUserId(userId)).thenReturn(patientInfo);
             when(appointmentMapper.selectById(100L)).thenReturn(appt);
             when(scheduleMapper.selectById(10L)).thenReturn(schedule);
             when(checkinMapper.selectByAppointmentId(100L)).thenReturn(existing);
@@ -123,7 +140,7 @@ class ClinicExtendedTest {
             com.hospital.clinic.dto.CheckinDTO dto = new com.hospital.clinic.dto.CheckinDTO();
             dto.setAppointmentId(100L);
 
-            assertThrows(BusinessException.class, () -> checkinService.checkin(1L, dto));
+            assertThrows(BusinessException.class, () -> checkinService.checkin(userId, dto));
         }
 
         @Test
@@ -183,6 +200,9 @@ class ClinicExtendedTest {
         @Test
         @DisplayName("叫号 ZPOPMIN 取最早签到并 WebSocket 广播")
         void shouldPopAndBroadcast() {
+            // 预设 UserContext 以通过权限校验
+            UserContext.setRoles(List.of("ROLE_DOCTOR"));
+
             Checkin checkin = new Checkin();
             checkin.setId(1L);
             checkin.setPatientId(100L);
@@ -196,16 +216,19 @@ class ClinicExtendedTest {
 
             com.hospital.clinic.entity.Doctor doctor = new com.hospital.clinic.entity.Doctor();
             doctor.setName("李医生");
+            doctor.setDepartmentId(5L);
 
-            Set<String> poppedSet = new HashSet<>();
-            poppedSet.add("1");
+            Set<TypedTuple<String>> poppedSet = new HashSet<>();
+            TypedTuple<String> tuple = mock(TypedTuple.class);
+            when(tuple.getValue()).thenReturn("1");
+            poppedSet.add(tuple);
 
             when(zSetOperations.popMin("queue:dept:5", 1)).thenReturn(poppedSet);
             when(checkinMapper.selectById(1L)).thenReturn(checkin);
             when(checkinMapper.updateCallInfo(eq(1L), eq("CALLED"), eq(1), eq("诊室1"))).thenReturn(1);
             when(appointmentMapper.updateVisitStatus(eq(10L), eq("CALLED"), isNull())).thenReturn(1);
             when(departmentMapper.selectById(5L)).thenReturn(dept);
-            when(doctorMapper.selectById(3L)).thenReturn(doctor);
+            when(doctorMapper.selectByUserId(3L)).thenReturn(doctor);
 
             var result = callService.callNext(5L, "诊室1", 3L);
 
@@ -213,14 +236,29 @@ class ClinicExtendedTest {
             assertEquals("CALL_NUMBER", result.getType());
             assertEquals("骨科", result.getDeptName());
             verify(messagingTemplate).convertAndSend(eq("/topic/call/5"), any(CallMessageVO.class));
+
+            // 清理 ThreadLocal
+            UserContext.clear();
         }
 
         @Test
         @DisplayName("队列为空时抛异常")
         void shouldThrowWhenQueueEmpty() {
+            // 预设角色以通过权限校验
+            UserContext.setRoles(List.of("ROLE_DOCTOR"));
+
+            // doctorMapper.selectByUserId 需要 stub，callNext() 在权限校验之后会校验医生
+            com.hospital.clinic.entity.Doctor doctor = new com.hospital.clinic.entity.Doctor();
+            doctor.setId(3L);
+            doctor.setDepartmentId(5L);
+            when(doctorMapper.selectByUserId(3L)).thenReturn(doctor);
             when(zSetOperations.popMin("queue:dept:5", 1)).thenReturn(Collections.emptySet());
 
-            assertThrows(BusinessException.class, () -> callService.callNext(5L, "诊室1", 3L));
+            try {
+                assertThrows(BusinessException.class, () -> callService.callNext(5L, "诊室1", 3L));
+            } finally {
+                UserContext.clear();
+            }
         }
     }
 
@@ -240,6 +278,10 @@ class ClinicExtendedTest {
         private AppointmentService appointmentService;
         @Mock
         private com.hospital.common.feign.PaymentFeignClient paymentFeignClient;
+        @Mock
+        private DoctorMapper doctorMapper;
+        @Mock
+        private com.hospital.common.feign.PatientFeignClient patientFeignClient;
 
         @InjectMocks
         private StopService stopService;
@@ -247,6 +289,11 @@ class ClinicExtendedTest {
         @Test
         @DisplayName("排班超过48小时应拒绝")
         void shouldRejectBeyond48Hours() {
+            com.hospital.clinic.entity.Doctor doctor = new com.hospital.clinic.entity.Doctor();
+            doctor.setId(3L);
+            doctor.setDepartmentId(5L);
+            when(doctorMapper.selectByUserId(3L)).thenReturn(doctor);
+
             Schedule schedule = new Schedule();
             schedule.setId(10L);
             schedule.setScheduleDate(java.time.LocalDate.now().plusDays(3));
@@ -260,6 +307,11 @@ class ClinicExtendedTest {
         @Test
         @DisplayName("存在已签到预约时应拒绝停诊")
         void shouldRejectWhenHasCheckin() {
+            com.hospital.clinic.entity.Doctor doctor = new com.hospital.clinic.entity.Doctor();
+            doctor.setId(3L);
+            doctor.setDepartmentId(5L);
+            when(doctorMapper.selectByUserId(3L)).thenReturn(doctor);
+
             Schedule schedule = new Schedule();
             schedule.setId(10L);
             schedule.setScheduleDate(java.time.LocalDate.now().plusDays(1));
@@ -278,6 +330,11 @@ class ClinicExtendedTest {
         @Test
         @DisplayName("正常停诊申请成功")
         void shouldApplySuccessfully() {
+            com.hospital.clinic.entity.Doctor doctor = new com.hospital.clinic.entity.Doctor();
+            doctor.setId(3L);
+            doctor.setDepartmentId(5L);
+            when(doctorMapper.selectByUserId(3L)).thenReturn(doctor);
+
             Schedule schedule = new Schedule();
             schedule.setId(10L);
             schedule.setScheduleDate(java.time.LocalDate.now().plusDays(1));

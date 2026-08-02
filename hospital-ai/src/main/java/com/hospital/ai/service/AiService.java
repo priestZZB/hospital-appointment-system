@@ -48,8 +48,8 @@ public class AiService {
             ChatResponse response = chatClient.prompt()
                     .user(prompt)
                     .options(OpenAiChatOptions.builder()
-                            .withModel("deepseek-chat")
-                            .withTemperature(0.3)
+                            .model("deepseek-chat")
+                            .temperature(0.3)
                             .build())
                     .call()
                     .chatResponse();
@@ -91,7 +91,7 @@ public class AiService {
     private TriageResultVO parseAiResponse(ChatResponse response, String symptom, String prompt,
                                             long startTime, Long patientId) {
         long elapsed = System.currentTimeMillis() - startTime;
-        String responseText = response.getResult().getOutput().getContent();
+        String responseText = response.getResult().getOutput().getText();
         log.info("[AI] deepseek 返回: {} (耗时 {}ms)", responseText, elapsed);
 
         // 解析 AI 返回的 JSON

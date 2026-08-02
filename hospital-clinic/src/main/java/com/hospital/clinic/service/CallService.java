@@ -66,11 +66,13 @@ public class CallService {
 
         // 1. ZPOPMIN：取出签到时间最早的患者
         String queueKey = QUEUE_KEY_PREFIX + departmentId;
-        Set<String> popped = stringRedisTemplate.opsForZSet().popMin(queueKey, 1);
+        @SuppressWarnings("unchecked")
+        Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> popped =
+                (Set) stringRedisTemplate.opsForZSet().popMin(queueKey, 1);
         if (popped == null || popped.isEmpty()) {
             throw new BusinessException(ErrorCodeEnum.QUEUE_EMPTY);
         }
-        String member = popped.iterator().next();
+        String member = popped.iterator().next().getValue();
         Long checkinId = Long.parseLong(member);
 
         // 2. 查询签到记录

@@ -20,6 +20,7 @@
         <module>hospital-medsupply</module>
         <module>hospital-payment</module>
         <module>hospital-ai</module>
+        <module>hospital-api-test</module>
     </modules>
 
     <properties>
