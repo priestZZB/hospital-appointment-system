@@ -29,7 +29,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/auth/login",
                         "/api/patient/internal/**",   // Feign 内部调用不需要 Header
                         "/api/payment/internal/**",   // Feign 内部调用不需要 Header
-                        "/api/clinic/internal/**"     // Feign 内部调用不需要 Header
+                        "/api/clinic/internal/**",    // Feign 内部调用不需要 Header
+                        "/api/medsupply/internal/**"  // Feign/RestTemplate 内部调用不需要 Header（检查申请等）
                 );
     }
 }

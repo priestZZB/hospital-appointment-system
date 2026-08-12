@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 /**
  * 全量 API 自动化回归测试
@@ -374,7 +375,10 @@ public class ApiTestRunner {
     private void testClinicAppointment() throws IOException {
         engine.setToken(patientToken());
         String today = LocalDate.now().format(DATE_FMT);
-        List<Map> slots = fetchAvailableSlots(DEPT_ID, today);
+        // 只选用“未来 30 分钟内开始”的号源：既满足签到窗口，又不会被“就诊时段已开始不可取消”拦截
+        List<Map> slots = fetchAvailableSlots(DEPT_ID, today).stream()
+                .filter(this::inCheckinWindow)
+                .collect(Collectors.toList());
         if (slots.isEmpty()) {
             check("POST /api/clinic/appointments（挂号）",
                     new ApiTestEngine.ApiResponse(500, Map.of("code", -2, "message", "今日无可用号源，无法执行挂号")));
@@ -383,9 +387,10 @@ public class ApiTestRunner {
 
         Map slot1 = slots.get(0);
         Map slot2 = slots.size() > 1 ? slots.get(1) : slots.get(0);
-        long slotId1 = ((Number) slot1.get("slotId")).longValue();
+        // 注意：/api/clinic/slots 返回的号源主键字段是 "id"，不是 "slotId"
+        long slotId1 = ((Number) slot1.get("id")).longValue();
         long schedId1 = ((Number) slot1.get("scheduleId")).longValue();
-        long slotId2 = ((Number) slot2.get("slotId")).longValue();
+        long slotId2 = ((Number) slot2.get("id")).longValue();
         long schedId2 = ((Number) slot2.get("scheduleId")).longValue();
 
         // A. 挂号（slot1）→ 立即取消（验证取消 + 号源释放 + 防重复键清理）
@@ -567,9 +572,9 @@ public class ApiTestRunner {
 
         Object cid = state.get("checkinId");
         if (cid != null) {
-            check("POST /api/clinic/call/" + cid + "/recall（叫号重呼）",
-                    engine.postWithAuth("/api/clinic/call/" + cid + "/recall",
-                            Map.of("consultRoom", "1诊室")));
+            // recall 的 consultRoom 是 @RequestParam（query 参数），不是 JSON body
+            check("POST /api/clinic/call/" + cid + "/recall?consultRoom=RM1（叫号重呼）",
+                    engine.postWithAuth("/api/clinic/call/" + cid + "/recall?consultRoom=RM1", Map.of()));
         }
     }
 
@@ -723,13 +728,17 @@ public class ApiTestRunner {
         return Collections.emptyList();
     }
 
-    /** 判断号源开始时间是否落在当前时间 ±30 分钟窗口内（签到窗口） */
+    /**
+     * 判断号源是否可用：
+     * 开始时间在当前时间前 30 分钟 ～ 当前时间（含）之间，即“即将开始”的号源。
+     * 只选未来号源，避免“就诊时段已开始”导致取消预约被拦截。
+     */
     private boolean inCheckinWindow(Map slot) {
         LocalTime st = parseSlotStart(slot.get("slotStart"));
         if (st == null) return false;
         LocalDateTime slotStart = LocalDateTime.of(LocalDate.now(), st);
         LocalDateTime now = LocalDateTime.now();
-        return !now.isBefore(slotStart.minusMinutes(30)) && !now.isAfter(slotStart.plusMinutes(30));
+        return !now.isBefore(slotStart.minusMinutes(30)) && !now.isAfter(slotStart);
     }
 
     private LocalTime parseSlotStart(Object v) {
