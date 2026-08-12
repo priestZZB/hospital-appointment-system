@@ -1,6 +1,9 @@
 package com.hospital.payment.service;
 
 import com.hospital.common.feign.PatientFeignClient;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.payment.entity.Notification;
 import com.hospital.payment.mapper.NotificationMapper;
 import com.hospital.payment.vo.NotificationVO;
@@ -72,7 +75,18 @@ public class NotificationService {
     /**
      * 标记已读
      */
-    public void markAsRead(Long id) {
+    public void markAsRead(Long id, Long userId) {
+        Notification notification = notificationMapper.selectById(id);
+        if (notification == null) {
+            throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "通知不存在");
+        }
+        // 患者仅可标记本人通知，管理员可操作全部
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            Long patientId = resolvePatientId(userId);
+            if (patientId == null || !patientId.equals(notification.getPatientId())) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权操作他人通知");
+            }
+        }
         notificationMapper.markAsRead(id);
     }
 
@@ -98,6 +112,22 @@ public class NotificationService {
         try {
             return Long.parseLong(obj.toString());
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 通过 userId 解析 patientId
+     */
+    private Long resolvePatientId(Long userId) {
+        try {
+            Map<String, Object> patientInfo = patientFeignClient.getByUserId(userId);
+            if (patientInfo == null || patientInfo.isEmpty()) {
+                return null;
+            }
+            return toLong(patientInfo.get("id"));
+        } catch (Exception e) {
+            log.warn("[通知] 查询患者信息失败: userId={}", userId, e);
             return null;
         }
     }

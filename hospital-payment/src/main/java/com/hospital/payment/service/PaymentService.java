@@ -5,6 +5,8 @@ import cn.hutool.json.JSONUtil;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.AppointmentFeignClient;
+import com.hospital.common.feign.PatientFeignClient;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.payment.config.RabbitMQConfig;
 import com.hospital.payment.entity.LocalMessage;
 import com.hospital.payment.entity.PaymentOrder;
@@ -41,6 +43,7 @@ public class PaymentService {
     private final LocalMessageMapper messageMapper;
     private final RefundRecordMapper refundRecordMapper;
     private final AppointmentFeignClient appointmentFeignClient;
+    private final PatientFeignClient patientFeignClient;
     private final NotificationService notificationService;
     private final RabbitTemplate rabbitTemplate;
 
@@ -118,11 +121,12 @@ public class PaymentService {
      * @return 支付结果 VO
      */
     @Transactional(rollbackFor = Exception.class)
-    public PaymentOrderVO processPayment(Long orderId) {
+    public PaymentOrderVO processPayment(Long orderId, Long userId) {
         PaymentOrder order = orderMapper.selectById(orderId);
         if (order == null) {
             throw new BusinessException(ErrorCodeEnum.ORDER_NOT_FOUND);
         }
+        checkOrderOwner(order, userId);
 
         if ("PAID".equals(order.getStatus())) {
             throw new BusinessException(ErrorCodeEnum.ORDER_ALREADY_PAID);
@@ -197,10 +201,11 @@ public class PaymentService {
         try {
             appointmentFeignClient.releaseSlot(appointmentId);
             appointmentFeignClient.markRefunded(appointmentId);
-            log.info("[退款] 已回调 clinic 释放号源并标记退款: appointmentId={}", appointmentId);
         } catch (Exception e) {
-            log.error("[退款] 回调 clinic 失败: appointmentId={}", appointmentId, e);
+            log.error("[退款] 回调 clinic 失败，回滚退款: appointmentId={}", appointmentId, e);
+            throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR, "退款回调失败，请稍后重试");
         }
+        log.info("[退款] 已回调 clinic 释放号源并标记退款: appointmentId={}", appointmentId);
 
         // 发送退款通知
         notificationService.createNotification(order.getPatientId(),
@@ -236,7 +241,8 @@ public class PaymentService {
             appointmentFeignClient.releaseSlot(order.getAppointmentId());
             log.info("[关单] 已释放号源: appointmentId={}", order.getAppointmentId());
         } catch (Exception e) {
-            log.error("[关单] 释放号源失败: appointmentId={}", order.getAppointmentId(), e);
+            log.error("[关单] 释放号源失败，回滚关单以便重试: appointmentId={}", order.getAppointmentId(), e);
+            throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR, "释放号源失败，请稍后重试");
         }
 
         // 发送超时通知
@@ -269,12 +275,24 @@ public class PaymentService {
     /**
      * 查询订单状态
      */
-    public PaymentOrderVO getStatus(Long orderId) {
+    public PaymentOrderVO getStatus(Long orderId, Long userId) {
         PaymentOrder order = orderMapper.selectById(orderId);
         if (order == null) {
             throw new BusinessException(ErrorCodeEnum.ORDER_NOT_FOUND);
         }
+        checkOrderOwner(order, userId);
         return toVO(order);
+    }
+
+    /**
+     * 校验订单归属（供状态查询、凭证下载等使用）
+     */
+    public void checkOrderOwner(Long orderId, Long userId) {
+        PaymentOrder order = orderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BusinessException(ErrorCodeEnum.ORDER_NOT_FOUND);
+        }
+        checkOrderOwner(order, userId);
     }
 
     // ==================== 私有方法 ====================
@@ -308,6 +326,35 @@ public class PaymentService {
             return new BigDecimal(obj.toString());
         } catch (NumberFormatException e) {
             return BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * 订单归属校验：管理员可查任意订单，患者仅可查本人订单
+     */
+    private void checkOrderOwner(PaymentOrder order, Long userId) {
+        if (UserContext.hasRole("ROLE_ADMIN")) {
+            return;
+        }
+        Long patientId = resolvePatientId(userId);
+        if (patientId == null || !patientId.equals(order.getPatientId())) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权操作他人订单");
+        }
+    }
+
+    /**
+     * 通过 userId 解析 patientId（auth userId ≠ patient db id）
+     */
+    private Long resolvePatientId(Long userId) {
+        try {
+            Map<String, Object> patientInfo = patientFeignClient.getByUserId(userId);
+            if (patientInfo == null || patientInfo.isEmpty()) {
+                return null;
+            }
+            return toLong(patientInfo.get("id"));
+        } catch (Exception e) {
+            log.warn("[支付] 查询患者信息失败: userId={}", userId, e);
+            return null;
         }
     }
 

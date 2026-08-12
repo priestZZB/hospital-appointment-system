@@ -19,6 +19,7 @@ import com.hospital.clinic.vo.PrescriptionItemVO;
 import com.hospital.clinic.vo.PrescriptionVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.feign.PatientFeignClient;
 import com.hospital.common.interceptor.UserContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,7 @@ public class ConsultationService {
     private final PrescriptionMapper prescriptionMapper;
     private final PrescriptionItemMapper prescriptionItemMapper;
     private final DoctorMapper doctorMapper;
+    private final PatientFeignClient patientFeignClient;
     private final RestTemplate restTemplate;
 
     /**
@@ -75,8 +77,15 @@ public class ConsultationService {
         if (!Objects.equals(appointment.getDoctorId(), consultingDoctor.getId())) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "您不是该预约的看诊医生");
         }
-        if (appointment.getVisitStatus() != null && appointment.getVisitStatus().equals("IN_PROGRESS")) {
+        String visitStatus = appointment.getVisitStatus();
+        if ("IN_PROGRESS".equals(visitStatus)) {
             throw new BusinessException(ErrorCodeEnum.CONSULTATION_IN_PROGRESS);
+        }
+        if ("COMPLETED".equals(visitStatus)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "该患者已完成就诊，不可重复接诊");
+        }
+        if (!("CHECKED_IN".equals(visitStatus) || "CALLED".equals(visitStatus))) {
+            throw new BusinessException(ErrorCodeEnum.PATIENT_NOT_CHECKED_IN, "患者未签到或未叫号，无法接诊");
         }
 
         Long doctorId = consultingDoctor.getId();
@@ -271,18 +280,20 @@ public class ConsultationService {
         }
 
         medicalRecordMapper.updateStatus(recordId, "COMPLETED");
-        appointmentMapper.updateVisitStatus(record.getAppointmentId(), "COMPLETED", null);
+        // 仅进行中（IN_PROGRESS）可结束，防止覆盖已结束/已取消的状态
+        appointmentMapper.updateVisitStatus(record.getAppointmentId(), "COMPLETED", "IN_PROGRESS");
         log.info("[接诊] 结束就诊: recordId={}, appointmentId={}", recordId, record.getAppointmentId());
     }
 
     /**
      * 查询病历详情
      */
-    public MedicalRecordVO getMedicalRecord(Long recordId) {
+    public MedicalRecordVO getMedicalRecord(Long recordId, Long userId) {
         MedicalRecord record = medicalRecordMapper.selectById(recordId);
         if (record == null) {
             throw new BusinessException(ErrorCodeEnum.RECORD_NOT_FOUND);
         }
+        checkRecordOwner(record, userId);
         List<Prescription> prescriptions = prescriptionMapper.selectByMedicalRecordId(recordId);
         List<PrescriptionVO> prescriptionVOs = prescriptions.stream()
                 .map(p -> {
@@ -296,9 +307,49 @@ public class ConsultationService {
     /**
      * 查询患者病历列表
      */
-    public List<MedicalRecordVO> listByPatient(Long patientId, long offset, Integer limit) {
+    public List<MedicalRecordVO> listByPatient(Long patientId, long offset, Integer limit, Long userId) {
+        // 权限：管理员/医生可查任意患者，患者仅可查本人病历
+        if (!UserContext.hasRole("ROLE_ADMIN") && !UserContext.hasRole("ROLE_DOCTOR")) {
+            Long myPatientId = resolvePatientId(userId);
+            if (myPatientId == null || !myPatientId.equals(patientId)) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权查看他人病历");
+            }
+        }
         List<MedicalRecord> records = medicalRecordMapper.selectByPatientId(patientId, (int) offset, limit);
         return records.stream().map(r -> toVO(r, Collections.emptyList())).collect(Collectors.toList());
+    }
+
+    /**
+     * 病历归属校验：管理员/医生可查看，患者仅可查看本人病历
+     */
+    private void checkRecordOwner(MedicalRecord record, Long userId) {
+        if (UserContext.hasRole("ROLE_ADMIN") || UserContext.hasRole("ROLE_DOCTOR")) {
+            return;
+        }
+        Long myPatientId = resolvePatientId(userId);
+        if (myPatientId == null || !myPatientId.equals(record.getPatientId())) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权查看他人病历");
+        }
+    }
+
+    /**
+     * 通过 userId 解析 patientId（auth userId ≠ patient db id）
+     */
+    private Long resolvePatientId(Long userId) {
+        try {
+            Map<String, Object> patientInfo = patientFeignClient.getByUserId(userId);
+            if (patientInfo == null || patientInfo.isEmpty()) {
+                return null;
+            }
+            Object pidObj = patientInfo.get("id");
+            if (pidObj == null) {
+                return null;
+            }
+            return Long.valueOf(pidObj.toString());
+        } catch (Exception e) {
+            log.warn("[接诊] 查询患者信息失败: userId={}", userId, e);
+            return null;
+        }
     }
 
     // ==================== 实体 → VO ====================

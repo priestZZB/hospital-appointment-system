@@ -1,6 +1,7 @@
 package com.hospital.clinic.service;
 
 import com.hospital.clinic.dto.ScheduleCreateDTO;
+import com.hospital.clinic.entity.Appointment;
 import com.hospital.clinic.entity.Department;
 import com.hospital.clinic.entity.Doctor;
 import com.hospital.clinic.entity.Schedule;
@@ -37,6 +38,7 @@ public class ScheduleService {
     private final SlotMapper slotMapper;
     private final AppointmentMapper appointmentMapper;
     private final SlotService slotService;
+    private final AppointmentService appointmentService;
 
     /**
      * 创建排班（同步生成号源）
@@ -139,13 +141,21 @@ public class ScheduleService {
         }
         scheduleMapper.updateStatus(id, 0);
 
-        // 级联取消：将该排班下所有可用/已约号源标记为已取消
-        slotMapper.updateStatusByScheduleId(id, "CANCELLED");
+        // 级联取消：未签到的待支付/已支付预约统一走取消流程（PENDING_PAY 释放号源，PAID 触发退款）
+        List<Appointment> appointments = appointmentMapper.selectByScheduleId(id);
+        for (Appointment appt : appointments) {
+            if (appt.getVisitStatus() != null) {
+                // 已签到/就诊中的预约不可直接取消，需走停诊审批流程，防止数据不一致
+                throw new BusinessException(ErrorCodeEnum.STOP_CONFLICT,
+                        "存在已签到或就诊中的预约，请先走停诊审批流程");
+            }
+            if ("PENDING_PAY".equals(appt.getOrderStatus()) || "PAID".equals(appt.getOrderStatus())) {
+                appointmentService.cancel(appt.getId(), "排班已取消");
+            }
+        }
 
-        // 级联取消：将该排班下所有待支付的预约标记为已取消
-        appointmentMapper.cancelPendingPayByScheduleId(id, "排班已取消");
-
-        // TODO: 迭代2 — 通知已预约的患者（PAID 状态的预约需要退款处理）
+        // 仅将仍可用的号源置为已取消（BOOKED 的由取消预约流程释放回 AVAILABLE）
+        slotMapper.updateAvailableStatusByScheduleId(id, "CANCELLED");
 
         log.info("[排班] 排班已取消（级联处理完成）: id={}", id);
     }

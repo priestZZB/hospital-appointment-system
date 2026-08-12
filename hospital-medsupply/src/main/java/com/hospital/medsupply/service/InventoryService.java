@@ -25,16 +25,12 @@ public class InventoryService {
     private final DrugInventoryLogMapper logMapper;
 
     public Map<String, Object> page(String keyword, Boolean lowStock, int pageNo, int pageSize) {
-        // 简化实现：返回所有库存记录
-        List<DrugInventory> list;
-        if (Boolean.TRUE.equals(lowStock)) {
-            list = inventoryMapper.selectLowStock();
-        } else {
-            list = List.of(); // 需要 JOIN drug 表做 keyword 搜索
-        }
+        int offset = (pageNo - 1) * pageSize;
+        List<DrugInventory> list = inventoryMapper.selectPage(keyword, lowStock, offset, pageSize);
+        long total = inventoryMapper.countPage(keyword, lowStock);
         Map<String, Object> result = new HashMap<>();
         result.put("records", list);
-        result.put("total", list.size());
+        result.put("total", total);
         result.put("pageNo", pageNo);
         result.put("pageSize", pageSize);
         return result;
@@ -69,7 +65,7 @@ public class InventoryService {
         int before = inv.getCurrentStock() == null ? 0 : inv.getCurrentStock();
 
         int rows = inventoryMapper.deductStock(drugId, quantity, inv.getVersion());
-        if (rows == 0) throw new BusinessException(ErrorCodeEnum.SLOT_NOT_ENOUGH, "库存不足或版本冲突");
+        if (rows == 0) throw new BusinessException(ErrorCodeEnum.DRUG_STOCK_NOT_ENOUGH, "库存不足或版本冲突");
 
         DrugInventoryLog log = new DrugInventoryLog();
         log.setDrugId(drugId);

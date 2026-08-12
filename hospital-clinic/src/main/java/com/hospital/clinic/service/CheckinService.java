@@ -9,6 +9,8 @@ import com.hospital.clinic.mapper.AppointmentMapper;
 import com.hospital.clinic.mapper.CheckinMapper;
 import com.hospital.clinic.mapper.DepartmentMapper;
 import com.hospital.clinic.mapper.ScheduleMapper;
+import com.hospital.clinic.mapper.SlotMapper;
+import com.hospital.clinic.entity.Slot;
 import com.hospital.clinic.vo.CheckinVO;
 import com.hospital.clinic.vo.QueueStatusVO;
 import com.hospital.common.exception.BusinessException;
@@ -39,6 +41,7 @@ public class CheckinService {
     private final AppointmentMapper appointmentMapper;
     private final ScheduleMapper scheduleMapper;
     private final DepartmentMapper departmentMapper;
+    private final SlotMapper slotMapper;
     private final PatientFeignClient patientFeignClient;
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -87,13 +90,16 @@ public class CheckinService {
             throw new BusinessException(ErrorCodeEnum.PATIENT_NOT_CHECKED_IN, "仅已支付的预约可签到");
         }
 
-        // 2. 校验签到时间窗口（号源开始前 30 分钟 至 后 30 分钟）
+        // 2. 校验签到时间窗口（该号源开始前 30 分钟 至 后 30 分钟）
         Schedule schedule = scheduleMapper.selectById(appointment.getScheduleId());
         if (schedule == null) {
             throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
         }
+        Slot slot = slotMapper.selectById(appointment.getSlotId());
         LocalDateTime slotStart = LocalDateTime.of(schedule.getScheduleDate(),
-                schedule.getPeriodStart());
+                slot != null && slot.getSlotStart() != null
+                        ? slot.getSlotStart()
+                        : schedule.getPeriodStart());
         LocalDateTime windowStart = slotStart.minusMinutes(30);
         LocalDateTime windowEnd = slotStart.plusMinutes(30);
         LocalDateTime now = LocalDateTime.now();

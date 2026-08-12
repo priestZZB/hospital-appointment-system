@@ -6,6 +6,7 @@ import okhttp3.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -33,11 +34,20 @@ public class ApiTestEngine {
     private String token;
     private final OkHttpClient client;
     private final ObjectMapper objectMapper;
+    private final boolean verbose;
 
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     public ApiTestEngine(String baseUrl) {
+        this(baseUrl, false);
+    }
+
+    /**
+     * @param verbose true 时在控制台打印每次请求的方法/路径/HTTP 状态/耗时/响应摘要
+     */
+    public ApiTestEngine(String baseUrl, boolean verbose) {
         this.baseUrl = baseUrl;
+        this.verbose = verbose;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.client = new OkHttpClient.Builder()
@@ -65,6 +75,27 @@ public class ApiTestEngine {
         Request request = new Request.Builder().url(fullUrl(path)).get()
                 .header("Authorization", bearer()).build();
         return execute(request);
+    }
+
+    /** GET（需认证，不解析 JSON，直接返回原始字节，用于 PDF 等二进制下载） */
+    public ApiResponse getBytesWithAuth(String path) throws IOException {
+        Request request = new Request.Builder().url(fullUrl(path)).get()
+                .header("Authorization", bearer()).build();
+        long start = System.currentTimeMillis();
+        try (Response response = client.newCall(request).execute()) {
+            int status = response.code();
+            byte[] bytes = response.body() != null ? response.body().bytes() : new byte[0];
+            long elapsed = System.currentTimeMillis() - start;
+            boolean ok = status >= 200 && status < 300 && bytes.length > 0;
+            String msg = "bytes=" + bytes.length;
+            ApiResponse resp = new ApiResponse(status,
+                    Map.of("code", ok ? 0 : -1, "message", msg), elapsed, bytes);
+            if (verbose) {
+                System.out.printf("    >> %-6s %s → HTTP %d | %s | %dms%n",
+                        "GET", path, status, msg, elapsed);
+            }
+            return resp;
+        }
     }
 
     /** POST（JSON，无需认证） */
@@ -145,17 +176,29 @@ public class ApiTestEngine {
     }
 
     private ApiResponse execute(Request request) throws IOException {
+        long start = System.currentTimeMillis();
         try (Response response = client.newCall(request).execute()) {
             String body = response.body() != null ? response.body().string() : null;
             int status = response.code();
+            long elapsed = System.currentTimeMillis() - start;
+            ApiResponse resp;
             if (body != null && !body.isEmpty()) {
                 try {
-                    return new ApiResponse(status, objectMapper.readValue(body, Map.class));
+                    resp = new ApiResponse(status, objectMapper.readValue(body, Map.class),
+                            elapsed, body.getBytes(StandardCharsets.UTF_8));
                 } catch (Exception e) {
-                    return new ApiResponse(status, Map.of("code", -1, "message", body));
+                    resp = new ApiResponse(status, Map.of("code", -1, "message", body),
+                            elapsed, body.getBytes(StandardCharsets.UTF_8));
                 }
+            } else {
+                resp = new ApiResponse(status, Map.of("code", -1, "message", "empty response"), elapsed, new byte[0]);
             }
-            return new ApiResponse(status, Map.of("code", -1, "message", "empty response"));
+            if (verbose) {
+                System.out.printf("    >> %-6s %s → HTTP %d | code=%d | %s | %dms%n",
+                        request.method(), request.url().encodedPath(), status,
+                        resp.getCode(), resp.getMessage(), elapsed);
+            }
+            return resp;
         }
     }
 
@@ -170,13 +213,23 @@ public class ApiTestEngine {
     public static class ApiResponse {
         private final int httpStatus;
         private final Map<String, Object> raw;
+        private final long elapsedMs;
+        private final byte[] rawBytes;
 
         public ApiResponse(int httpStatus, Map<String, Object> raw) {
+            this(httpStatus, raw, 0L, new byte[0]);
+        }
+
+        public ApiResponse(int httpStatus, Map<String, Object> raw, long elapsedMs, byte[] rawBytes) {
             this.httpStatus = httpStatus;
             this.raw = raw;
+            this.elapsedMs = elapsedMs;
+            this.rawBytes = rawBytes;
         }
 
         public int getHttpStatus() { return httpStatus; }
+        public long getElapsedMs() { return elapsedMs; }
+        public byte[] getRawBytes() { return rawBytes; }
         public int getCode() { return raw.containsKey("code") ? ((Number) raw.get("code")).intValue() : -1; }
         public String getMessage() { return (String) raw.get("message"); }
         public Object getData() { return raw.get("data"); }
@@ -187,7 +240,7 @@ public class ApiTestEngine {
 
         @Override
         public String toString() {
-            return String.format("HTTP %d | code=%d | %s", httpStatus, getCode(), getMessage());
+            return String.format("HTTP %d | code=%d | %s | %dms", httpStatus, getCode(), getMessage(), elapsedMs);
         }
     }
 }

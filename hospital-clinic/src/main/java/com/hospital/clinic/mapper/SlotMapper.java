@@ -39,4 +39,7 @@ public interface SlotMapper {
 
     /** 批量取消号源（排班级联取消） */
     int updateStatusByScheduleId(@Param("scheduleId") Long scheduleId, @Param("status") String status);
+
+    /** 仅取消仍可用的号源（保留 BOOKED，由取消预约流程释放） */
+    int updateAvailableStatusByScheduleId(@Param("scheduleId") Long scheduleId, @Param("status") String status);
 }

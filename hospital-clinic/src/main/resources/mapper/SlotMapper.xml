@@ -76,4 +76,10 @@
           AND status IN ('AVAILABLE', 'BOOKED')
     </update>
 
+    <update id="updateAvailableStatusByScheduleId">
+        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
+        WHERE schedule_id = #{scheduleId}
+          AND status = 'AVAILABLE'
+    </update>
+
 </mapper>

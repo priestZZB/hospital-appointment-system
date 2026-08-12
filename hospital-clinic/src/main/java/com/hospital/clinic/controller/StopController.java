@@ -4,6 +4,8 @@ import com.hospital.clinic.dto.StopApproveDTO;
 import com.hospital.clinic.service.StopService;
 import com.hospital.clinic.vo.StopApplicationVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import jakarta.validation.Valid;
@@ -45,6 +47,9 @@ public class StopController {
     public Result<StopApplicationVO> approve(@PathVariable("applicationId") Long applicationId,
                                               @Valid @RequestBody StopApproveDTO dto) {
         Long userId = UserContext.getUserId();
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可审批停诊");
+        }
         return Result.ok(stopService.approve(applicationId, userId, dto.getAction(), dto.getApproveComment()));
     }
 

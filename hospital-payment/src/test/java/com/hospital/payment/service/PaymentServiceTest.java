@@ -2,6 +2,7 @@ package com.hospital.payment.service;
 
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.feign.AppointmentFeignClient;
+import com.hospital.common.feign.PatientFeignClient;
 import com.hospital.payment.entity.LocalMessage;
 import com.hospital.payment.entity.PaymentOrder;
 import com.hospital.payment.mapper.LocalMessageMapper;
@@ -34,6 +35,7 @@ class PaymentServiceTest {
     @Mock private LocalMessageMapper messageMapper;
     @Mock private RefundRecordMapper refundRecordMapper;
     @Mock private AppointmentFeignClient appointmentFeignClient;
+    @Mock private PatientFeignClient patientFeignClient;
     @Mock private NotificationService notificationService;
 
     @InjectMocks
@@ -120,8 +122,9 @@ class PaymentServiceTest {
         paidOrder.setVersion(1);
 
         when(orderMapper.selectById(1L)).thenReturn(pendingOrder, paidOrder);
+        when(patientFeignClient.getByUserId(1L)).thenReturn(Map.of("id", 50L));
 
-        PaymentOrderVO result = paymentService.processPayment(1L);
+        PaymentOrderVO result = paymentService.processPayment(1L, 1L);
 
         assertNotNull(result);
         assertEquals("PAID", result.getStatus());
@@ -133,8 +136,9 @@ class PaymentServiceTest {
     @Test
     void testProcessPayment_AlreadyPaid() {
         when(orderMapper.selectById(2L)).thenReturn(paidOrder);
+        when(patientFeignClient.getByUserId(1L)).thenReturn(Map.of("id", 51L));
 
-        assertThrows(BusinessException.class, () -> paymentService.processPayment(2L));
+        assertThrows(BusinessException.class, () -> paymentService.processPayment(2L, 1L));
         verify(orderMapper, never()).markAsPaid(anyLong(), anyString(), anyInt());
     }
 

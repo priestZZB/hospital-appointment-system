@@ -47,7 +47,7 @@ public class AppointmentController {
     /** 预约详情 */
     @GetMapping("/{id}")
     public Result<AppointmentVO> getById(@PathVariable Long id) {
-        return Result.ok(appointmentService.getById(id));
+        return Result.ok(appointmentService.getById(id, UserContext.getUserId()));
     }
 
     /** 取消预约 */

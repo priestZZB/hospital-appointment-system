@@ -1,6 +1,9 @@
 package com.hospital.medsupply.controller;
 
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import com.hospital.medsupply.entity.ExamItem;
 import com.hospital.medsupply.service.ExamService;
@@ -19,12 +22,20 @@ public class ExamItemController {
     @GetMapping("/item")
     public Result<List<ExamItem>> list(@RequestParam(required = false) String keyword,
                                         @RequestParam(required = false) String itemType) {
+        requireAdmin();
         return Result.ok(examService.itemList(keyword, itemType));
     }
 
     @PostMapping("/item")
     @AuditLog(value = "创建检查项目", operationType = "INSERT")
     public Result<ExamItem> create(@RequestBody ExamItem item) {
+        requireAdmin();
         return Result.ok(examService.createItem(item));
+    }
+
+    private void requireAdmin() {
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
+        }
     }
 }

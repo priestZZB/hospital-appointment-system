@@ -4,6 +4,9 @@ import com.hospital.clinic.dto.DepartmentSaveDTO;
 import com.hospital.clinic.service.DepartmentService;
 import com.hospital.clinic.vo.DepartmentVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,7 @@ public class DepartmentController {
     @AuditLog(value = "新增科室", operationType = "INSERT")
     @PostMapping
     public Result<DepartmentVO> create(@Valid @RequestBody DepartmentSaveDTO dto) {
+        requireAdmin();
         return Result.ok(departmentService.create(dto));
     }
 
@@ -46,6 +50,7 @@ public class DepartmentController {
     @AuditLog(value = "编辑科室", operationType = "UPDATE")
     @PutMapping("/{id}")
     public Result<DepartmentVO> update(@PathVariable Long id, @Valid @RequestBody DepartmentSaveDTO dto) {
+        requireAdmin();
         return Result.ok(departmentService.update(id, dto));
     }
 
@@ -53,7 +58,14 @@ public class DepartmentController {
     @AuditLog(value = "更新科室状态", operationType = "UPDATE")
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestParam("status") Integer status) {
+        requireAdmin();
         departmentService.updateStatus(id, status);
         return Result.ok();
+    }
+
+    private void requireAdmin() {
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
+        }
     }
 }

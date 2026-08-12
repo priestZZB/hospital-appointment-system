@@ -137,8 +137,9 @@ public class StopService {
         List<Appointment> appointments = appointmentMapper.selectByScheduleId(application.getScheduleId());
         List<Appointment> cancellable = appointments.stream()
                 .filter(a -> "PENDING_PAY".equals(a.getOrderStatus()) || "PAID".equals(a.getOrderStatus()))
-                .filter(a -> a.getVisitStatus() == null
-                        || "CHECKED_IN".equals(a.getVisitStatus()) == false)
+                // 仅取消尚未签到（visit_status IS NULL）的预约；
+                // 已签到/已叫号/就诊中的患者须走正常就诊流程，不能被停诊强退
+                .filter(a -> a.getVisitStatus() == null)
                 .toList();
 
         int affectedCount = 0;

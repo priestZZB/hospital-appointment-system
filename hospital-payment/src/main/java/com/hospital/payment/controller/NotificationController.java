@@ -31,7 +31,7 @@ public class NotificationController {
     /** 标记已读 */
     @PutMapping("/{id}/read")
     public Result<Void> markAsRead(@PathVariable Long id) {
-        notificationService.markAsRead(id);
+        notificationService.markAsRead(id, UserContext.getUserId());
         return Result.ok();
     }
 }

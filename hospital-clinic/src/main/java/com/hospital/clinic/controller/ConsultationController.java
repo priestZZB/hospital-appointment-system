@@ -78,7 +78,7 @@ public class ConsultationController {
     /** 病历详情 */
     @GetMapping("/consultation/{recordId}")
     public Result<MedicalRecordVO> getMedicalRecord(@PathVariable("recordId") Long recordId) {
-        return Result.ok(consultationService.getMedicalRecord(recordId));
+        return Result.ok(consultationService.getMedicalRecord(recordId, UserContext.getUserId()));
     }
 
     /** 患者病历列表 */
@@ -87,6 +87,6 @@ public class ConsultationController {
                                                         @RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
                                                         @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
         long offset = (long) (Math.max(pageNo, 1) - 1) * Math.min(pageSize, 100);
-        return Result.ok(consultationService.listByPatient(patientId, offset, pageSize));
+        return Result.ok(consultationService.listByPatient(patientId, offset, pageSize, UserContext.getUserId()));
     }
 }

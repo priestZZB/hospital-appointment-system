@@ -18,6 +18,9 @@ public interface NotificationMapper {
     /** 根据患者ID查询 */
     List<Notification> selectByPatientId(@Param("patientId") Long patientId);
 
+    /** 根据主键查询 */
+    Notification selectById(@Param("id") Long id);
+
     /** 标记已读 */
     int markAsRead(@Param("id") Long id);
 }

@@ -9,7 +9,9 @@ import com.hospital.clinic.mapper.CheckinMapper;
 import com.hospital.clinic.mapper.DepartmentMapper;
 import com.hospital.clinic.mapper.DoctorMapper;
 import com.hospital.clinic.mapper.ScheduleMapper;
+import com.hospital.clinic.mapper.SlotMapper;
 import com.hospital.clinic.mapper.StopApplicationMapper;
+import com.hospital.clinic.entity.Slot;
 import com.hospital.clinic.vo.CallMessageVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
@@ -59,6 +61,8 @@ class ClinicExtendedTest {
         @Mock
         private ScheduleMapper scheduleMapper;
         @Mock
+        private SlotMapper slotMapper;
+        @Mock
         private DepartmentMapper departmentMapper;
         @Mock
         private StringRedisTemplate stringRedisTemplate;
@@ -94,9 +98,13 @@ class ClinicExtendedTest {
             schedule.setScheduleDate(java.time.LocalDate.now());
             schedule.setPeriodStart(java.time.LocalTime.now().minusMinutes(10));
 
+            Slot slot = new Slot();
+            slot.setSlotStart(java.time.LocalTime.now().minusMinutes(10));
+
             when(patientFeignClient.getByUserId(userId)).thenReturn(patientInfo);
             when(appointmentMapper.selectById(100L)).thenReturn(appt);
             when(scheduleMapper.selectById(10L)).thenReturn(schedule);
+            when(slotMapper.selectById(nullable(Long.class))).thenReturn(slot);
             when(checkinMapper.selectByAppointmentId(100L)).thenReturn(null);
             when(checkinMapper.insert(any())).thenReturn(1);
             when(zSetOperations.add(anyString(), anyString(), anyDouble())).thenReturn(true);
@@ -129,12 +137,16 @@ class ClinicExtendedTest {
             schedule.setScheduleDate(java.time.LocalDate.now());
             schedule.setPeriodStart(java.time.LocalTime.now().minusMinutes(10));
 
+            Slot slot = new Slot();
+            slot.setSlotStart(java.time.LocalTime.now().minusMinutes(10));
+
             Checkin existing = new Checkin();
             existing.setId(1L);
 
             when(patientFeignClient.getByUserId(userId)).thenReturn(patientInfo);
             when(appointmentMapper.selectById(100L)).thenReturn(appt);
             when(scheduleMapper.selectById(10L)).thenReturn(schedule);
+            when(slotMapper.selectById(nullable(Long.class))).thenReturn(slot);
             when(checkinMapper.selectByAppointmentId(100L)).thenReturn(existing);
 
             com.hospital.clinic.dto.CheckinDTO dto = new com.hospital.clinic.dto.CheckinDTO();

@@ -6,6 +6,13 @@
 docs/
 PROMPT.md
 DEVELOPMENT_TASKS.md
+API功能清单.md
+CODEX.md
+服务器部署方案.md
+
+# === 本地工具/会话配置 ===
+.claude/
+.review_*.diff
 
 # === Java / Maven ===
 target/

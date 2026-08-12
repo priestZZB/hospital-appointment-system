@@ -40,13 +40,13 @@ public class CallController {
     @PostMapping("/call/{checkinId}/recall")
     public Result<CallMessageVO> recall(@PathVariable("checkinId") Long checkinId,
                                         @RequestParam("consultRoom") String consultRoom) {
-        return Result.ok(callService.recall(checkinId, consultRoom));
+        return Result.ok(callService.recall(checkinId, consultRoom, UserContext.getUserId()));
     }
 
     /** 过号 */
     @PutMapping("/call/{checkinId}/missed")
     public Result<Void> markMissed(@PathVariable("checkinId") Long checkinId) {
-        callService.markMissed(checkinId);
+        callService.markMissed(checkinId, UserContext.getUserId());
         return Result.ok();
     }
 }

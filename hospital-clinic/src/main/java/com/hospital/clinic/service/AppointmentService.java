@@ -17,6 +17,7 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.PatientFeignClient;
 import com.hospital.common.feign.PaymentFeignClient;
+import com.hospital.common.interceptor.UserContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -123,9 +124,11 @@ public class AppointmentService {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "号源与排班信息不一致");
         }
 
-        // ========== 第3步：Redisson 分布式锁 + 乐观锁扣减（锁内包含防重复校验） ==========
+        // ========== 第3步：Redisson 分布式锁 + 乐观锁扣减（锁内包含防重复校验 + 设置防重复键） ==========
+        // 锁粒度 = 同一患者 + 同一排班：串行化同一患者的并发挂号，杜绝跨号源重复预约；
+        // 不同患者抢同一号源由 slot 乐观锁（version）兜底。
         String repeatKey = REPEAT_KEY_PREFIX + patientId + ":" + scheduleId;
-        String lockKey = LOCK_KEY_PREFIX + slotId;
+        String lockKey = LOCK_KEY_PREFIX + patientId + ":" + scheduleId;
         RLock lock = redissonClient.getLock(lockKey);
         boolean locked = false;
         try {
@@ -144,6 +147,12 @@ public class AppointmentService {
             boolean deducted = slotService.deductSlot(slotId, slot.getVersion());
             if (!deducted) {
                 throw new BusinessException(ErrorCodeEnum.SLOT_NOT_ENOUGH);
+            }
+
+            // 扣减成功后立即在锁内设置防重复键，关闭并发窗口（支付失败时在下方 catch 中清理）
+            long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
+            if (ttlSeconds > 0) {
+                stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
             }
 
         } catch (InterruptedException e) {
@@ -193,18 +202,13 @@ public class AppointmentService {
             }
         } catch (Exception e) {
             // 支付订单创建失败：直接抛异常，@Transactional 会回滚预约记录和号源扣减
-            // （Redis 重复键在 step7 设置，此处尚未执行，无需清理）
+            // 清理锁内已设置的防重复键，避免用户被误锁
+            stringRedisTemplate.delete(repeatKey);
             log.error("[挂号] 创建支付订单失败，事务回滚: appointmentId={}", appointment.getId(), e);
             throw new BusinessException(ErrorCodeEnum.REMOTE_SERVICE_ERROR, "支付服务暂不可用，请稍后重试");
         }
 
-        // ========== 第7步：设置重复挂号键（必须在支付订单创建成功之后） ==========
-        long ttlSeconds = calculateTTL(schedule.getScheduleDate(), slot.getSlotStart());
-        if (ttlSeconds > 0) {
-            stringRedisTemplate.opsForValue().set(repeatKey, "1", Duration.ofSeconds(ttlSeconds));
-        }
-
-        // ========== 第8步：组装返回 ==========
+        // ========== 第7步：组装返回 ==========
         return buildVO(appointment, doctor, dept, slot, paymentOrderId, paymentOrderNo);
     }
 
@@ -238,6 +242,16 @@ public class AppointmentService {
             String status = appointment.getOrderStatus();
             if ("CANCELLED".equals(status) || "REFUNDED".equals(status) || "TIMEOUT".equals(status)) {
                 throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL, "该预约已取消或已过期");
+            }
+
+            // 校验取消时间：就诊时段已开始则不可取消
+            Schedule schedule = scheduleMapper.selectById(appointment.getScheduleId());
+            Slot apptSlot = slotMapper.selectById(appointment.getSlotId());
+            if (schedule != null && apptSlot != null) {
+                LocalDateTime slotStart = LocalDateTime.of(schedule.getScheduleDate(), apptSlot.getSlotStart());
+                if (LocalDateTime.now().isAfter(slotStart)) {
+                    throw new BusinessException(ErrorCodeEnum.APPOINTMENT_CANNOT_CANCEL);
+                }
             }
 
             // 取消预约（传入预期状态，防止竞态覆盖）
@@ -302,10 +316,17 @@ public class AppointmentService {
     /**
      * 预约详情（联表查询，避免 N+1）
      */
-    public AppointmentVO getById(Long appointmentId) {
+    public AppointmentVO getById(Long appointmentId, Long userId) {
         AppointmentVO vo = appointmentMapper.selectByIdWithDetail(appointmentId);
         if (vo == null) {
             throw new BusinessException(ErrorCodeEnum.APPOINTMENT_NOT_FOUND);
+        }
+        // 权限：管理员/医生可查看任意预约，患者仅可查看本人预约
+        if (!UserContext.hasRole("ROLE_ADMIN") && !UserContext.hasRole("ROLE_DOCTOR")) {
+            Long patientId = resolvePatientId(userId);
+            if (patientId == null || !patientId.equals(vo.getPatientId())) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权查看他人预约");
+            }
         }
         return vo;
     }
@@ -399,6 +420,22 @@ public class AppointmentService {
         try {
             return Long.parseLong(obj.toString());
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 通过 userId 解析 patientId（auth userId ≠ patient db id）
+     */
+    private Long resolvePatientId(Long userId) {
+        try {
+            Map<String, Object> patientInfo = patientFeignClient.getByUserId(userId);
+            if (patientInfo == null || patientInfo.isEmpty()) {
+                return null;
+            }
+            return toLong(patientInfo.get("id"));
+        } catch (Exception e) {
+            log.warn("[挂号] 查询患者信息失败: userId={}", userId, e);
             return null;
         }
     }

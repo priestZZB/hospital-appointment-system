@@ -121,10 +121,21 @@ public class CallService {
      * @return 叫号消息
      */
     @Transactional(rollbackFor = Exception.class)
-    public CallMessageVO recall(Long checkinId, String consultRoom) {
+    public CallMessageVO recall(Long checkinId, String consultRoom, Long userId) {
         Checkin checkin = checkinMapper.selectById(checkinId);
         if (checkin == null) {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "签到记录不存在");
+        }
+        // 权限校验：仅医生或管理员可重呼，且医生须属于该科室
+        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅医生可执行重呼操作");
+        }
+        Doctor callingDoctor = doctorMapper.selectByUserId(userId);
+        if (callingDoctor == null) {
+            throw new BusinessException(ErrorCodeEnum.DOCTOR_NOT_FOUND);
+        }
+        if (!Objects.equals(callingDoctor.getDepartmentId(), checkin.getDepartmentId())) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "您不属于该科室");
         }
         if (!"CALLED".equals(checkin.getQueueStatus()) && !"RE_CALLED".equals(checkin.getQueueStatus())) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "仅已叫号的患者可重呼");
@@ -162,10 +173,21 @@ public class CallService {
      * @param checkinId 签到记录 ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public void markMissed(Long checkinId) {
+    public void markMissed(Long checkinId, Long userId) {
         Checkin checkin = checkinMapper.selectById(checkinId);
         if (checkin == null) {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "签到记录不存在");
+        }
+        // 权限校验：仅医生或管理员可处理过号，且医生须属于该科室
+        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅医生可处理过号");
+        }
+        Doctor doctor = doctorMapper.selectByUserId(userId);
+        if (doctor == null) {
+            throw new BusinessException(ErrorCodeEnum.DOCTOR_NOT_FOUND);
+        }
+        if (!Objects.equals(doctor.getDepartmentId(), checkin.getDepartmentId())) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "您不属于该科室");
         }
 
         // 更新状态为 MISSED

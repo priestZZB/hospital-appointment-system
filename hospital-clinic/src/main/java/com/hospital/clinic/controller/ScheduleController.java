@@ -4,6 +4,9 @@ import com.hospital.clinic.dto.ScheduleCreateDTO;
 import com.hospital.clinic.service.ScheduleService;
 import com.hospital.clinic.vo.ScheduleVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,7 @@ public class ScheduleController {
     @AuditLog(value = "创建排班", operationType = "INSERT")
     @PostMapping
     public Result<ScheduleVO> create(@Valid @RequestBody ScheduleCreateDTO dto) {
+        requireAdmin();
         return Result.ok(scheduleService.create(dto));
     }
 
@@ -51,7 +55,14 @@ public class ScheduleController {
     @AuditLog(value = "取消排班", operationType = "UPDATE")
     @PutMapping("/{id}/cancel")
     public Result<Void> cancel(@PathVariable Long id) {
+        requireAdmin();
         scheduleService.cancel(id);
         return Result.ok();
+    }
+
+    private void requireAdmin() {
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
+        }
     }
 }

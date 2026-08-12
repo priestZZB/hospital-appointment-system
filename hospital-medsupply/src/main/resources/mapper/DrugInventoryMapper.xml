@@ -66,4 +66,36 @@
         ORDER BY current_stock ASC
     </select>
 
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT i.* FROM drug_inventory i
+        INNER JOIN drug d ON i.drug_id = d.id
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (d.drug_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR d.drug_code LIKE CONCAT('%', #{keyword}, '%')
+                     OR d.generic_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="lowStock != null and lowStock == true">
+                AND i.current_stock &lt;= i.min_threshold
+            </if>
+        </where>
+        ORDER BY i.update_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*) FROM drug_inventory i
+        INNER JOIN drug d ON i.drug_id = d.id
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (d.drug_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR d.drug_code LIKE CONCAT('%', #{keyword}, '%')
+                     OR d.generic_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="lowStock != null and lowStock == true">
+                AND i.current_stock &lt;= i.min_threshold
+            </if>
+        </where>
+    </select>
+
 </mapper>

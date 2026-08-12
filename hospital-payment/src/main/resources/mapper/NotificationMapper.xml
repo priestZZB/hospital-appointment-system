@@ -32,6 +32,13 @@
         LIMIT 100
     </select>
 
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, patient_id, title, content, notify_type, related_id,
+               is_read, read_time, create_time
+        FROM notification
+        WHERE id = #{id}
+    </select>
+
     <update id="markAsRead">
         UPDATE notification
         SET is_read = 1, read_time = NOW()

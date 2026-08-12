@@ -49,4 +49,14 @@ public interface DrugInventoryMapper {
 
     /** 查询低库存列表（current_stock <= min_threshold） */
     List<DrugInventory> selectLowStock();
+
+    /** 分页查询库存（可联表按药品关键词筛选、低库存筛选） */
+    List<DrugInventory> selectPage(@Param("keyword") String keyword,
+                                   @Param("lowStock") Boolean lowStock,
+                                   @Param("offset") int offset,
+                                   @Param("limit") int limit);
+
+    /** 分页统计库存数量 */
+    long countPage(@Param("keyword") String keyword,
+                   @Param("lowStock") Boolean lowStock);
 }
