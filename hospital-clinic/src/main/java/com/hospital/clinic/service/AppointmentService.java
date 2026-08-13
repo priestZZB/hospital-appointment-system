@@ -2,17 +2,20 @@ package com.hospital.clinic.service;
 
 import cn.hutool.core.lang.UUID;
 import com.hospital.clinic.dto.AppointmentSubmitDTO;
+import com.hospital.clinic.dto.AppointmentPageQueryDTO;
 import com.hospital.clinic.entity.Appointment;
 import com.hospital.clinic.entity.Department;
 import com.hospital.clinic.entity.Doctor;
 import com.hospital.clinic.entity.Schedule;
 import com.hospital.clinic.entity.Slot;
 import com.hospital.clinic.mapper.AppointmentMapper;
+import com.hospital.clinic.mapper.CheckinMapper;
 import com.hospital.clinic.mapper.DepartmentMapper;
 import com.hospital.clinic.mapper.DoctorMapper;
 import com.hospital.clinic.mapper.ScheduleMapper;
 import com.hospital.clinic.mapper.SlotMapper;
 import com.hospital.clinic.vo.AppointmentVO;
+import com.hospital.clinic.vo.QueuePatientVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.PatientFeignClient;
@@ -32,8 +35,11 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 public class AppointmentService {
 
     private final AppointmentMapper appointmentMapper;
+    private final CheckinMapper checkinMapper;
     private final SlotMapper slotMapper;
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
@@ -329,6 +336,81 @@ public class AppointmentService {
             }
         }
         return vo;
+    }
+
+    /**
+     * 管理端分页查询预约（全量 + 多条件筛选）
+     */
+    public Map<String, Object> pageForAdmin(AppointmentPageQueryDTO dto) {
+        List<AppointmentVO> list = appointmentMapper.selectPageWithDetail(
+                dto.getDepartmentId(), dto.getDoctorId(), dto.getPatientId(),
+                dto.getOrderStatus(), dto.getAppointmentDate(),
+                dto.getOffset(), dto.getPageSize());
+        long total = appointmentMapper.countPageWithDetail(
+                dto.getDepartmentId(), dto.getDoctorId(), dto.getPatientId(),
+                dto.getOrderStatus(), dto.getAppointmentDate());
+        fillAppointmentPatientNames(list);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("records", list);
+        result.put("total", total);
+        result.put("pageNo", dto.getPageNo());
+        result.put("pageSize", dto.getPageSize());
+        return result;
+    }
+
+    /**
+     * 医生工作台：今日待接诊/已叫号患者列表（科室维度，可选医生过滤）
+     */
+    public List<QueuePatientVO> todayQueue(Long departmentId, Long doctorId) {
+        List<QueuePatientVO> list = checkinMapper.selectTodayQueueByDept(
+                departmentId, doctorId,
+                List.of("WAITING", "CALLED", "RE_CALLED", "IN_CONSULT", "MISSED"));
+        fillQueuePatientNames(list);
+        return list;
+    }
+
+    // ==================== 患者姓名批量补充（Feign 直连 patient-service） ====================
+
+    private void fillAppointmentPatientNames(List<AppointmentVO> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        Map<Long, String> names = resolvePatientNames(
+                list.stream().map(AppointmentVO::getPatientId).collect(Collectors.toSet()));
+        list.forEach(vo -> vo.setPatientName(names.get(vo.getPatientId())));
+    }
+
+    private void fillQueuePatientNames(List<QueuePatientVO> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        Map<Long, String> names = resolvePatientNames(
+                list.stream().map(QueuePatientVO::getPatientId).collect(Collectors.toSet()));
+        list.forEach(vo -> vo.setPatientName(names.get(vo.getPatientId())));
+    }
+
+    private Map<Long, String> resolvePatientNames(Set<Long> patientIds) {
+        Map<Long, String> names = new HashMap<>();
+        if (patientIds == null || patientIds.isEmpty()) {
+            return names;
+        }
+        try {
+            List<Map<String, Object>> batch = patientFeignClient.getBatch(
+                    patientIds.stream().filter(java.util.Objects::nonNull).collect(Collectors.toList()));
+            if (batch != null) {
+                for (Map<String, Object> info : batch) {
+                    Object id = info.get("id");
+                    Object name = info.get("name");
+                    if (id != null && name != null) {
+                        names.put(((Number) id).longValue(), String.valueOf(name));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[预约] 患者姓名批量查询失败（忽略）: {}", e.getMessage());
+        }
+        return names;
     }
 
     // ==================== 内部回调方法（供 Feign / Payment 调用） ====================

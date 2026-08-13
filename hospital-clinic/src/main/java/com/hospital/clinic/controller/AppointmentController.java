@@ -1,8 +1,11 @@
 package com.hospital.clinic.controller;
 
 import com.hospital.clinic.dto.AppointmentSubmitDTO;
+import com.hospital.clinic.dto.AppointmentPageQueryDTO;
 import com.hospital.clinic.service.AppointmentService;
 import com.hospital.clinic.vo.AppointmentVO;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.annotation.AuditLog;
 import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
@@ -12,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 预约挂号接口
@@ -44,6 +48,13 @@ public class AppointmentController {
         return Result.ok(appointmentService.listByPatient(userId));
     }
 
+    /** 管理端预约分页列表（多条件筛选，仅管理员） */
+    @GetMapping("/page")
+    public Result<Map<String, Object>> page(@ModelAttribute AppointmentPageQueryDTO dto) {
+        checkAdmin();
+        return Result.ok(appointmentService.pageForAdmin(dto));
+    }
+
     /** 预约详情 */
     @GetMapping("/{id}")
     public Result<AppointmentVO> getById(@PathVariable Long id) {
@@ -56,5 +67,11 @@ public class AppointmentController {
     public Result<Void> cancel(@PathVariable Long id, @RequestParam(value = "reason", required = false) String reason) {
         appointmentService.cancel(id, reason != null ? reason : "患者取消预约");
         return Result.ok();
+    }
+
+    private void checkAdmin() {
+        if (!UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
+        }
     }
 }

@@ -39,4 +39,12 @@ public interface DrugDispenseMapper {
     int updateDispensed(@Param("id") Long id,
                         @Param("status") String status,
                         @Param("dispenseOperatorId") Long dispenseOperatorId);
+
+    /** 按状态分页查询发药记录 */
+    List<DrugDispense> selectPageByStatus(@Param("status") String status,
+                                          @Param("offset") Integer offset,
+                                          @Param("limit") Integer limit);
+
+    /** 按状态统计发药记录数 */
+    long countByStatus(@Param("status") String status);
 }

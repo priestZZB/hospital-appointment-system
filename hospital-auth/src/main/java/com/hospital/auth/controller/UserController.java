@@ -1,6 +1,7 @@
 package com.hospital.auth.controller;
 
 import com.hospital.auth.dto.UserPageQueryDTO;
+import com.hospital.auth.dto.CreateUserDTO;
 import com.hospital.auth.service.UserService;
 import com.hospital.auth.vo.UserVO;
 import com.hospital.common.annotation.AuditLog;
@@ -13,8 +14,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,6 +40,16 @@ public class UserController {
     public Result<UserService.PageResult<UserVO>> pageQuery(@Valid UserPageQueryDTO dto) {
         checkAdmin();
         return Result.ok(userService.pageQuery(dto));
+    }
+
+    /**
+     * 创建用户（医生/管理员/患者账号，仅管理员）
+     */
+    @AuditLog(value = "创建用户", operationType = "INSERT")
+    @PostMapping
+    public Result<UserVO> create(@Valid @RequestBody CreateUserDTO dto) {
+        checkAdmin();
+        return Result.ok(userService.createUser(dto));
     }
 
     /**

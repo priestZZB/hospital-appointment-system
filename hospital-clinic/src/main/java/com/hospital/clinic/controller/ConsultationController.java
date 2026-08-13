@@ -3,10 +3,14 @@ package com.hospital.clinic.controller;
 import com.hospital.clinic.dto.ExamRequestDTO;
 import com.hospital.clinic.dto.MedicalRecordSaveDTO;
 import com.hospital.clinic.dto.PrescriptionCreateDTO;
+import com.hospital.clinic.service.AppointmentService;
 import com.hospital.clinic.service.ConsultationService;
 import com.hospital.clinic.vo.MedicalRecordVO;
 import com.hospital.clinic.vo.PrescriptionVO;
+import com.hospital.clinic.vo.QueuePatientVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import jakarta.validation.Valid;
@@ -33,6 +37,7 @@ import java.util.List;
 public class ConsultationController {
 
     private final ConsultationService consultationService;
+    private final AppointmentService appointmentService;
 
     /** 开始接诊 */
     @AuditLog(value = "开始接诊", operationType = "START_CONSULTATION")
@@ -88,5 +93,20 @@ public class ConsultationController {
                                                         @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
         long offset = (long) (Math.max(pageNo, 1) - 1) * Math.min(pageSize, 100);
         return Result.ok(consultationService.listByPatient(patientId, offset, pageSize, UserContext.getUserId()));
+    }
+
+    /** 医生工作台：今日待接诊/已叫号患者列表（医生/管理员） */
+    @GetMapping("/consultation/today")
+    public Result<List<QueuePatientVO>> todayQueue(
+            @RequestParam("departmentId") Long departmentId,
+            @RequestParam(value = "doctorId", required = false) Long doctorId) {
+        checkDoctorOrAdmin();
+        return Result.ok(appointmentService.todayQueue(departmentId, doctorId));
+    }
+
+    private void checkDoctorOrAdmin() {
+        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
+        }
     }
 }

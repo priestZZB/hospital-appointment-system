@@ -35,6 +35,22 @@ public interface AppointmentMapper {
     /** 根据主键查询详情（联表：含医生/科室/号源） */
     AppointmentVO selectByIdWithDetail(@Param("id") Long id);
 
+    /** 管理端分页查询预约（联表：医生/科室/号源，多条件筛选） */
+    List<AppointmentVO> selectPageWithDetail(@Param("departmentId") Long departmentId,
+                                             @Param("doctorId") Long doctorId,
+                                             @Param("patientId") Long patientId,
+                                             @Param("orderStatus") String orderStatus,
+                                             @Param("appointmentDate") LocalDate appointmentDate,
+                                             @Param("offset") Integer offset,
+                                             @Param("pageSize") Integer pageSize);
+
+    /** 管理端分页查询预约总数 */
+    long countPageWithDetail(@Param("departmentId") Long departmentId,
+                             @Param("doctorId") Long doctorId,
+                             @Param("patientId") Long patientId,
+                             @Param("orderStatus") String orderStatus,
+                             @Param("appointmentDate") LocalDate appointmentDate);
+
     /** 更新订单状态（带预期当前状态，防竞态覆盖） */
     int updateOrderStatus(@Param("id") Long id,
                           @Param("orderStatus") String orderStatus,

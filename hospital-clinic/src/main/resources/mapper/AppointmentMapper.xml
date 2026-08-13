@@ -130,6 +130,59 @@
         WHERE a.id = #{id}
     </select>
 
+    <select id="selectPageWithDetail" resultMap="DetailResultMap">
+        SELECT a.id, a.appointment_no, a.patient_id, a.slot_id, a.schedule_id,
+               a.doctor_id, d.name AS doctor_name, d.title AS doctor_title,
+               a.department_id, dep.dept_name AS department_name,
+               a.appointment_date, a.period, a.slot_seq,
+               s.slot_start, s.slot_end,
+               a.register_fee, a.order_status, a.visit_status,
+               a.create_time, a.update_time
+        FROM appointment a
+        LEFT JOIN doctor d ON a.doctor_id = d.id
+        LEFT JOIN department dep ON a.department_id = dep.id
+        LEFT JOIN slot s ON a.slot_id = s.id
+        WHERE 1 = 1
+        <if test="departmentId != null">
+            AND a.department_id = #{departmentId}
+        </if>
+        <if test="doctorId != null">
+            AND a.doctor_id = #{doctorId}
+        </if>
+        <if test="patientId != null">
+            AND a.patient_id = #{patientId}
+        </if>
+        <if test="orderStatus != null and orderStatus != ''">
+            AND a.order_status = #{orderStatus}
+        </if>
+        <if test="appointmentDate != null">
+            AND a.appointment_date = #{appointmentDate}
+        </if>
+        ORDER BY a.create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countPageWithDetail" resultType="long">
+        SELECT COUNT(*)
+        FROM appointment a
+        WHERE 1 = 1
+        <if test="departmentId != null">
+            AND a.department_id = #{departmentId}
+        </if>
+        <if test="doctorId != null">
+            AND a.doctor_id = #{doctorId}
+        </if>
+        <if test="patientId != null">
+            AND a.patient_id = #{patientId}
+        </if>
+        <if test="orderStatus != null and orderStatus != ''">
+            AND a.order_status = #{orderStatus}
+        </if>
+        <if test="appointmentDate != null">
+            AND a.appointment_date = #{appointmentDate}
+        </if>
+    </select>
+
     <update id="updateOrderStatus">
         UPDATE appointment SET order_status = #{orderStatus}, update_time = NOW()
         WHERE id = #{id}

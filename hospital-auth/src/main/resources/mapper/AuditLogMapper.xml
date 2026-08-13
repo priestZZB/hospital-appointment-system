@@ -42,7 +42,7 @@
             AND user_id = #{userId}
         </if>
         <if test="operationType != null and operationType != ''">
-            AND operation = #{operationType}
+            AND operation LIKE CONCAT('%', #{operationType}, '%')
         </if>
         <if test="startTime != null">
             AND create_time &gt;= #{startTime}
@@ -62,7 +62,7 @@
             AND user_id = #{userId}
         </if>
         <if test="operationType != null and operationType != ''">
-            AND operation = #{operationType}
+            AND operation LIKE CONCAT('%', #{operationType}, '%')
         </if>
         <if test="startTime != null">
             AND create_time &gt;= #{startTime}

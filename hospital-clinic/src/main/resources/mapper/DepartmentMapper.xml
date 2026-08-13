@@ -34,6 +34,16 @@
         WHERE id = #{id}
     </select>
 
+    <select id="selectByIds" resultMap="BaseResultMap">
+        SELECT id, dept_name, dept_code, description, location, phone,
+               status, sort_order, create_time, update_time
+        FROM department
+        WHERE id IN
+        <foreach collection="ids" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </select>
+
     <insert id="insert" parameterType="com.hospital.clinic.entity.Department"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO department (dept_name, dept_code, description, location, phone, status, sort_order, create_time, update_time)

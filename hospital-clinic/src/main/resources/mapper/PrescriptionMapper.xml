@@ -49,9 +49,14 @@
 
     <update id="updateStatus">
         UPDATE prescription
-        SET status = #{status}, review_comment = #{reviewComment}
+        SET status = #{status}
+        <if test="reviewComment != null">
+            , review_comment = #{reviewComment}
+        </if>
         WHERE id = #{id}
-          AND status = #{expectedStatus}
+        <if test="expectedStatus != null">
+            AND status = #{expectedStatus}
+        </if>
     </update>
 
 </mapper>

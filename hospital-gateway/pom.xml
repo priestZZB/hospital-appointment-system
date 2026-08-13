@@ -50,6 +50,13 @@
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+            <!-- WebFlux 网关无需 MVC 适配器（否则因缺少 servlet API 启动失败） -->
+            <exclusions>
+                <exclusion>
+                    <groupId>com.alibaba.csp</groupId>
+                    <artifactId>sentinel-spring-webmvc-adapter</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
@@ -92,6 +99,13 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

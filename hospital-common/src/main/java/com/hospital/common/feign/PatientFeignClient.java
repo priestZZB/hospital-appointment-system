@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Map;
+import java.util.List;
 
 /**
  * 患者档案服务 Feign 客户端
@@ -34,4 +35,10 @@ public interface PatientFeignClient {
      */
     @GetMapping("/internal/byId")
     Map<String, Object> getById(@RequestParam("patientId") Long patientId);
+
+    /**
+     * 根据 patientId 批量查询患者档案（内部调用，排队/预约列表补患者姓名）
+     */
+    @GetMapping("/internal/batch")
+    List<Map<String, Object>> getBatch(@RequestParam("patientIds") List<Long> patientIds);
 }

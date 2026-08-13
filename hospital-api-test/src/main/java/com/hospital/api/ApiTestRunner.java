@@ -51,7 +51,7 @@ public class ApiTestRunner {
     private final TestReport report;
     private final Map<String, Object> state = new LinkedHashMap<>(); // 跨步骤共享状态
     private int stepNo = 0;
-    private int stepTotal = 31;
+    private int stepTotal = 38;
 
     public ApiTestRunner() {
         // verbose=true：控制台输出每次请求的详细过程
@@ -120,6 +120,16 @@ public class ApiTestRunner {
         runStep("2-clinic-接诊与病历", this::testConsultation);
         runStep("2-clinic-停诊", this::testStop);
         runStep("2-clinic-BI统计", this::testBi);
+
+        // ════════════ 迭代 3（补充接口） ════════════
+        section("迭代 3 — 补充接口（前端联调）");
+        runStep("3-auth-创建用户+审计日志", this::testAuthUserCreateAudit);
+        runStep("3-clinic-医生管理", this::testDoctorManage);
+        runStep("3-clinic-预约管理分页", this::testAppointmentAdminPage);
+        runStep("3-clinic-排队快照+今日接诊", this::testQueueAndToday);
+        runStep("3-medsupply-医生选药", this::testDrugSearch);
+        runStep("3-medsupply-报告录入", this::testExamReportEntry);
+        runStep("3-medsupply-处方审核发药", this::testDispenseFlow);
 
         report.print();
     }
@@ -607,12 +617,19 @@ public class ApiTestRunner {
                                 "diagnosisCode", "J20.9", "diagnosisDesc", "急性支气管炎（自动化测试）",
                                 "action", "SUBMIT")));
 
-        check("POST /api/clinic/prescription（开具处方）",
-                engine.postWithAuth("/api/clinic/prescription",
-                        Map.of("medicalRecordId", recordId, "items", List.of(
-                                Map.of("drugId", DRUG_ID, "drugName", "自动化测试药品", "specification", "10mg×20片",
-                                        "dosage", "0.5g", "usageMethod", "ORAL", "frequency", "TID",
-                                        "days", 3, "quantity", 9, "unit", "BOX", "remark", "自动化测试")))));
+        ApiTestEngine.ApiResponse prescriptionResp = engine.postWithAuth("/api/clinic/prescription",
+                Map.of("medicalRecordId", recordId, "items", List.of(
+                        Map.of("drugId", DRUG_ID, "drugName", "自动化测试药品", "specification", "10mg×20片",
+                                "dosage", "0.5g", "usageMethod", "ORAL", "frequency", "TID",
+                                "days", 3, "quantity", 9, "unit", "BOX", "remark", "自动化测试"))));
+        check("POST /api/clinic/prescription（开具处方）", prescriptionResp);
+        if (prescriptionResp.isOk() && prescriptionResp.getData() instanceof Map) {
+            Object prescId = ((Map) prescriptionResp.getData()).get("id");
+            if (prescId != null) {
+                state.put("prescriptionId", ((Number) prescId).longValue());
+                log("✅ 处方已开具 prescriptionId=" + prescId);
+            }
+        }
 
         Long examItemId = ensureExamItem();
         if (examItemId != null) {
@@ -662,6 +679,153 @@ public class ApiTestRunner {
     private void testBi() throws IOException {
         engine.setToken(adminToken());
         check("GET  /api/clinic/bi/overview（当日 BI 概览）", engine.getWithAuth("/api/clinic/bi/overview"));
+    }
+
+    // ==================== 3. 迭代 3 补充接口 ====================
+
+    private void testAuthUserCreateAudit() throws IOException {
+        engine.setToken(adminToken());
+        String doctorPhone = "135" + randomDigits(8);
+        ApiTestEngine.ApiResponse create = engine.postWithAuth("/api/auth/users",
+                Map.of("phone", doctorPhone, "password", "Test12345",
+                        "realName", "自动化测试医生", "gender", 1, "userType", "DOCTOR"));
+        check("POST /api/auth/users（创建医生账号）", create);
+        if (create.isOk() && create.getData() instanceof Map) {
+            Object uid = ((Map) create.getData()).get("id");
+            if (uid != null) {
+                state.put("createdUserId", ((Number) uid).longValue());
+            }
+        }
+        check("GET  /api/auth/users?userType=DOCTOR（用户分页）",
+                engine.getWithAuth("/api/auth/users?userType=DOCTOR&pageNo=1&pageSize=10"));
+        try {
+            Thread.sleep(1200); // 等待异步审计落库
+        } catch (InterruptedException ignored) {
+        }
+        check("GET  /api/auth/audit-logs?pageNo=1&pageSize=10（审计日志分页）",
+                engine.getWithAuth("/api/auth/audit-logs?pageNo=1&pageSize=10"));
+        check("GET  /api/auth/audit-logs?operationType=创建用户（审计日志-操作类型筛选）",
+                engine.getWithAuth("/api/auth/audit-logs?operationType=创建用户&pageNo=1&pageSize=10"));
+    }
+
+    private void testDoctorManage() throws IOException {
+        engine.setToken(adminToken());
+        check("GET  /api/clinic/doctors?pageNo=1&pageSize=10（医生分页）",
+                engine.getWithAuth("/api/clinic/doctors?pageNo=1&pageSize=10"));
+        check("GET  /api/clinic/doctors/1（医生详情）",
+                engine.getWithAuth("/api/clinic/doctors/1"));
+
+        Object uid = state.get("createdUserId");
+        if (uid == null) {
+            check("POST /api/clinic/doctors（跳过—无测试账号）",
+                    syntheticOk("无测试账号，跳过医生新增"));
+            return;
+        }
+        String phone = "135" + randomDigits(8);
+        ApiTestEngine.ApiResponse create = engine.postWithAuth("/api/clinic/doctors",
+                Map.of("userId", uid, "name", "自动化测试医生", "gender", 1, "phone", phone,
+                        "departmentId", 1L, "title", "ATTENDING", "specialty", "内科",
+                        "introduction", "自动化测试"));
+        check("POST /api/clinic/doctors（新增医生）", create);
+        if (create.isOk() && create.getData() instanceof Map) {
+            Object did = ((Map) create.getData()).get("id");
+            if (did != null) {
+                state.put("createdDoctorId", ((Number) did).longValue());
+                check("PUT  /api/clinic/doctors/" + did + "/status（停用医生）",
+                        engine.putWithAuth("/api/clinic/doctors/" + did + "/status", Map.of("status", 0)));
+                check("PUT  /api/clinic/doctors/" + did + "/status（启用医生）",
+                        engine.putWithAuth("/api/clinic/doctors/" + did + "/status", Map.of("status", 1)));
+                check("PUT  /api/clinic/doctors/" + did + "（编辑医生）",
+                        engine.putWithAuth("/api/clinic/doctors/" + did,
+                                Map.of("name", "自动化测试医生-改", "gender", 1, "phone", phone,
+                                        "departmentId", 1L, "title", "RESIDENT", "specialty", "内科")));
+            }
+        }
+    }
+
+    private void testAppointmentAdminPage() throws IOException {
+        engine.setToken(adminToken());
+        check("GET  /api/clinic/appointments/page?pageNo=1&pageSize=10（预约全量分页）",
+                engine.getWithAuth("/api/clinic/appointments/page?pageNo=1&pageSize=10"));
+    }
+
+    private void testQueueAndToday() throws IOException {
+        engine.setToken(adminToken());
+        checkReachable("GET  /api/clinic/checkin/queue?departmentId=1（排队快照）",
+                engine.getWithAuth("/api/clinic/checkin/queue?departmentId=1"));
+        checkReachable("GET  /api/clinic/consultation/today?departmentId=1（今日接诊列表）",
+                engine.getWithAuth("/api/clinic/consultation/today?departmentId=1"));
+    }
+
+    private void testDrugSearch() throws IOException {
+        engine.setToken(adminToken());
+        check("GET  /api/medsupply/drugs?pageNo=1&pageSize=10（医生选药搜索）",
+                engine.getWithAuth("/api/medsupply/drugs?pageNo=1&pageSize=10"));
+        check("GET  /api/medsupply/drugs?keyword=药品（医生选药-关键字）",
+                engine.getWithAuth("/api/medsupply/drugs?keyword=药品&pageNo=1&pageSize=10"));
+    }
+
+    private void testExamReportEntry() throws IOException {
+        engine.setToken(adminToken());
+        Object recordId = state.get("recordId");
+        Object patientId = state.get("patientId");
+        if (recordId == null || patientId == null) {
+            check("POST /api/admin/exam/report（跳过—无病历/患者）",
+                    syntheticOk("无病历/患者，跳过"));
+            return;
+        }
+        Long examItemId = ensureExamItem();
+        if (examItemId == null) {
+            check("POST /api/admin/exam/report（跳过—无检查项目）",
+                    syntheticOk("无检查项目，跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse apply = engine.postWithAuth("/api/medsupply/internal/exam/apply",
+                Map.of("medicalRecordId", recordId, "patientId", patientId, "doctorId", 1L,
+                        "examItemId", examItemId, "examItemName", "自动化测试检查项",
+                        "itemType", "LAB", "applyRemark", "自动化测试报告录入"));
+        Object appId = null;
+        // 内部接口返回裸 Map（无 Result 包裹），按 HTTP 200 + 存在 id 判定
+        if (apply.isHttpOk() && apply.getRaw().containsKey("id")) {
+            appId = ((Number) apply.getRaw().get("id")).longValue();
+            assertTrue("POST /api/medsupply/internal/exam/apply（创建检查申请，applicationId=" + appId + "）", true);
+        } else {
+            check("POST /api/medsupply/internal/exam/apply（创建检查申请）", apply);
+        }
+        if (appId == null) {
+            check("POST /api/admin/exam/report（跳过—申请创建失败）",
+                    syntheticOk("申请创建失败，跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse report = engine.multipartFieldsWithAuth("/api/admin/exam/report",
+                new java.util.LinkedHashMap<>(Map.of(
+                        "applicationId", String.valueOf(appId),
+                        "reportDesc", "自动化测试报告描述",
+                        "reportResult", "未见明显异常（自动化测试）",
+                        "status", "PUBLISHED")));
+        check("POST /api/admin/exam/report（录入检查报告）", report);
+    }
+
+    private void testDispenseFlow() throws IOException {
+        engine.setToken(adminToken());
+        Object prescriptionId = state.get("prescriptionId");
+        if (prescriptionId == null) {
+            check("PUT  /api/admin/drug/dispense/{id}/review（跳过—无处方）",
+                    syntheticOk("无处方，跳过"));
+            return;
+        }
+        check("POST /api/admin/drug/inventory/inbound（补库存供发药）",
+                engine.postWithAuth("/api/admin/drug/inventory/inbound",
+                        Map.of("drugId", DRUG_ID, "quantity", 50, "remark", "自动化测试发药备货")));
+        check("PUT  /api/admin/drug/dispense/" + prescriptionId + "/review（处方审核通过）",
+                engine.putWithAuth("/api/admin/drug/dispense/" + prescriptionId + "/review",
+                        Map.of("action", "APPROVE", "reviewComment", "自动化测试审核通过")));
+        check("GET  /api/admin/drug/dispense/list?status=REVIEW_PASSED&pageNo=1&pageSize=10（发药记录列表）",
+                engine.getWithAuth("/api/admin/drug/dispense/list?status=REVIEW_PASSED&pageNo=1&pageSize=10"));
+        check("POST /api/admin/drug/dispense/" + prescriptionId + "（发药确认）",
+                engine.postWithAuth("/api/admin/drug/dispense/" + prescriptionId, Map.of()));
+        check("GET  /api/admin/drug/dispense/list?status=DISPENSED&pageNo=1&pageSize=10（已发药列表）",
+                engine.getWithAuth("/api/admin/drug/dispense/list?status=DISPENSED&pageNo=1&pageSize=10"));
     }
 
     // ==================== 排班/号源辅助（依据开发库种子数据） ====================

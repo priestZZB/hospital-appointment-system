@@ -48,6 +48,76 @@
         ORDER BY checkin_time ASC
     </select>
 
+    <!-- ==================== 排队患者（联表：预约/医生/科室/号源） ==================== -->
+
+    <resultMap id="QueuePatientResultMap" type="com.hospital.clinic.vo.QueuePatientVO">
+        <id column="checkin_id" property="checkinId"/>
+        <result column="appointment_id" property="appointmentId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="department_name" property="departmentName"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="doctor_name" property="doctorName"/>
+        <result column="appointment_date" property="appointmentDate"/>
+        <result column="period" property="period"/>
+        <result column="slot_seq" property="slotSeq"/>
+        <result column="slot_start" property="slotStart"/>
+        <result column="slot_end" property="slotEnd"/>
+        <result column="queue_status" property="queueStatus"/>
+        <result column="call_count" property="callCount"/>
+        <result column="consult_room" property="consultRoom"/>
+        <result column="visit_status" property="visitStatus"/>
+        <result column="checkin_time" property="checkinTime"/>
+        <result column="call_time" property="callTime"/>
+    </resultMap>
+
+    <sql id="QueueJoinSql">
+        SELECT c.id AS checkin_id, c.appointment_id, c.patient_id,
+               c.department_id, dep.dept_name AS department_name,
+               c.doctor_id, d.name AS doctor_name,
+               a.appointment_date, a.period, a.slot_seq,
+               s.slot_start, s.slot_end,
+               c.queue_status, c.call_count, c.consult_room,
+               a.visit_status, c.checkin_time, c.call_time
+        FROM checkin c
+        LEFT JOIN appointment a ON c.appointment_id = a.id
+        LEFT JOIN doctor d ON a.doctor_id = d.id
+        LEFT JOIN department dep ON c.department_id = dep.id
+        LEFT JOIN slot s ON a.slot_id = s.id
+    </sql>
+
+    <select id="selectQueueByDept" resultMap="QueuePatientResultMap">
+        <include refid="QueueJoinSql"/>
+        WHERE c.department_id = #{departmentId}
+          AND c.queue_status IN
+          <foreach collection="statuses" item="st" open="(" separator="," close=")">
+              #{st}
+          </foreach>
+        ORDER BY c.checkin_time ASC
+    </select>
+
+    <select id="selectLatestCalledByDept" resultMap="QueuePatientResultMap">
+        <include refid="QueueJoinSql"/>
+        WHERE c.department_id = #{departmentId}
+          AND c.queue_status IN ('CALLED', 'RE_CALLED', 'IN_CONSULT')
+        ORDER BY c.call_time DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectTodayQueueByDept" resultMap="QueuePatientResultMap">
+        <include refid="QueueJoinSql"/>
+        WHERE c.department_id = #{departmentId}
+          AND a.appointment_date = CURDATE()
+          <if test="doctorId != null">
+              AND a.doctor_id = #{doctorId}
+          </if>
+          AND c.queue_status IN
+          <foreach collection="statuses" item="st" open="(" separator="," close=")">
+              #{st}
+          </foreach>
+        ORDER BY c.checkin_time ASC
+    </select>
+
     <update id="updateQueueStatus">
         UPDATE checkin
         SET queue_status = #{queueStatus}

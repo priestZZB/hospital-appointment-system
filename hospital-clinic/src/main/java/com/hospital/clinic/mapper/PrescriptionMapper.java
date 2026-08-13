@@ -35,5 +35,6 @@ public interface PrescriptionMapper {
     /** 更新处方状态 */
     int updateStatus(@Param("id") Long id,
                      @Param("status") String status,
+                     @Param("reviewComment") String reviewComment,
                      @Param("expectedStatus") String expectedStatus);
 }

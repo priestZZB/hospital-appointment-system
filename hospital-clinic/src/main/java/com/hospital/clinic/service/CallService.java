@@ -10,6 +10,7 @@ import com.hospital.clinic.mapper.DoctorMapper;
 import com.hospital.clinic.vo.CallMessageVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.feign.PatientFeignClient;
 import com.hospital.common.interceptor.UserContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.Map;
 
 /**
  * 叫号服务
@@ -37,6 +39,7 @@ public class CallService {
     private final AppointmentMapper appointmentMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final StringRedisTemplate stringRedisTemplate;
+    private final PatientFeignClient patientFeignClient;
 
     private static final String QUEUE_KEY_PREFIX = "queue:dept:";
 
@@ -90,10 +93,13 @@ public class CallService {
 
         // 5. 组装推送消息
         Department dept = departmentMapper.selectById(departmentId);
-        String patientName = "患者" + checkin.getPatientId(); // 简化：后续可 Feign 查 patient-service
+        String patientName = resolvePatientName(checkin.getPatientId());
 
         CallMessageVO message = CallMessageVO.builder()
                 .type("CALL_NUMBER")
+                .checkinId(checkin.getId())
+                .appointmentId(checkin.getAppointmentId())
+                .patientId(checkin.getPatientId())
                 .deptId(departmentId)
                 .deptName(dept != null ? dept.getDeptName() : null)
                 .doctorName(callingDoctor != null ? callingDoctor.getName() : null)
@@ -149,11 +155,14 @@ public class CallService {
 
         CallMessageVO message = CallMessageVO.builder()
                 .type("RECALL")
+                .checkinId(checkin.getId())
+                .appointmentId(checkin.getAppointmentId())
+                .patientId(checkin.getPatientId())
                 .deptId(checkin.getDepartmentId())
                 .deptName(dept != null ? dept.getDeptName() : null)
                 .doctorName(doctor != null ? doctor.getName() : null)
                 .consultRoom(consultRoom)
-                .patientName("患者" + checkin.getPatientId())
+                .patientName(resolvePatientName(checkin.getPatientId()))
                 .queueNumber(newCallCount)
                 .timestamp(System.currentTimeMillis())
                 .build();
@@ -202,12 +211,30 @@ public class CallService {
         Department dept = departmentMapper.selectById(checkin.getDepartmentId());
         CallMessageVO message = CallMessageVO.builder()
                 .type("MISSED")
+                .checkinId(checkin.getId())
+                .appointmentId(checkin.getAppointmentId())
+                .patientId(checkin.getPatientId())
                 .deptId(checkin.getDepartmentId())
                 .deptName(dept != null ? dept.getDeptName() : null)
-                .patientName("患者" + checkin.getPatientId())
+                .patientName(resolvePatientName(checkin.getPatientId()))
                 .timestamp(System.currentTimeMillis())
                 .build();
         messagingTemplate.convertAndSend("/topic/call/" + checkin.getDepartmentId(), message);
         log.info("[过号] checkinId={}, 已重新排队", checkinId);
+    }
+
+    private String resolvePatientName(Long patientId) {
+        if (patientId == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> info = patientFeignClient.getById(patientId);
+            if (info != null && info.get("name") != null) {
+                return String.valueOf(info.get("name"));
+            }
+        } catch (Exception e) {
+            log.warn("[叫号] 患者姓名查询失败（使用占位）: patientId={}, error={}", patientId, e.getMessage());
+        }
+        return "患者" + patientId;
     }
 }

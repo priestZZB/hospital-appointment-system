@@ -30,6 +30,14 @@
         SELECT * FROM patient WHERE id = #{id}
     </select>
 
+    <select id="selectByIds" resultMap="BaseResultMap">
+        SELECT * FROM patient
+        WHERE id IN
+        <foreach collection="ids" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </select>
+
     <insert id="insert" parameterType="com.hospital.patient.entity.Patient"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO patient (user_id, name, gender, birth_date, id_card, phone,

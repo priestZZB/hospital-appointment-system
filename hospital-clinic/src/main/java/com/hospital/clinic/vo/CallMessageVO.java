@@ -15,6 +15,15 @@ public class CallMessageVO {
     /** 消息类型：CALL_NUMBER / RECALL / MISSED */
     private String type;
 
+    /** 签到记录 ID */
+    private Long checkinId;
+
+    /** 预约 ID */
+    private Long appointmentId;
+
+    /** 患者 ID */
+    private Long patientId;
+
     /** 科室ID */
     private Long deptId;
 

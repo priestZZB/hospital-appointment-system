@@ -3,7 +3,10 @@ package com.hospital.clinic.controller;
 import com.hospital.clinic.dto.CheckinDTO;
 import com.hospital.clinic.service.CheckinService;
 import com.hospital.clinic.vo.CheckinVO;
+import com.hospital.clinic.vo.QueueSnapshotVO;
 import com.hospital.clinic.vo.QueueStatusVO;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.annotation.AuditLog;
 import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -40,5 +44,18 @@ public class CheckinController {
     @GetMapping("/checkin/{checkinId}/queue-status")
     public Result<QueueStatusVO> queueStatus(@PathVariable("checkinId") Long checkinId) {
         return Result.ok(checkinService.getQueueStatus(checkinId));
+    }
+
+    /** 科室排队快照（签到叫号大屏：当前叫号 + 等待列表，医生/管理员） */
+    @GetMapping("/checkin/queue")
+    public Result<QueueSnapshotVO> queueSnapshot(@RequestParam("departmentId") Long departmentId) {
+        checkDoctorOrAdmin();
+        return Result.ok(checkinService.queueSnapshot(departmentId));
+    }
+
+    private void checkDoctorOrAdmin() {
+        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
+        }
     }
 }

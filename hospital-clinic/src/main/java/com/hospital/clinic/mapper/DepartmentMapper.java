@@ -18,6 +18,9 @@ public interface DepartmentMapper {
     /** 根据主键查询 */
     Department selectById(@Param("id") Long id);
 
+    /** 根据主键批量查询 */
+    List<Department> selectByIds(@Param("ids") List<Long> ids);
+
     /** 插入 */
     int insert(Department department);
 

@@ -65,4 +65,24 @@
           AND status = 'REVIEW_PASSED'
     </update>
 
+    <select id="selectPageByStatus" resultMap="BaseResultMap">
+        SELECT * FROM drug_dispense
+        <where>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*) FROM drug_dispense
+        <where>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
 </mapper>

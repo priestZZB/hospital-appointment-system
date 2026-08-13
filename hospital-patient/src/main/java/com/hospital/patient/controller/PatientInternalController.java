@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 患者档案内部接口（供 Feign 调用）
@@ -70,6 +72,17 @@ public class PatientInternalController {
     public Map<String, Object> getById(@RequestParam("patientId") Long patientId) {
         Patient p = patientService.getById(patientId);
         return toMap(p);
+    }
+
+    /** Feign: 根据 patientId 批量查询（用于排队/预约列表补患者姓名） */
+    @GetMapping("/batch")
+    public List<Map<String, Object>> getBatch(@RequestParam("patientIds") List<Long> patientIds) {
+        if (patientIds == null || patientIds.isEmpty()) {
+            return List.of();
+        }
+        return patientMapper.selectByIds(patientIds).stream()
+                .map(this::toMap)
+                .collect(Collectors.toList());
     }
 
     private Map<String, Object> toMap(Patient p) {

@@ -12,6 +12,8 @@ import com.hospital.clinic.mapper.ScheduleMapper;
 import com.hospital.clinic.mapper.SlotMapper;
 import com.hospital.clinic.entity.Slot;
 import com.hospital.clinic.vo.CheckinVO;
+import com.hospital.clinic.vo.QueuePatientVO;
+import com.hospital.clinic.vo.QueueSnapshotVO;
 import com.hospital.clinic.vo.QueueStatusVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
@@ -23,9 +25,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 签到服务
@@ -172,6 +177,54 @@ public class CheckinService {
                 .queueStatus(checkin.getQueueStatus())
                 .checkinTime(checkin.getCheckinTime())
                 .build();
+    }
+
+    /**
+     * 科室排队快照（签到叫号大屏初始数据：当前叫号 + 等待列表）
+     *
+     * @param departmentId 科室 ID
+     */
+    public QueueSnapshotVO queueSnapshot(Long departmentId) {
+        Department dept = departmentMapper.selectById(departmentId);
+        List<QueuePatientVO> waiting = checkinMapper.selectQueueByDept(departmentId, List.of("WAITING"));
+        QueuePatientVO currentCall = checkinMapper.selectLatestCalledByDept(departmentId);
+        fillPatientNames(waiting);
+        if (currentCall != null) {
+            fillPatientNames(List.of(currentCall));
+        }
+        return QueueSnapshotVO.builder()
+                .departmentId(departmentId)
+                .departmentName(dept != null ? dept.getDeptName() : null)
+                .currentCall(currentCall)
+                .waitingList(waiting)
+                .build();
+    }
+
+    private void fillPatientNames(List<QueuePatientVO> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        List<Long> ids = list.stream()
+                .map(QueuePatientVO::getPatientId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) {
+            return;
+        }
+        try {
+            Map<Long, String> names = new HashMap<>();
+            for (Map<String, Object> info : patientFeignClient.getBatch(ids)) {
+                Object id = info.get("id");
+                Object name = info.get("name");
+                if (id != null && name != null) {
+                    names.put(((Number) id).longValue(), String.valueOf(name));
+                }
+            }
+            list.forEach(vo -> vo.setPatientName(names.get(vo.getPatientId())));
+        } catch (Exception e) {
+            log.warn("[排队] 患者姓名批量查询失败（忽略）: {}", e.getMessage());
+        }
     }
 
     // ==================== 实体 → VO ====================

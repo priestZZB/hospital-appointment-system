@@ -143,6 +143,19 @@ public class ApiTestEngine {
         return execute(request);
     }
 
+    /** POST multipart 表单字段（需认证，无文件） */
+    public ApiResponse multipartFieldsWithAuth(String path, java.util.Map<String, String> fields) throws IOException {
+        MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM);
+        if (fields != null) {
+            fields.forEach(builder::addFormDataPart);
+        }
+        Request request = new Request.Builder().url(fullUrl(path))
+                .header("Authorization", bearer())
+                .post(builder.build())
+                .build();
+        return execute(request);
+    }
+
     // ==================== 业务快捷方法 ====================
 
     /** 登录并获取 Token 字符串 */
