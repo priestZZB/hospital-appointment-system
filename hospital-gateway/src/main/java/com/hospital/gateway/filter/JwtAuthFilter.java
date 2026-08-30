@@ -34,7 +34,8 @@ import java.util.List;
  * 2. 从 Authorization Header 提取 Bearer Token
  * 3. 验签 + 过期校验
  * 4. 检查 Token 是否在 Redis 黑名单中
- * 5. 解析用户信息并注入 X-User-Id / X-User-Roles Header 透传给下游微服务
+ * 5. 读取用户权限码（Redis perm:user:{userId}）并注入 Header 透传下游微服务
+ *    （X-User-Id / X-User-Roles / X-User-Permissions）
  */
 @Slf4j
 @Component
@@ -45,6 +46,9 @@ public class JwtAuthFilter implements WebFilter, Ordered {
     private final ReactiveStringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final AntPathMatcher antPathMatcher = new AntPathMatcher();
+
+    /** 权限缓存 key 前缀（与 common PermissionCacheService 保持一致） */
+    private static final String PERMISSION_KEY_PREFIX = "perm:user:";
 
     /**
      * JWT 白名单路径（逗号分隔）。
@@ -115,12 +119,26 @@ public class JwtAuthFilter implements WebFilter, Ordered {
 
                     log.debug("[JWT] 认证通过: userId={}, roles={}, path={}", userId, rolesStr, path);
 
-                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                            .header("X-User-Id", String.valueOf(userId))
-                            .header("X-User-Roles", rolesStr)
-                            .build();
+                    // 读取用户权限码（Redis Set），注入 X-User-Permissions Header
+                    return redisTemplate.opsForSet().members(PERMISSION_KEY_PREFIX + userId)
+                            .collectList()
+                            .onErrorResume(e -> {
+                                log.warn("[JWT] Redis 不可用，权限码读取跳过（fail-open）: {}", e.getMessage());
+                                return Mono.just(List.of());
+                            })
+                            .flatMap(perms -> {
+                                String permsStr = (perms != null && !perms.isEmpty())
+                                        ? String.join(",", perms)
+                                        : "";
 
-                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                                ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                                        .header("X-User-Id", String.valueOf(userId))
+                                        .header("X-User-Roles", rolesStr)
+                                        .header("X-User-Permissions", permsStr)
+                                        .build();
+
+                                return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                            });
                 });
     }
 

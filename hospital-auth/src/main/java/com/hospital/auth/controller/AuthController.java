@@ -4,12 +4,16 @@ import com.hospital.auth.dto.LoginDTO;
 import com.hospital.auth.dto.RegisterDTO;
 import com.hospital.auth.service.AuthService;
 import com.hospital.auth.vo.LoginVO;
+import com.hospital.auth.vo.MyPermissionsVO;
+import com.hospital.auth.vo.UserVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.result.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,6 +71,24 @@ public class AuthController {
     public Result<LoginVO> refresh(HttpServletRequest request) {
         String token = extractToken(request);
         return Result.ok(authService.refresh(token));
+    }
+
+    /**
+     * 我的权限（当前登录用户的权限码，按 api/menu/btn 分组下发）
+     * <p>
+     * 供前端路由守卫 / 菜单渲染 / 按钮控制使用；后端鉴权由 @RequiresPermission 拦截器完成。
+     */
+    @GetMapping("/my-permissions")
+    public Result<MyPermissionsVO> myPermissions() {
+        return Result.ok(authService.myPermissions(UserContext.getUserId()));
+    }
+
+    /**
+     * 我的信息（当前登录用户个人信息，含岗位展示）
+     */
+    @GetMapping("/profile")
+    public Result<UserVO> profile() {
+        return Result.ok(authService.profile(UserContext.getUserId()));
     }
 
     // ==================== 私有方法 ====================

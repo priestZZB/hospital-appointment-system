@@ -33,4 +33,15 @@
         ORDER BY p.sort_order
     </select>
 
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT DISTINCT p.id, p.perm_code, p.perm_name, p.perm_type,
+               p.parent_id, p.path, p.sort_order, p.status, p.create_time, p.update_time
+        FROM permission p
+        INNER JOIN role_permission rp ON p.id = rp.permission_id
+        INNER JOIN user_role ur ON ur.role_id = rp.role_id
+        WHERE ur.user_id = #{userId}
+        AND p.status = 1
+        ORDER BY p.sort_order
+    </select>
+
 </mapper>

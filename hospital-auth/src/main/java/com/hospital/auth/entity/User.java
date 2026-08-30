@@ -33,6 +33,9 @@ public class User implements Serializable {
     /** 用户类型：PATIENT / ADMIN */
     private String userType;
 
+    /** 主岗位 ID（position.id，纯展示；null 表示未分配） */
+    private Long positionId;
+
     /** 状态：1-启用 0-停用 */
     private Integer status;
 

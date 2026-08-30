@@ -45,11 +45,11 @@ spring:
           uri: lb://clinic-service
           predicates:
             - Path=/api/clinic/**,/api/department/**,/api/schedule/**,/api/slot/**,/api/order/**,/api/checkin/**,/api/call/**,/api/queue/**,/api/consultation/**,/api/medical-record/**,/api/prescription/**,/api/stop/**,/api/bi/**,/api/ws/**
-        # medsupply-service: 药品、检查项、发药、报告
+        # medsupply-service: 药品、检查项、发药、报告、输液、检验
         - id: medsupply-service
           uri: lb://medsupply-service
           predicates:
-            - Path=/api/medsupply/**,/api/admin/drug/**,/api/admin/exam/**,/api/exam/**,/api/admin/drug/dispense/**
+            - Path=/api/medsupply/**,/api/admin/drug/**,/api/admin/exam/**,/api/exam/**,/api/admin/drug/dispense/**,/api/infusion/**,/api/lab/**
         # payment-service: 支付、退款、通知、凭证
         - id: payment-service
           uri: lb://payment-service

@@ -57,6 +57,8 @@ public enum ErrorCodeEnum {
     ORDER_EXPIRED(3005, "订单已过期"),
     REFUND_FAILED(3006, "退款失败"),
     PAYMENT_FAILED(3007, "支付失败"),
+    PAY_NOT_COMPLETED(3008, "尚未缴费，不可执行该操作"),
+    REFUND_NOT_ALLOWED(3009, "当前订单状态不可退费"),
 
     // ==================== 门诊诊疗 4000-4999 ====================
     PATIENT_NOT_CHECKED_IN(4001, "患者未签到，无法接诊"),

@@ -49,4 +49,14 @@ public interface UserMapper {
      */
     int updateLastLogin(@Param("id") Long id,
                         @Param("lastLoginIp") String lastLoginIp);
+
+    /**
+     * 查询用户角色编码列表（岗位分配校验用）
+     */
+    List<String> selectRoleCodesByUserId(@Param("userId") Long userId);
+
+    /**
+     * 更新用户主岗位（position_id，null 表示撤销岗位）
+     */
+    int updatePositionId(@Param("id") Long id, @Param("positionId") Long positionId);
 }

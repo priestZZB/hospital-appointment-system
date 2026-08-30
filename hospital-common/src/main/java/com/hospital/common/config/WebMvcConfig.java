@@ -1,6 +1,7 @@
 package com.hospital.common.config;
 
 import com.hospital.common.interceptor.AuthInterceptor;
+import com.hospital.common.interceptor.PermissionInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +20,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
+    private final PermissionInterceptor permissionInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -32,6 +34,19 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/payment/internal/**",   // Feign 内部调用不需要 Header
                         "/api/clinic/internal/**",    // Feign 内部调用不需要 Header
                         "/api/medsupply/internal/**"  // Feign/RestTemplate 内部调用不需要 Header（检查申请等）
+                );
+        // 权限校验在认证之后执行（通过注册顺序保证：后注册的先执行，此处应让认证先跑）
+        // 注意：Spring 拦截器按注册顺序 preHandle 正序执行，authInterceptor 在前、permissionInterceptor 在后
+        registry.addInterceptor(permissionInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns(
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/api/auth/internal/**",
+                        "/api/patient/internal/**",
+                        "/api/payment/internal/**",
+                        "/api/clinic/internal/**",
+                        "/api/medsupply/internal/**"
                 );
     }
 }

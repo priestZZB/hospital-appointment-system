@@ -4,6 +4,8 @@ import com.hospital.auth.dto.AuditLogQueryDTO;
 import com.hospital.auth.entity.AuditLog;
 import com.hospital.auth.service.AuditLogService;
 import com.hospital.auth.service.UserService;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -27,6 +29,7 @@ public class AuditLogController {
     /**
      * 分页查询审计日志（操作人/操作类型/时间范围筛选）
      */
+    @RequiresPermission(PermissionConstant.AUTH_AUDIT_QUERY)
     @GetMapping
     public Result<UserService.PageResult<AuditLog>> pageQuery(@ModelAttribute AuditLogQueryDTO dto) {
         checkAdmin();
@@ -34,7 +37,7 @@ public class AuditLogController {
     }
 
     private void checkAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

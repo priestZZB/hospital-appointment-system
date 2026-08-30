@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.auth.mapper.PositionMapper">
+
+    <!-- ==================== 结果映射 ==================== -->
+
+    <resultMap id="BaseResultMap" type="com.hospital.auth.entity.Position">
+        <id column="id" property="id"/>
+        <result column="position_code" property="positionCode"/>
+        <result column="position_name" property="positionName"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="department_name" property="departmentName"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <resultMap id="PositionVOMap" type="com.hospital.auth.vo.PositionVO">
+        <id column="id" property="id"/>
+        <result column="position_code" property="positionCode"/>
+        <result column="position_name" property="positionName"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="department_name" property="departmentName"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="user_count" property="userCount"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <!-- ==================== SQL ==================== -->
+
+    <select id="selectPage" resultMap="PositionVOMap">
+        SELECT p.id, p.position_code, p.position_name, p.department_id, p.department_name,
+               p.title, p.description, p.status, p.sort_order, p.create_time,
+               (SELECT COUNT(*) FROM `user` u WHERE u.position_id = p.id AND u.deleted = 0) AS user_count
+        FROM `position` p
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (p.position_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR p.position_code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="departmentId != null">
+                AND p.department_id = #{departmentId}
+            </if>
+            <if test="status != null">
+                AND p.status = #{status}
+            </if>
+        </where>
+        ORDER BY p.sort_order, p.id
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM `position` p
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (p.position_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR p.position_code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="departmentId != null">
+                AND p.department_id = #{departmentId}
+            </if>
+            <if test="status != null">
+                AND p.status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, position_code, position_name, department_id, department_name,
+               title, description, status, sort_order, create_time, update_time
+        FROM `position`
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByCode" resultMap="BaseResultMap">
+        SELECT id, position_code, position_name, department_id, department_name,
+               title, description, status, sort_order, create_time, update_time
+        FROM `position`
+        WHERE position_code = #{positionCode}
+    </select>
+
+    <select id="selectEnabledAll" resultMap="BaseResultMap">
+        SELECT id, position_code, position_name, department_id, department_name,
+               title, description, status, sort_order, create_time, update_time
+        FROM `position`
+        WHERE status = 1
+        ORDER BY sort_order, id
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.auth.entity.Position"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `position` (position_code, position_name, department_id, department_name,
+                                title, description, status, sort_order, create_time, update_time)
+        VALUES (#{positionCode}, #{positionName}, #{departmentId}, #{departmentName},
+                #{title}, #{description}, #{status}, #{sortOrder}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.hospital.auth.entity.Position">
+        UPDATE `position`
+        SET position_code   = #{positionCode},
+            position_name   = #{positionName},
+            department_id   = #{departmentId},
+            department_name = #{departmentName},
+            title           = #{title},
+            description     = #{description},
+            status          = #{status},
+            sort_order      = #{sortOrder},
+            update_time     = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM `position` WHERE id = #{id}
+    </delete>
+
+    <select id="countUserByPositionId" resultType="long">
+        SELECT COUNT(*) FROM `user` WHERE position_id = #{positionId} AND deleted = 0
+    </select>
+
+</mapper>

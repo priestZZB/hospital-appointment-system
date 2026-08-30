@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hospital.auth.mapper.DataScopeApplyMapper">
+
+    <!-- ==================== 结果映射 ==================== -->
+
+    <resultMap id="BaseResultMap" type="com.hospital.auth.entity.DataScopeApply">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="target_department_id" property="targetDepartmentId"/>
+        <result column="target_department_name" property="targetDepartmentName"/>
+        <result column="reason" property="reason"/>
+        <result column="status" property="status"/>
+        <result column="approver_id" property="approverId"/>
+        <result column="approver_name" property="approverName"/>
+        <result column="approve_comment" property="approveComment"/>
+        <result column="expire_time" property="expireTime"/>
+        <result column="apply_time" property="applyTime"/>
+        <result column="approve_time" property="approveTime"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <resultMap id="VOMap" type="com.hospital.auth.vo.DataScopeApplyVO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="target_department_id" property="targetDepartmentId"/>
+        <result column="target_department_name" property="targetDepartmentName"/>
+        <result column="reason" property="reason"/>
+        <result column="status" property="status"/>
+        <result column="approver_id" property="approverId"/>
+        <result column="approver_name" property="approverName"/>
+        <result column="approve_comment" property="approveComment"/>
+        <result column="expire_time" property="expireTime"/>
+        <result column="apply_time" property="applyTime"/>
+        <result column="approve_time" property="approveTime"/>
+    </resultMap>
+
+    <!-- ==================== SQL ==================== -->
+
+    <select id="selectPage" resultMap="VOMap">
+        SELECT id, user_id, user_name, target_department_id, target_department_name,
+               reason, status, approver_id, approver_name, approve_comment,
+               expire_time, apply_time, approve_time
+        FROM data_scope_apply
+        <where>
+            <if test="userId != null">
+                AND user_id = #{userId}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="targetDepartmentId != null">
+                AND target_department_id = #{targetDepartmentId}
+            </if>
+        </where>
+        ORDER BY apply_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM data_scope_apply
+        <where>
+            <if test="userId != null">
+                AND user_id = #{userId}
+            </if>
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="targetDepartmentId != null">
+                AND target_department_id = #{targetDepartmentId}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, user_id, user_name, target_department_id, target_department_name,
+               reason, status, approver_id, approver_name, approve_comment,
+               expire_time, apply_time, approve_time, create_time, update_time
+        FROM data_scope_apply
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.hospital.auth.entity.DataScopeApply"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO data_scope_apply (user_id, user_name, target_department_id, target_department_name,
+                                      reason, status, apply_time, create_time, update_time)
+        VALUES (#{userId}, #{userName}, #{targetDepartmentId}, #{targetDepartmentName},
+                #{reason}, 'PENDING', NOW(), NOW(), NOW())
+    </insert>
+
+    <update id="updateApprove" parameterType="com.hospital.auth.entity.DataScopeApply">
+        UPDATE data_scope_apply
+        SET status           = #{status},
+            approver_id      = #{approverId},
+            approver_name    = #{approverName},
+            approve_comment  = #{approveComment},
+            expire_time      = #{expireTime},
+            approve_time     = NOW(),
+            update_time      = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectActiveByUserAndDept" resultMap="BaseResultMap">
+        SELECT id, user_id, user_name, target_department_id, target_department_name,
+               reason, status, approver_id, approver_name, approve_comment,
+               expire_time, apply_time, approve_time, create_time, update_time
+        FROM data_scope_apply
+        WHERE user_id = #{userId}
+          AND target_department_id = #{departmentId}
+          AND status = 'APPROVED'
+          AND (expire_time IS NULL OR expire_time > NOW())
+        ORDER BY approve_time DESC
+    </select>
+
+</mapper>

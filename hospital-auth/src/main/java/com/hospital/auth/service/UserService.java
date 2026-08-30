@@ -4,13 +4,17 @@ import com.hospital.auth.dto.UserPageQueryDTO;
 import com.hospital.auth.dto.CreateUserDTO;
 import com.hospital.auth.entity.User;
 import com.hospital.auth.entity.Role;
+import com.hospital.auth.entity.Position;
 import com.hospital.auth.mapper.RoleMapper;
 import com.hospital.auth.mapper.UserMapper;
+import com.hospital.auth.mapper.PositionMapper;
 import com.hospital.auth.vo.UserVO;
+import com.hospital.common.constant.RoleConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.PatientFeignClient;
 import com.hospital.common.feign.dto.CreatePatientDTO;
+import com.hospital.common.interceptor.UserContext;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +38,7 @@ public class UserService {
 
     private final UserMapper userMapper;
     private final RoleMapper roleMapper;
+    private final PositionMapper positionMapper;
     private final PasswordEncoder passwordEncoder;
     private final PatientFeignClient patientFeignClient;
 
@@ -51,6 +56,13 @@ public class UserService {
 
     /**
      * 变更用户启用/禁用状态
+     * <p>
+     * 权限约束：
+     * <ul>
+     *   <li>不能操作自己（禁止自我禁用）；</li>
+     *   <li>超级管理员账号不可被禁用；</li>
+     *   <li>普通管理员不可禁用其他管理员/超级管理员账号（防止越权）。</li>
+     * </ul>
      *
      * @param id     用户 ID
      * @param status 目标状态：1-启用 0-停用
@@ -64,12 +76,39 @@ public class UserService {
         if (status != 1 && status != 0) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "状态值只能为 0 或 1");
         }
+
+        // 不能操作自己（防止管理员/超管误禁用自身账号导致系统失管）
+        Long currentUserId = UserContext.getUserId();
+        if (currentUserId != null && currentUserId.equals(id)) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "不能操作自己的账号");
+        }
+
+        // 目标用户是否拥有超管角色（不可禁用超管账号）
+        List<String> targetRoleCodes = roleMapper.findByUserId(id).stream()
+                .map(Role::getRoleCode)
+                .collect(Collectors.toList());
+        if (targetRoleCodes.contains(RoleConstant.SUPER_ADMIN)) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "超级管理员账号不可禁用");
+        }
+        // 普通管理员不可禁用其他管理员账号
+        if (targetRoleCodes.contains(RoleConstant.ADMIN) && !UserContext.isSuperAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅超级管理员可操作管理员账号");
+        }
+
         userMapper.updateStatus(id, status);
         log.info("[用户] 状态变更: userId={}, status={}", id, status);
     }
 
     /**
-     * 创建用户（管理员创建医生/管理员/患者账号）
+     * 创建用户（管理员创建医生/患者账号；仅超级管理员可创建管理员账号）
+     * <p>
+     * 权限约束（四角色 RBAC）：
+     * <ul>
+     *   <li>仅超级管理员可创建 ADMIN（管理员）类型用户；普通管理员不可创建管理员账号；</li>
+     *   <li>任何人不可创建 SUPER_ADMIN（超级管理员）类型用户——超管开局预置且唯一；</li>
+     *   <li>创建医生/患者账号：超级管理员与普通管理员均可；</li>
+     *   <li>roleIds 中不可包含超管/管理员角色（除非操作者是超级管理员），防止提权。</li>
+     * </ul>
      * <p>
      * 1. 校验手机号唯一 + 用户类型合法
      * 2. 插入用户（BCrypt 加密）
@@ -92,7 +131,12 @@ public class UserService {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "用户类型仅支持 PATIENT / DOCTOR / ADMIN");
         }
 
-        // 3. 插入用户
+        // 3. 权限约束：创建管理员账号仅超级管理员可操作
+        if ("ADMIN".equals(userType) && !UserContext.isSuperAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅超级管理员可创建管理员账号");
+        }
+
+        // 4. 插入用户
         User user = new User();
         user.setPhone(dto.getPhone());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
@@ -101,15 +145,23 @@ public class UserService {
         user.setUserType(userType);
         user.setStatus(1);
         user.setNeedPasswordChange(0);
+        // 可选岗位（创建时直接指定；校验岗位存在）
+        if (dto.getPositionId() != null) {
+            Position position = positionMapper.selectById(dto.getPositionId());
+            if (position == null) {
+                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "岗位不存在: id=" + dto.getPositionId());
+            }
+            user.setPositionId(dto.getPositionId());
+        }
         userMapper.insert(user);
         log.info("[用户] 创建用户成功: userId={}, phone={}, userType={}", user.getId(), user.getPhone(), userType);
 
-        // 4. 分配角色（默认角色 + 显式角色，去重）
+        // 5. 分配角色（默认角色 + 显式角色，去重）
         Set<Long> roleIds = new LinkedHashSet<>();
         String defaultRoleCode = switch (userType) {
-            case "DOCTOR" -> "ROLE_DOCTOR";
-            case "ADMIN" -> "ROLE_ADMIN";
-            default -> "ROLE_PATIENT";
+            case "DOCTOR" -> RoleConstant.DOCTOR;
+            case "ADMIN" -> RoleConstant.ADMIN;
+            default -> RoleConstant.PATIENT;
         };
         Role defaultRole = roleMapper.selectByCode(defaultRoleCode);
         if (defaultRole != null) {
@@ -123,12 +175,19 @@ public class UserService {
             if (role == null) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "角色不存在: id=" + roleId);
             }
+            // 权限约束：显式分配超管角色（禁止）；显式分配管理员角色需超管身份
+            if (RoleConstant.SUPER_ADMIN.equals(role.getRoleCode())) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "超级管理员角色不可分配");
+            }
+            if (RoleConstant.ADMIN.equals(role.getRoleCode()) && !UserContext.isSuperAdmin()) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅超级管理员可分配管理员角色");
+            }
             if (roleMapper.countUserRole(user.getId(), roleId) == 0) {
                 roleMapper.insertUserRole(user.getId(), roleId);
             }
         }
 
-        // 5. 患者类型同步创建患者档案（失败不阻断）
+        // 6. 患者类型同步创建患者档案（失败不阻断）
         if ("PATIENT".equals(userType)) {
             try {
                 patientFeignClient.createPatient(
@@ -140,7 +199,7 @@ public class UserService {
             }
         }
 
-        // 6. 组装返回
+        // 7. 组装返回
         List<String> roles = roleMapper.findByUserId(user.getId()).stream()
                 .map(Role::getRoleCode)
                 .collect(Collectors.toList());
@@ -150,10 +209,18 @@ public class UserService {
         vo.setRealName(user.getRealName());
         vo.setGender(user.getGender());
         vo.setUserType(user.getUserType());
+        vo.setPositionId(user.getPositionId());
         vo.setStatus(user.getStatus());
         vo.setLastLoginTime(user.getLastLoginTime());
         vo.setCreateTime(user.getCreateTime());
         vo.setRoles(roles);
+        if (user.getPositionId() != null) {
+            Position position = positionMapper.selectById(user.getPositionId());
+            if (position != null) {
+                vo.setPositionName(position.getPositionName());
+                vo.setPositionTitle(position.getTitle());
+            }
+        }
         return vo;
     }
 

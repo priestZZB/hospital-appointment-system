@@ -12,6 +12,7 @@
         <result column="real_name" property="realName"/>
         <result column="gender" property="gender"/>
         <result column="user_type" property="userType"/>
+        <result column="position_id" property="positionId"/>
         <result column="status" property="status"/>
         <result column="last_login_time" property="lastLoginTime"/>
         <result column="last_login_ip" property="lastLoginIp"/>
@@ -27,6 +28,9 @@
         <result column="real_name" property="realName"/>
         <result column="gender" property="gender"/>
         <result column="user_type" property="userType"/>
+        <result column="position_id" property="positionId"/>
+        <result column="position_name" property="positionName"/>
+        <result column="position_title" property="positionTitle"/>
         <result column="status" property="status"/>
         <result column="last_login_time" property="lastLoginTime"/>
         <result column="create_time" property="createTime"/>
@@ -38,14 +42,14 @@
     <!-- ==================== SQL ==================== -->
 
     <select id="findByPhone" resultMap="BaseResultMap">
-        SELECT id, phone, password, real_name, gender, user_type, status,
+        SELECT id, phone, password, real_name, gender, user_type, position_id, status,
                last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted
         FROM `user`
         WHERE phone = #{phone} AND deleted = 0
     </select>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT id, phone, password, real_name, gender, user_type, status,
+        SELECT id, phone, password, real_name, gender, user_type, position_id, status,
                last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted
         FROM `user`
         WHERE id = #{id} AND deleted = 0
@@ -53,16 +57,18 @@
 
     <insert id="insert" parameterType="com.hospital.auth.entity.User"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `user` (phone, password, real_name, gender, user_type, status,
+        INSERT INTO `user` (phone, password, real_name, gender, user_type, position_id, status,
                             last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted)
-        VALUES (#{phone}, #{password}, #{realName}, #{gender}, #{userType}, #{status},
+        VALUES (#{phone}, #{password}, #{realName}, #{gender}, #{userType}, #{positionId}, #{status},
                 #{lastLoginTime}, #{lastLoginIp}, #{needPasswordChange}, NOW(), NOW(), 0)
     </insert>
 
     <select id="selectPage" resultMap="UserVOMap">
-        SELECT u.id, u.phone, u.real_name, u.gender, u.user_type, u.status,
-               u.last_login_time, u.create_time, r.role_code
+        SELECT u.id, u.phone, u.real_name, u.gender, u.user_type, u.position_id,
+               p.position_name, p.title AS position_title,
+               u.status, u.last_login_time, u.create_time, r.role_code
         FROM `user` u
+        LEFT JOIN `position` p ON u.position_id = p.id
         LEFT JOIN user_role ur ON u.id = ur.user_id
         LEFT JOIN role r ON ur.role_id = r.id AND r.status = 1
         WHERE u.deleted = 0
@@ -103,6 +109,19 @@
 
     <update id="updateLastLogin">
         UPDATE `user` SET last_login_time = NOW(), last_login_ip = #{lastLoginIp}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectRoleCodesByUserId" resultType="string">
+        SELECT r.role_code
+        FROM `user` u
+        JOIN user_role ur ON u.id = ur.user_id
+        JOIN role r ON ur.role_id = r.id AND r.status = 1
+        WHERE u.id = #{userId} AND u.deleted = 0
+    </select>
+
+    <update id="updatePositionId">
+        UPDATE `user` SET position_id = #{positionId}, update_time = NOW()
         WHERE id = #{id}
     </update>
 

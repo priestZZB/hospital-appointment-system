@@ -31,12 +31,14 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_ROLES = "X-User-Roles";
+    private static final String HEADER_USER_PERMISSIONS = "X-User-Permissions";
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
         String userId = request.getHeader(HEADER_USER_ID);
         String roles = request.getHeader(HEADER_USER_ROLES);
+        String permissions = request.getHeader(HEADER_USER_PERMISSIONS);
 
         if (userId == null || userId.isBlank()) {
             log.warn("[认证拦截] 缺少用户信息, uri={}", request.getRequestURI());
@@ -69,6 +71,18 @@ public class AuthInterceptor implements HandlerInterceptor {
             roleList = Collections.emptyList();
         }
         UserContext.setRoles(roleList);
+
+        // 权限码列表：Gateway 注入（逗号分隔），缺省为空（未登录态/内部调用）
+        List<String> permList;
+        if (permissions != null && !permissions.isBlank()) {
+            permList = java.util.Arrays.stream(permissions.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toList());
+        } else {
+            permList = Collections.emptyList();
+        }
+        UserContext.setPermissions(permList);
 
         return true;
     }

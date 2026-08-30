@@ -37,4 +37,7 @@ public class CreateUserDTO {
 
     /** 角色 ID 列表（可选；缺省时按用户类型自动分配默认角色） */
     private List<Long> roleIds;
+
+    /** 主岗位 ID（可选，纯展示；创建时可直接指定） */
+    private Long positionId;
 }

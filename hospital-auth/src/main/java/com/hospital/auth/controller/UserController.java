@@ -5,6 +5,8 @@ import com.hospital.auth.dto.CreateUserDTO;
 import com.hospital.auth.service.UserService;
 import com.hospital.auth.vo.UserVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -36,6 +38,7 @@ public class UserController {
     /**
      * 分页查询用户列表（仅管理员）
      */
+    @RequiresPermission(PermissionConstant.AUTH_USER_QUERY)
     @GetMapping
     public Result<UserService.PageResult<UserVO>> pageQuery(@Valid UserPageQueryDTO dto) {
         checkAdmin();
@@ -46,6 +49,7 @@ public class UserController {
      * 创建用户（医生/管理员/患者账号，仅管理员）
      */
     @AuditLog(value = "创建用户", operationType = "INSERT")
+    @RequiresPermission(PermissionConstant.AUTH_USER_CREATE)
     @PostMapping
     public Result<UserVO> create(@Valid @RequestBody CreateUserDTO dto) {
         checkAdmin();
@@ -56,6 +60,7 @@ public class UserController {
      * 变更用户状态（启用/禁用，仅管理员）
      */
     @AuditLog(value = "变更用户状态", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.AUTH_USER_UPDATE)
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id,
                                      @RequestBody Map<String, Integer> body) {
@@ -70,8 +75,12 @@ public class UserController {
 
     // ==================== 私有方法 ====================
 
+    /**
+     * 用户管理接口要求「管理员及以上」权限（超管 + 管理员）。
+     * 细粒度约束（如「仅超管可创建管理员账号」）在 UserService 内进一步校验。
+     */
     private void checkAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

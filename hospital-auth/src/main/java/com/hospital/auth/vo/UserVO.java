@@ -29,6 +29,15 @@ public class UserVO implements Serializable {
     /** 用户类型 */
     private String userType;
 
+    /** 主岗位 ID（position.id） */
+    private Long positionId;
+
+    /** 岗位名称（冗余展示，如：内科·科主任） */
+    private String positionName;
+
+    /** 岗位职务（如：科主任/主治医师） */
+    private String positionTitle;
+
     /** 状态：1-启用 0-停用 */
     private Integer status;
 

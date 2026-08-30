@@ -63,7 +63,8 @@
             <artifactId>spring-cloud-alibaba-sentinel-gateway</artifactId>
         </dependency>
         <!-- 公共模块（排除 spring-boot-starter-web 避免 MVC/WebFlux 冲突，
-             但保留 spring-webmvc 接口供 AuthInterceptor/WebMvcConfig 编译） -->
+             排除 spring-boot-starter-data-redis 避免阻塞版 Redis 配置重复，
+             Gateway 仅用 reactive 版；但保留 spring-webmvc 接口供 AuthInterceptor/WebMvcConfig 编译） -->
         <dependency>
             <groupId>com.hospital</groupId>
             <artifactId>hospital-common</artifactId>
@@ -71,6 +72,10 @@
                 <exclusion>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-data-redis</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

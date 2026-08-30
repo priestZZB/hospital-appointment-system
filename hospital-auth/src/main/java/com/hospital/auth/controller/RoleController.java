@@ -6,6 +6,8 @@ import com.hospital.auth.dto.UpdateRoleDTO;
 import com.hospital.auth.service.RoleService;
 import com.hospital.auth.vo.RoleVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -26,6 +28,12 @@ import java.util.List;
 
 /**
  * 角色管理接口
+ * <p>
+ * 权限约束：
+ * <ul>
+ *   <li>查询角色：管理员及以上可查看；</li>
+ *   <li>增删改、分配角色：仅超级管理员。</li>
+ * </ul>
  */
 @Slf4j
 @RestController
@@ -36,68 +44,82 @@ public class RoleController {
     private final RoleService roleService;
 
     /**
-     * 查询全部角色
+     * 查询全部角色（管理员及以上）
      */
+    @RequiresPermission(PermissionConstant.AUTH_ROLE_QUERY)
     @GetMapping
     public Result<List<RoleVO>> list() {
+        checkAdminOrSuperAdmin();
         return Result.ok(roleService.listAll());
     }
 
     /**
-     * 查询单个角色
+     * 查询单个角色（管理员及以上）
      */
+    @RequiresPermission(PermissionConstant.AUTH_ROLE_QUERY)
     @GetMapping("/{id}")
     public Result<RoleVO> getById(@PathVariable Long id) {
+        checkAdminOrSuperAdmin();
         return Result.ok(roleService.getById(id));
     }
 
     /**
-     * 创建角色（仅管理员）
+     * 创建角色（仅超级管理员）
      */
     @AuditLog(value = "创建角色", operationType = "INSERT")
+    @RequiresPermission(PermissionConstant.AUTH_ROLE_CREATE)
     @PostMapping
     public Result<RoleVO> create(@Valid @RequestBody CreateRoleDTO dto) {
-        checkAdmin();
+        checkSuperAdmin();
         return Result.ok(roleService.create(dto));
     }
 
     /**
-     * 更新角色（仅管理员）
+     * 更新角色（仅超级管理员）
      */
     @AuditLog(value = "更新角色", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.AUTH_ROLE_UPDATE)
     @PutMapping("/{id}")
     public Result<RoleVO> update(@PathVariable Long id, @Valid @RequestBody UpdateRoleDTO dto) {
-        checkAdmin();
+        checkSuperAdmin();
         return Result.ok(roleService.update(id, dto));
     }
 
     /**
-     * 删除角色（仅管理员）
+     * 删除角色（仅超级管理员）
      */
     @AuditLog(value = "删除角色", operationType = "DELETE")
+    @RequiresPermission(PermissionConstant.AUTH_ROLE_DELETE)
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
-        checkAdmin();
+        checkSuperAdmin();
         roleService.delete(id);
         return Result.ok();
     }
 
     /**
-     * 为用户分配角色（仅管理员）
+     * 为用户分配角色（仅超级管理员）
      */
     @AuditLog(value = "分配角色", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.AUTH_ROLE_ASSIGN)
     @PostMapping("/assign")
     public Result<Void> assign(@Valid @RequestBody AssignRoleDTO dto) {
-        checkAdmin();
+        checkSuperAdmin();
         roleService.assignRole(dto);
         return Result.ok();
     }
 
     // ==================== 私有方法 ====================
 
-    private void checkAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+    private void checkAdminOrSuperAdmin() {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
+        }
+    }
+
+    private void checkSuperAdmin() {
+        if (!UserContext.isSuperAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅超级管理员可操作角色");
         }
     }
 }
