@@ -1,0 +1,270 @@
+/* ============================================================
+   医院门诊预约挂号系统 · 全局设计系统
+   依据：win-design-next tokens + reg-design-to-vue 医疗专业规范
+   风格：管理员端 Swiss/International（蓝+白+灰）、患者端柔和
+   ============================================================ */
+
+:root {
+  /* ---- 主色（与 win-design-next 对齐） ---- */
+  --hospital-primary: var(--w3-color-primary, #2d5afa);
+  --hospital-primary-hover: var(--w3-color-primary-hover, #5175f4);
+  --hospital-primary-press: var(--w3-color-primary-press, #1d39c4);
+  --hospital-primary-plain: var(--w3-color-primary-plain, #eaeefe);
+  --hospital-primary-active-bg: var(--w3-color-primary-active-bg, #c9d6fb);
+
+  /* ---- 语义色 ---- */
+  --hospital-success: var(--w3-color-success, #00ab44);
+  --hospital-warning: var(--w3-color-warning, #ff8c00);
+  --hospital-danger: var(--w3-color-danger, #ec0000);
+  --hospital-info: var(--w3-color-info, #999999);
+
+  /* ---- 文字 ---- */
+  --hospital-text-main: var(--w3-font-color-normal, #101828);
+  --hospital-text-second: var(--w3-font-color-second, #667085);
+  --hospital-text-third: var(--w3-font-color-third, #98a2b3);
+
+  /* ---- 背景 ---- */
+  --hospital-bg-page: #eef2fb;
+  --hospital-bg-card: #ffffff;
+  --hospital-bg-sidebar: #101b33;
+  --hospital-bg-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --hospital-bg-sidebar-active: var(--w3-color-primary, #2d5afa);
+
+  /* ---- 边框 ---- */
+  --hospital-border: var(--w3-border-color-light, #e9e9e9);
+  --hospital-border-lighter: var(--w3-border-color-lighter, #f0f0f0);
+
+  /* ---- 圆角 ---- */
+  --hospital-radius-sm: 4px;
+  --hospital-radius-md: 12px;
+  --hospital-radius-lg: 16px;
+
+  /* ---- 阴影（柔和弥散，非短黑硬影） ---- */
+  --hospital-shadow-card: 0 1px 3px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --hospital-shadow-hover: 0 2px 6px rgba(16, 24, 40, 0.08), 0 12px 32px rgba(45, 90, 250, 0.12);
+  --hospital-shadow-pop: 0 12px 40px rgba(16, 24, 40, 0.14);
+}
+
+/* ---- 基础重置 ---- */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'Source Han Sans SC', -apple-system, 'PingFang SC',
+    'Microsoft YaHei', 'Segoe UI', sans-serif;
+  background: var(--hospital-bg-page);
+  color: var(--hospital-text-main);
+  font-size: var(--w3-font-size-base, 14px);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ---- win-design-next 图标尺寸修复 ----
+   icons-vue 的 svg 只有 viewBox 没有 width/height 属性，
+   浏览器会按默认 300px 渲染导致图标巨大。
+   用 :not([width]) 精确命中「无显式尺寸」的图标 svg，
+   设为 1em 跟随父元素 font-size 缩放，且不误伤组件库内部带尺寸的 svg。 */
+svg:not([width]):not([height]) {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
+/* ---- 滚动条美化 ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 24, 40, 0.18);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 24, 40, 0.32);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- 通用工具类 ---- */
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--hospital-text-main);
+  letter-spacing: 0.2px;
+}
+
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--hospital-text-third);
+}
+
+/* 页面头部（标题 + 说明） */
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+/* 卡片容器统一 */
+.hospital-card {
+  background: var(--hospital-bg-card);
+  border-radius: var(--hospital-radius-md);
+  box-shadow: var(--hospital-shadow-card);
+  border: 1px solid var(--hospital-border-lighter);
+  transition: box-shadow 0.25s ease-out;
+}
+.hospital-card:hover {
+  box-shadow: var(--hospital-shadow-hover);
+}
+
+/* 统计卡 */
+.stat-card {
+  background: var(--hospital-bg-card);
+  border-radius: var(--hospital-radius-md);
+  box-shadow: var(--hospital-shadow-card);
+  padding: 20px 24px;
+  border: 1px solid var(--hospital-border-lighter);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  transition: transform 0.2s ease-out, box-shadow 0.25s ease-out;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--hospital-shadow-hover);
+}
+.stat-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--hospital-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.stat-card__icon--primary {
+  background: var(--w3-color-primary-plain, #eaeefe);
+  color: var(--w3-color-primary, #2d5afa);
+}
+.stat-card__icon--success {
+  background: var(--w3-color-success-plain, #e8f6ee);
+  color: var(--w3-color-success, #00ab44);
+}
+.stat-card__icon--warning {
+  background: var(--w3-color-warning-plain, #fff0df);
+  color: var(--w3-color-warning, #ff8c00);
+}
+.stat-card__icon--danger {
+  background: var(--w3-color-danger-plain, #ffe7e7);
+  color: var(--w3-color-danger, #ec0000);
+}
+.stat-card__icon--info {
+  background: #f2f4f7;
+  color: #475467;
+}
+.stat-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.stat-card__label {
+  font-size: 13px;
+  color: var(--hospital-text-second);
+}
+.stat-card__value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--hospital-text-main);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.stat-card__extra {
+  font-size: 12px;
+  color: var(--hospital-text-third);
+}
+
+/* 表格工具栏 */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.table-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.table-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 状态标签色（语义一致：绿=完成/成功，橙=待处理，红=异常，蓝=进行中） */
+.status-tag--success {
+  color: var(--w3-color-success, #00ab44) !important;
+  background: var(--w3-color-success-plain, #e8f6ee) !important;
+}
+.status-tag--warning {
+  color: var(--w3-color-warning, #ff8c00) !important;
+  background: var(--w3-color-warning-plain, #fff0df) !important;
+}
+.status-tag--danger {
+  color: var(--w3-color-danger, #ec0000) !important;
+  background: var(--w3-color-danger-plain, #ffe7e7) !important;
+}
+.status-tag--primary {
+  color: var(--w3-color-primary, #2d5afa) !important;
+  background: var(--w3-color-primary-plain, #eaeefe) !important;
+}
+.status-tag--info {
+  color: #475467 !important;
+  background: #f2f4f7 !important;
+}
+
+/* 大屏（深色科技风，reg-design Glassmorphism） */
+.bigscreen-page {
+  background: linear-gradient(160deg, #0a1428 0%, #12213c 45%, #0d1b2e 100%);
+  min-height: 100vh;
+  color: #fff;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+/* 减少动画（无障碍） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
