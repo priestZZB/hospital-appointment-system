@@ -5,6 +5,8 @@ import com.hospital.clinic.service.CheckinService;
 import com.hospital.clinic.vo.CheckinVO;
 import com.hospital.clinic.vo.QueueSnapshotVO;
 import com.hospital.clinic.vo.QueueStatusVO;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.annotation.AuditLog;
@@ -47,6 +49,7 @@ public class CheckinController {
     }
 
     /** 科室排队快照（签到叫号大屏：当前叫号 + 等待列表，医生/管理员） */
+    @RequiresPermission(PermissionConstant.CLINIC_CHECKIN_SNAPSHOT)
     @GetMapping("/checkin/queue")
     public Result<QueueSnapshotVO> queueSnapshot(@RequestParam("departmentId") Long departmentId) {
         checkDoctorOrAdmin();
@@ -54,7 +57,7 @@ public class CheckinController {
     }
 
     private void checkDoctorOrAdmin() {
-        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

@@ -11,6 +11,8 @@
         <result column="doctor_id" property="doctorId"/>
         <result column="status" property="status"/>
         <result column="review_comment" property="reviewComment"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="pay_status" property="payStatus"/>
         <result column="create_time" property="createTime"/>
     </resultMap>
 
@@ -57,6 +59,24 @@
         <if test="expectedStatus != null">
             AND status = #{expectedStatus}
         </if>
+    </update>
+
+    <update id="markPaid">
+        UPDATE prescription
+        SET pay_status = #{payStatus}, total_amount = #{amount}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectUnpaidByPatient" resultMap="BaseResultMap">
+        SELECT * FROM prescription
+        WHERE patient_id = #{patientId} AND pay_status = 'UNPAID'
+        ORDER BY create_time DESC
+    </select>
+
+    <update id="markRefunded">
+        UPDATE prescription
+        SET pay_status = 'REFUNDED'
+        WHERE id = #{id}
     </update>
 
 </mapper>

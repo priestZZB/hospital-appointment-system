@@ -14,6 +14,7 @@
         <result column="frequency" property="frequency"/>
         <result column="days" property="days"/>
         <result column="quantity" property="quantity"/>
+        <result column="unit_price" property="unitPrice"/>
         <result column="unit" property="unit"/>
         <result column="remark" property="remark"/>
     </resultMap>
@@ -21,12 +22,12 @@
     <insert id="insertBatch">
         INSERT INTO prescription_item (prescription_id, drug_id, drug_name,
                                        specification, dosage, usage_method,
-                                       frequency, days, quantity, unit, remark)
+                                       frequency, days, quantity, unit_price, unit, remark)
         VALUES
         <foreach collection="items" item="item" separator=",">
             (#{item.prescriptionId}, #{item.drugId}, #{item.drugName},
              #{item.specification}, #{item.dosage}, #{item.usageMethod},
-             #{item.frequency}, #{item.days}, #{item.quantity}, #{item.unit},
+             #{item.frequency}, #{item.days}, #{item.quantity}, #{item.unitPrice}, #{item.unit},
              #{item.remark})
         </foreach>
     </insert>

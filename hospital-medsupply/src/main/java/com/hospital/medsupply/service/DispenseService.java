@@ -33,12 +33,19 @@ public class DispenseService {
      * 处方审核（APPROVE 通过 / REJECT 驳回）
      */
     @Transactional(rollbackFor = Exception.class)
-    public DrugDispense review(Long prescriptionId, String action, String reviewComment, Long operatorId) {
+    public DrugDispense review(Long prescriptionId, String action, String reviewComment,
+                               String reviewCheck, Long operatorId) {
         if (prescriptionId == null) {
             throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "prescriptionId 不能为空");
         }
         if (!"APPROVE".equals(action) && !"REJECT".equals(action)) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "action 仅支持 APPROVE / REJECT");
+        }
+
+        // 审核前校验处方缴费状态（真实医院：划价收费 → 药师四查十对审核 → 发药）
+        String payStatus = queryPayStatus(prescriptionId);
+        if (!"PAID".equals(payStatus)) {
+            throw new BusinessException(ErrorCodeEnum.PAY_NOT_COMPLETED, "处方尚未缴费，不可审核");
         }
 
         DrugDispense record = dispenseMapper.selectByPrescriptionId(prescriptionId);
@@ -55,7 +62,7 @@ public class DispenseService {
         }
 
         String target = "APPROVE".equals(action) ? "REVIEW_PASSED" : "REVIEW_REJECTED";
-        int rows = dispenseMapper.updateReview(record.getId(), target, reviewComment, operatorId);
+        int rows = dispenseMapper.updateReview(record.getId(), target, reviewComment, reviewCheck, operatorId);
         if (rows == 0) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "处方审核失败，状态已变更");
         }
@@ -76,6 +83,12 @@ public class DispenseService {
         DrugDispense record = dispenseMapper.selectByPrescriptionId(prescriptionId);
         if (record == null || !"REVIEW_PASSED".equals(record.getStatus())) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "仅审核通过的处方可发药");
+        }
+
+        // 发药前校验处方缴费状态（处方在 clinic 服务，只能 Feign 查询）
+        String payStatus = queryPayStatus(prescriptionId);
+        if (!"PAID".equals(payStatus)) {
+            throw new BusinessException(ErrorCodeEnum.PAY_NOT_COMPLETED, "处方尚未缴费，不可发药");
         }
 
         List<Map<String, Object>> items = prescriptionFeignClient.getItems(prescriptionId);
@@ -130,6 +143,18 @@ public class DispenseService {
             }
         } catch (Exception e) {
             log.warn("[发药] 查询处方患者失败（忽略）: prescriptionId={}, error={}", prescriptionId, e.getMessage());
+        }
+        return null;
+    }
+
+    private String queryPayStatus(Long prescriptionId) {
+        try {
+            Map<String, Object> result = prescriptionFeignClient.getPayStatus(prescriptionId);
+            if (result != null && result.get("payStatus") != null) {
+                return String.valueOf(result.get("payStatus"));
+            }
+        } catch (Exception e) {
+            log.warn("[发药] 查询处方缴费状态失败: prescriptionId={}, error={}", prescriptionId, e.getMessage());
         }
         return null;
     }

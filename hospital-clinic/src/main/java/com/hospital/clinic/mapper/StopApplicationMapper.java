@@ -42,4 +42,12 @@ public interface StopApplicationMapper {
                        @Param("affectedCount") Integer affectedCount,
                        @Param("refundTotal") java.math.BigDecimal refundTotal,
                        @Param("expectedStatus") String expectedStatus);
+
+    /** 科主任初审（通过/驳回），并将状态流转到待门诊部终审 */
+    int updateChiefReview(@Param("id") Long id,
+                          @Param("chiefReviewStatus") String chiefReviewStatus,
+                          @Param("status") String status,
+                          @Param("chiefReviewComment") String chiefReviewComment,
+                          @Param("chiefReviewedBy") Long chiefReviewedBy,
+                          @Param("expectedStatus") String expectedStatus);
 }

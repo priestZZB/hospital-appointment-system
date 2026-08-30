@@ -4,6 +4,7 @@ import com.hospital.clinic.entity.Prescription;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -37,4 +38,15 @@ public interface PrescriptionMapper {
                      @Param("status") String status,
                      @Param("reviewComment") String reviewComment,
                      @Param("expectedStatus") String expectedStatus);
+
+    /** 缴费回写：更新缴费状态与实收金额 */
+    int markPaid(@Param("id") Long id,
+                 @Param("amount") BigDecimal amount,
+                 @Param("payStatus") String payStatus);
+
+    /** 查询患者未缴费处方列表（按创建时间倒序） */
+    List<Prescription> selectUnpaidByPatient(@Param("patientId") Long patientId);
+
+    /** 退费回写：缴费状态置为 REFUNDED（不动实收金额） */
+    int markRefunded(@Param("id") Long id);
 }

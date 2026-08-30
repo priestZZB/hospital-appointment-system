@@ -30,5 +30,6 @@ public class ScheduleVO {
     private Integer slotDuration;
     private BigDecimal registerFee;
     private Integer status;
+    private String auditStatus;
     private LocalDateTime createTime;
 }

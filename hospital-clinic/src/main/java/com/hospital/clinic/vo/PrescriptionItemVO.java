@@ -20,6 +20,7 @@ public class PrescriptionItemVO {
     private String frequency;
     private Integer days;
     private Integer quantity;
+    private java.math.BigDecimal unitPrice;
     private String unit;
     private String remark;
 }

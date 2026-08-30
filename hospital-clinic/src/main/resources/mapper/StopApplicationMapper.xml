@@ -9,6 +9,10 @@
         <result column="doctor_id" property="doctorId"/>
         <result column="apply_reason" property="applyReason"/>
         <result column="status" property="status"/>
+        <result column="chief_review_status" property="chiefReviewStatus"/>
+        <result column="chief_reviewed_by" property="chiefReviewedBy"/>
+        <result column="chief_review_comment" property="chiefReviewComment"/>
+        <result column="chief_review_time" property="chiefReviewTime"/>
         <result column="approve_comment" property="approveComment"/>
         <result column="approved_by" property="approvedBy"/>
         <result column="approve_time" property="approveTime"/>
@@ -21,11 +25,13 @@
     <insert id="insert" parameterType="com.hospital.clinic.entity.StopApplication"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO stop_application (schedule_id, doctor_id, apply_reason,
-                                      status, approve_comment, approved_by,
+                                      status, chief_review_status,
+                                      approve_comment, approved_by,
                                       approve_time, affected_count, refund_total,
                                       create_time, update_time)
         VALUES (#{scheduleId}, #{doctorId}, #{applyReason},
-                #{status}, #{approveComment}, #{approvedBy},
+                #{status}, #{chiefReviewStatus},
+                #{approveComment}, #{approvedBy},
                 #{approveTime}, #{affectedCount}, #{refundTotal},
                 NOW(), NOW())
     </insert>
@@ -37,7 +43,7 @@
     <select id="selectByScheduleId" resultMap="BaseResultMap">
         SELECT * FROM stop_application
         WHERE schedule_id = #{scheduleId}
-          AND status = 'PENDING'
+          AND status IN ('PENDING', 'PENDING_ADMIN')
         LIMIT 1
     </select>
 
@@ -67,6 +73,18 @@
             approve_time = NOW(),
             affected_count = #{affectedCount},
             refund_total = #{refundTotal},
+            update_time = NOW()
+        WHERE id = #{id}
+          AND status = #{expectedStatus}
+    </update>
+
+    <update id="updateChiefReview">
+        UPDATE stop_application
+        SET chief_review_status = #{chiefReviewStatus},
+            status = #{status},
+            chief_review_comment = #{chiefReviewComment},
+            chief_reviewed_by = #{chiefReviewedBy},
+            chief_review_time = NOW(),
             update_time = NOW()
         WHERE id = #{id}
           AND status = #{expectedStatus}

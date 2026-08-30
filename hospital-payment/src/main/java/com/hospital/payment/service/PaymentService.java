@@ -333,7 +333,7 @@ public class PaymentService {
      * 订单归属校验：管理员可查任意订单，患者仅可查本人订单
      */
     private void checkOrderOwner(PaymentOrder order, Long userId) {
-        if (UserContext.hasRole("ROLE_ADMIN")) {
+        if (UserContext.isAdminOrSuperAdmin()) {
             return;
         }
         Long patientId = resolvePatientId(userId);

@@ -3,6 +3,7 @@ package com.hospital.medsupply.entity;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -44,8 +45,20 @@ public class ExamApplication implements Serializable {
     /** 申请备注 */
     private String applyRemark;
 
+    /** 检查费金额（实收金额，缴费回写时写入） */
+    private BigDecimal totalAmount;
+
+    /** 缴费状态：UNPAID-未缴费 / PAID-已缴费 / REFUNDED-已退款 */
+    private String payStatus;
+
     /** PENDING-待执行 / EXECUTING-执行中 / COMPLETED-已完成 / CANCELLED-已取消 */
     private String status;
+
+    /** 检查执行时间 */
+    private LocalDateTime execTime;
+
+    /** 执行技师 ID */
+    private Long execOperatorId;
 
     /** 申请时间 */
     private LocalDateTime createTime;

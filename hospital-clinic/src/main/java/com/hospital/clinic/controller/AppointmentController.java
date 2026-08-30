@@ -4,6 +4,8 @@ import com.hospital.clinic.dto.AppointmentSubmitDTO;
 import com.hospital.clinic.dto.AppointmentPageQueryDTO;
 import com.hospital.clinic.service.AppointmentService;
 import com.hospital.clinic.vo.AppointmentVO;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.annotation.AuditLog;
@@ -49,6 +51,7 @@ public class AppointmentController {
     }
 
     /** 管理端预约分页列表（多条件筛选，仅管理员） */
+    @RequiresPermission(PermissionConstant.CLINIC_APPOINTMENT_PAGE)
     @GetMapping("/page")
     public Result<Map<String, Object>> page(@ModelAttribute AppointmentPageQueryDTO dto) {
         checkAdmin();
@@ -63,6 +66,7 @@ public class AppointmentController {
 
     /** 取消预约 */
     @AuditLog(value = "取消预约", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_APPOINTMENT_CANCEL)
     @PutMapping("/{id}/cancel")
     public Result<Void> cancel(@PathVariable Long id, @RequestParam(value = "reason", required = false) String reason) {
         appointmentService.cancel(id, reason != null ? reason : "患者取消预约");
@@ -70,7 +74,7 @@ public class AppointmentController {
     }
 
     private void checkAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

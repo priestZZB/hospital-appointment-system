@@ -32,6 +32,12 @@ public interface MedicalRecordMapper {
                                           @Param("offset") Integer offset,
                                           @Param("limit") Integer limit);
 
+    /** 按患者 ID + 医生 ID 分页查询病历列表（数据范围：医师仅本人病历） */
+    List<MedicalRecord> selectByPatientIdAndDoctorId(@Param("patientId") Long patientId,
+                                                     @Param("doctorId") Long doctorId,
+                                                     @Param("offset") Integer offset,
+                                                     @Param("limit") Integer limit);
+
     /** 按患者 ID 统计总数 */
     long countByPatientId(@Param("patientId") Long patientId);
 

@@ -10,6 +10,7 @@
         <result column="status" property="status"/>
         <result column="review_operator_id" property="reviewOperatorId"/>
         <result column="review_comment" property="reviewComment"/>
+        <result column="review_check" property="reviewCheck"/>
         <result column="review_time" property="reviewTime"/>
         <result column="dispense_operator_id" property="dispenseOperatorId"/>
         <result column="dispense_time" property="dispenseTime"/>
@@ -50,6 +51,7 @@
         UPDATE drug_dispense
         SET status = #{status},
             review_comment = #{reviewComment},
+            review_check = #{reviewCheck},
             review_operator_id = #{reviewOperatorId},
             review_time = NOW()
         WHERE id = #{id}

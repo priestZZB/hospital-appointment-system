@@ -31,6 +31,18 @@ public class StopApplication implements Serializable {
     /** PENDING-待审批 / APPROVED-已通过 / REJECTED-已驳回 */
     private String status;
 
+    /** 科主任初审状态：PENDING_CHIEF-待初审 / CHIEF_PASSED-初审通过 / CHIEF_REJECTED-初审驳回 */
+    private String chiefReviewStatus;
+
+    /** 科主任初审人ID（关联 auth_db.user.id） */
+    private Long chiefReviewedBy;
+
+    /** 科主任初审意见 */
+    private String chiefReviewComment;
+
+    /** 科主任初审时间 */
+    private LocalDateTime chiefReviewTime;
+
     /** 审批意见 */
     private String approveComment;
 

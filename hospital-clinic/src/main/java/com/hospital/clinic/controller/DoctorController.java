@@ -4,6 +4,8 @@ import com.hospital.clinic.dto.DoctorSaveDTO;
 import com.hospital.clinic.service.DoctorService;
 import com.hospital.clinic.vo.DoctorVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -49,6 +51,7 @@ public class DoctorController {
 
     /** 新增医生（仅管理员） */
     @AuditLog(value = "新增医生", operationType = "INSERT")
+    @RequiresPermission(PermissionConstant.CLINIC_DOCTOR_CREATE)
     @PostMapping
     public Result<DoctorVO> create(@Valid @RequestBody DoctorSaveDTO dto) {
         checkAdmin();
@@ -57,6 +60,7 @@ public class DoctorController {
 
     /** 编辑医生（仅管理员） */
     @AuditLog(value = "编辑医生", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_DOCTOR_UPDATE)
     @PutMapping("/{id}")
     public Result<DoctorVO> update(@PathVariable Long id, @Valid @RequestBody DoctorSaveDTO dto) {
         checkAdmin();
@@ -65,6 +69,7 @@ public class DoctorController {
 
     /** 启用/停用医生（仅管理员） */
     @AuditLog(value = "医生状态变更", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_DOCTOR_STATUS)
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestBody Map<String, Integer> body) {
         checkAdmin();
@@ -77,7 +82,7 @@ public class DoctorController {
     }
 
     private void checkAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

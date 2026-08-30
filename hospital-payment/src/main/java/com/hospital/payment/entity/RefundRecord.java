@@ -34,8 +34,11 @@ public class RefundRecord implements Serializable {
     /** 退款原因 */
     private String refundReason;
 
-    /** 退款类型：PATIENT_CANCEL / DOCTOR_STOP / SYSTEM_TIMEOUT */
+    /** 退款类型：PATIENT_CANCEL / DOCTOR_STOP / SYSTEM_TIMEOUT / CASHIER_REFUND */
     private String refundType;
+
+    /** 订单类型：REGISTRATION / DRUG / EXAM / INFUSION / TREATMENT（诊疗费退费用） */
+    private String orderType;
 
     /** 状态：PENDING-待退款 / COMPLETED-已退款 / FAILED-退款失败 */
     private String status;

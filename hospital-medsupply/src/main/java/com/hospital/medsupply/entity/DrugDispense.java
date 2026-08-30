@@ -35,6 +35,9 @@ public class DrugDispense implements Serializable {
     /** 审核意见 */
     private String reviewComment;
 
+    /** 四查十对核查结果（JSON，如 [{"item":"查处方","result":"PASS","remark":"..."}...]） */
+    private String reviewCheck;
+
     /** 审核时间 */
     private LocalDateTime reviewTime;
 

@@ -1,5 +1,7 @@
 package com.hospital.medsupply.controller;
 
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -24,6 +26,7 @@ public class DrugQueryController {
     private final DrugService drugService;
 
     /** 药品目录分页查询（keyword 模糊搜索：名称/编码/通用名） */
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DRUG_SEARCH)
     @GetMapping("/drugs")
     public Result<Map<String, Object>> search(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -34,7 +37,7 @@ public class DrugQueryController {
     }
 
     private void checkDoctorOrAdmin() {
-        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

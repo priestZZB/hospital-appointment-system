@@ -18,6 +18,10 @@ public class StopApplicationVO {
     private Long doctorId;
     private String applyReason;
     private String status;
+    private String chiefReviewStatus;
+    private Long chiefReviewedBy;
+    private String chiefReviewComment;
+    private LocalDateTime chiefReviewTime;
     private String approveComment;
     private Long approvedBy;
     private LocalDateTime approveTime;

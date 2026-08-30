@@ -7,8 +7,10 @@
         <id column="id" property="id"/>
         <result column="order_no" property="orderNo"/>
         <result column="appointment_id" property="appointmentId"/>
+        <result column="related_id" property="relatedId"/>
         <result column="patient_id" property="patientId"/>
         <result column="amount" property="amount"/>
+        <result column="item_detail" property="itemDetail"/>
         <result column="order_type" property="orderType"/>
         <result column="status" property="status"/>
         <result column="pay_time" property="payTime"/>
@@ -22,14 +24,14 @@
 
     <insert id="insert" parameterType="com.hospital.payment.entity.PaymentOrder"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO payment_order (order_no, appointment_id, patient_id, amount, order_type,
+        INSERT INTO payment_order (order_no, appointment_id, related_id, patient_id, amount, item_detail, order_type,
                                    status, expire_time, version, create_time, update_time)
-        VALUES (#{orderNo}, #{appointmentId}, #{patientId}, #{amount}, #{orderType},
+        VALUES (#{orderNo}, #{appointmentId}, #{relatedId}, #{patientId}, #{amount}, #{itemDetail}, #{orderType},
                 #{status}, #{expireTime}, 0, NOW(), NOW())
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+        SELECT id, order_no, appointment_id, related_id, patient_id, amount, item_detail, order_type,
                status, pay_time, pay_method, expire_time, cancel_time,
                version, create_time, update_time
         FROM payment_order
@@ -37,7 +39,7 @@
     </select>
 
     <select id="selectByOrderNo" resultMap="BaseResultMap">
-        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+        SELECT id, order_no, appointment_id, related_id, patient_id, amount, item_detail, order_type,
                status, pay_time, pay_method, expire_time, cancel_time,
                version, create_time, update_time
         FROM payment_order
@@ -45,7 +47,7 @@
     </select>
 
     <select id="selectByAppointmentId" resultMap="BaseResultMap">
-        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+        SELECT id, order_no, appointment_id, related_id, patient_id, amount, item_detail, order_type,
                status, pay_time, pay_method, expire_time, cancel_time,
                version, create_time, update_time
         FROM payment_order
@@ -69,7 +71,7 @@
     </update>
 
     <select id="selectTimeoutOrders" resultMap="BaseResultMap">
-        SELECT id, order_no, appointment_id, patient_id, amount, order_type,
+        SELECT id, order_no, appointment_id, related_id, patient_id, amount, item_detail, order_type,
                status, pay_time, pay_method, expire_time, cancel_time,
                version, create_time, update_time
         FROM payment_order
@@ -78,5 +80,30 @@
         ORDER BY expire_time ASC
         LIMIT 100
     </select>
+
+    <update id="setCashier">
+        UPDATE payment_order
+        SET cashier_id = #{cashierId}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectSettleSummary" resultType="map">
+        SELECT order_type, pay_method, COUNT(*) AS order_count, SUM(amount) AS total_amount
+        FROM payment_order
+        WHERE status = 'PAID'
+          AND pay_time &gt;= #{start}
+          AND pay_time &lt; #{end}
+        GROUP BY order_type, pay_method
+    </select>
+
+    <update id="markSettled">
+        UPDATE payment_order
+        SET settle_flag = 1, update_time = NOW()
+        WHERE status = 'PAID'
+          AND settle_flag = 0
+          AND cashier_id = #{cashierId}
+          AND pay_time &gt;= #{start}
+          AND pay_time &lt; #{end}
+    </update>
 
 </mapper>

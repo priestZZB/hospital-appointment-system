@@ -13,7 +13,11 @@
         <result column="exam_item_name" property="examItemName"/>
         <result column="item_type" property="itemType"/>
         <result column="apply_remark" property="applyRemark"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="pay_status" property="payStatus"/>
         <result column="status" property="status"/>
+        <result column="exec_time" property="execTime"/>
+        <result column="exec_operator_id" property="execOperatorId"/>
         <result column="create_time" property="createTime"/>
     </resultMap>
 
@@ -21,10 +25,12 @@
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO exam_application (application_no, medical_record_id, patient_id,
                                       doctor_id, exam_item_id, exam_item_name,
-                                      item_type, apply_remark, status, create_time)
+                                      item_type, apply_remark, total_amount, pay_status,
+                                      status, create_time)
         VALUES (#{applicationNo}, #{medicalRecordId}, #{patientId},
                 #{doctorId}, #{examItemId}, #{examItemName},
-                #{itemType}, #{applyRemark}, #{status}, NOW())
+                #{itemType}, #{applyRemark}, #{totalAmount}, #{payStatus},
+                #{status}, NOW())
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -50,6 +56,57 @@
     <update id="updateStatus">
         UPDATE exam_application
         SET status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <update id="markExecuted">
+        UPDATE exam_application
+        SET status = #{status},
+            exec_time = NOW(),
+            exec_operator_id = #{execOperatorId}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByStatus" resultMap="BaseResultMap">
+        SELECT * FROM exam_application
+        WHERE status = #{status}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <update id="markPaid">
+        UPDATE exam_application
+        SET pay_status = #{payStatus},
+            total_amount = #{amount}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectUnpaidByPatient" resultMap="BaseResultMap">
+        SELECT * FROM exam_application
+        WHERE patient_id = #{patientId}
+          AND pay_status = 'UNPAID'
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectImagingByStatus" resultMap="BaseResultMap">
+        SELECT * FROM exam_application
+        WHERE status = #{status}
+          AND item_type &lt;&gt; 'LAB'
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectLabByStatus" resultMap="BaseResultMap">
+        SELECT * FROM exam_application
+        WHERE status = #{status}
+          AND item_type = 'LAB'
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <update id="markRefunded">
+        UPDATE exam_application
+        SET pay_status = 'REFUNDED'
         WHERE id = #{id}
     </update>
 

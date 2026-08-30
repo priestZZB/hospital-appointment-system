@@ -15,6 +15,7 @@
         <result column="slot_duration" property="slotDuration"/>
         <result column="register_fee" property="registerFee"/>
         <result column="status" property="status"/>
+        <result column="audit_status" property="auditStatus"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
@@ -23,16 +24,17 @@
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO schedule (doctor_id, department_id, schedule_date, period,
                               period_start, period_end, total_slots, slot_duration,
-                              register_fee, status, create_time, update_time)
+                              register_fee, status, audit_status, create_time, update_time)
         VALUES (#{doctorId}, #{departmentId}, #{scheduleDate}, #{period},
                 #{periodStart}, #{periodEnd}, #{totalSlots}, #{slotDuration},
-                #{registerFee}, COALESCE(#{status}, 1), NOW(), NOW())
+                #{registerFee}, COALESCE(#{status}, 1),
+                COALESCE(#{auditStatus}, 'PENDING'), NOW(), NOW())
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT id, doctor_id, department_id, schedule_date, period,
                period_start, period_end, total_slots, slot_duration,
-               register_fee, status, create_time, update_time
+               register_fee, status, audit_status, create_time, update_time
         FROM schedule
         WHERE id = #{id}
     </select>
@@ -40,7 +42,7 @@
     <select id="selectByDeptAndDateRange" resultMap="BaseResultMap">
         SELECT id, doctor_id, department_id, schedule_date, period,
                period_start, period_end, total_slots, slot_duration,
-               register_fee, status, create_time, update_time
+               register_fee, status, audit_status, create_time, update_time
         FROM schedule
         WHERE department_id = #{departmentId}
           AND schedule_date BETWEEN #{startDate} AND #{endDate}
@@ -51,7 +53,7 @@
     <select id="selectByDoctorDatePeriod" resultMap="BaseResultMap">
         SELECT id, doctor_id, department_id, schedule_date, period,
                period_start, period_end, total_slots, slot_duration,
-               register_fee, status, create_time, update_time
+               register_fee, status, audit_status, create_time, update_time
         FROM schedule
         WHERE doctor_id = #{doctorId}
           AND schedule_date = #{scheduleDate}
@@ -61,7 +63,7 @@
     <select id="selectByIds" resultMap="BaseResultMap">
         SELECT id, doctor_id, department_id, schedule_date, period,
                period_start, period_end, total_slots, slot_duration,
-               register_fee, status, create_time, update_time
+               register_fee, status, audit_status, create_time, update_time
         FROM schedule
         WHERE id IN
         <foreach collection="ids" item="item" open="(" separator="," close=")">
@@ -70,8 +72,23 @@
         ORDER BY id ASC
     </select>
 
+    <select id="selectByAuditStatus" resultMap="BaseResultMap">
+        SELECT id, doctor_id, department_id, schedule_date, period,
+               period_start, period_end, total_slots, slot_duration,
+               register_fee, status, audit_status, create_time, update_time
+        FROM schedule
+        WHERE audit_status = #{auditStatus}
+        ORDER BY schedule_date ASC, period ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <update id="updateStatus">
         UPDATE schedule SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateAuditStatus">
+        UPDATE schedule SET audit_status = #{auditStatus}, update_time = NOW()
         WHERE id = #{id}
     </update>
 

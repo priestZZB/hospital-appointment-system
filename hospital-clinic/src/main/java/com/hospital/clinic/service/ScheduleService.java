@@ -41,7 +41,10 @@ public class ScheduleService {
     private final AppointmentService appointmentService;
 
     /**
-     * 创建排班（同步生成号源）
+     * 提交排班申请（医生/科主任上报，待门诊部确认，暂不生成号源）
+     * <p>
+     * 真实医院业务：科室医师排班由科室上报，门诊部确认后方生成号源供患者挂号。
+     * 此处创建排班时状态为 PENDING（待确认），号源在门诊部确认时生成。
      */
     @Transactional(rollbackFor = Exception.class)
     public ScheduleVO create(ScheduleCreateDTO dto) {
@@ -70,7 +73,7 @@ public class ScheduleService {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "号源数量必须大于0，请检查时段设置");
         }
 
-        // 5. 创建排班
+        // 5. 创建排班（待门诊部确认，暂不生成号源）
         Schedule schedule = new Schedule();
         schedule.setDoctorId(dto.getDoctorId());
         schedule.setDepartmentId(dto.getDepartmentId());
@@ -82,13 +85,68 @@ public class ScheduleService {
         schedule.setSlotDuration(slotDuration);
         schedule.setRegisterFee(dto.getRegisterFee() != null ? dto.getRegisterFee() : BigDecimal.ZERO);
         schedule.setStatus(1);
+        schedule.setAuditStatus("PENDING");
         scheduleMapper.insert(schedule);
-        log.info("[排班] 创建成功: id={}, doctor={}, date={} {}",
+        log.info("[排班] 申请已提交（待门诊部确认）: id={}, doctor={}, date={} {}",
                 schedule.getId(), doctor.getName(), dto.getScheduleDate(), dto.getPeriod());
 
-        // 6. 自动生成号源
+        return toVO(schedule, doctor, dept, 0);
+    }
+
+    /**
+     * 门诊部确认排班（生成号源，患者可挂号）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ScheduleVO confirm(Long id) {
+        Schedule schedule = scheduleMapper.selectById(id);
+        if (schedule == null) {
+            throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
+        }
+        if (!"PENDING".equals(schedule.getAuditStatus())) {
+            throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, "该排班已处理，请勿重复确认");
+        }
+        // 更新审批状态为已确认，并生成号源
+        scheduleMapper.updateAuditStatus(id, "CONFIRMED");
+        schedule.setAuditStatus("CONFIRMED");
         slotService.generateSlots(schedule);
-        return toVO(schedule, doctor, dept, totalSlots);
+        log.info("[排班] 门诊部已确认，号源已生成: id={}", id);
+
+        Doctor doctor = doctorMapper.selectById(schedule.getDoctorId());
+        Department dept = departmentMapper.selectById(schedule.getDepartmentId());
+        return toVO(schedule, doctor, dept, schedule.getTotalSlots());
+    }
+
+    /**
+     * 门诊部驳回排班申请
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ScheduleVO reject(Long id) {
+        Schedule schedule = scheduleMapper.selectById(id);
+        if (schedule == null) {
+            throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
+        }
+        if (!"PENDING".equals(schedule.getAuditStatus())) {
+            throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, "该排班已处理，请勿重复操作");
+        }
+        scheduleMapper.updateAuditStatus(id, "REJECTED");
+        schedule.setAuditStatus("REJECTED");
+        log.info("[排班] 门诊部已驳回: id={}", id);
+
+        Doctor doctor = doctorMapper.selectById(schedule.getDoctorId());
+        Department dept = departmentMapper.selectById(schedule.getDepartmentId());
+        return toVO(schedule, doctor, dept, 0);
+    }
+
+    /**
+     * 查询待确认的排班列表（门诊部确认用）
+     */
+    public List<ScheduleVO> listPending(long offset, Integer limit) {
+        List<Schedule> schedules = scheduleMapper.selectByAuditStatus("PENDING", (int) offset, limit);
+        return schedules.stream().map(s -> {
+            Doctor doctor = doctorMapper.selectById(s.getDoctorId());
+            Department dept = departmentMapper.selectById(s.getDepartmentId());
+            return toVO(s, doctor, dept, 0);
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -179,6 +237,7 @@ public class ScheduleService {
                 .slotDuration(s.getSlotDuration())
                 .registerFee(s.getRegisterFee())
                 .status(s.getStatus())
+                .auditStatus(s.getAuditStatus())
                 .createTime(s.getCreateTime())
                 .build();
     }

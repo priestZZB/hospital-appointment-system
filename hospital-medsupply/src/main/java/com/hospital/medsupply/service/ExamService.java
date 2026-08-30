@@ -2,6 +2,7 @@ package com.hospital.medsupply.service;
 
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
+import com.hospital.common.realtime.RealtimePublisher;
 import com.hospital.medsupply.entity.ExamApplication;
 import com.hospital.medsupply.entity.ExamItem;
 import com.hospital.medsupply.entity.ExamReport;
@@ -28,6 +29,7 @@ public class ExamService {
     private final ExamReportMapper examReportMapper;
     private final ExamApplicationMapper examApplicationMapper;
     private final FileService fileService;
+    private final RealtimePublisher realtimePublisher;
 
     // ---- 检查项目 ----
 
@@ -59,13 +61,15 @@ public class ExamService {
     }
 
     /**
-     * 管理员录入检查报告（可选附件上传 MinIO）
+     * 技师录入检查报告（可选附件上传 MinIO）
+     * <p>
+     * 报告默认状态为 PENDING_AUDIT（待审核），可显式指定 DRAFT/PENDING_AUDIT/PUBLISHED。
      *
      * @param applicationId 检查申请 ID
      * @param reportDesc    报告描述
      * @param reportResult  检查结果/诊断
      * @param file          附件文件（可选）
-     * @param status        DRAFT/PUBLISHED（默认 PUBLISHED）
+     * @param status        DRAFT/PENDING_AUDIT/PUBLISHED（默认 PENDING_AUDIT）
      * @param operatorId    录入人 ID
      */
     @Transactional(rollbackFor = Exception.class)
@@ -92,9 +96,10 @@ public class ExamService {
             report.setAttachmentUrl(fileService.upload(file));
             report.setAttachmentName(file.getOriginalFilename());
         }
-        String reportStatus = (status == null || status.isBlank()) ? "PUBLISHED" : status;
-        if (!"DRAFT".equals(reportStatus) && !"PUBLISHED".equals(reportStatus)) {
-            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "报告状态仅支持 DRAFT / PUBLISHED");
+        String reportStatus = (status == null || status.isBlank()) ? "PENDING_AUDIT" : status;
+        if (!"DRAFT".equals(reportStatus) && !"PENDING_AUDIT".equals(reportStatus)
+                && !"PUBLISHED".equals(reportStatus)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "报告状态仅支持 DRAFT / PENDING_AUDIT / PUBLISHED");
         }
         report.setStatus(reportStatus);
         if ("PUBLISHED".equals(reportStatus)) {
@@ -102,8 +107,101 @@ public class ExamService {
         }
         examReportMapper.insert(report);
         examApplicationMapper.updateStatus(applicationId, "COMPLETED");
+        // 报告已发布 → 跨服务实时推送（clinic WebSocket 桥接 → 患者端订阅 /topic/report/{patientId}）
+        if ("PUBLISHED".equals(reportStatus)) {
+            realtimePublisher.publishToPatient(application.getPatientId(), "REPORT_PUBLISHED",
+                    Map.of("reportId", report.getId(), "applicationId", applicationId,
+                            "patientId", application.getPatientId(), "examItemName", application.getExamItemName()));
+        }
         log.info("[检查报告] 录入成功: applicationId={}, reportId={}, status={}",
                 applicationId, report.getId(), reportStatus);
         return report;
+    }
+
+    /**
+     * 报告审核（发布/驳回）
+     *
+     * @param reportId     报告 ID
+     * @param status       目标状态（PUBLISHED / REJECTED）
+     * @param auditComment 审核意见
+     * @param auditorId    审核人 ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ExamReport auditReport(Long reportId, String status, String auditComment, Long auditorId) {
+        if (reportId == null) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "reportId 不能为空");
+        }
+        if (!"PUBLISHED".equals(status) && !"REJECTED".equals(status)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "审核状态仅支持 PUBLISHED / REJECTED");
+        }
+        ExamReport report = examReportMapper.selectById(reportId);
+        if (report == null) {
+            throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "检查报告不存在");
+        }
+        int rows = examReportMapper.audit(reportId, status, auditorId, auditComment);
+        if (rows == 0) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "报告审核失败");
+        }
+        if ("PUBLISHED".equals(status)) {
+            // 审核通过发布 → 跨服务实时推送
+            realtimePublisher.publishToPatient(report.getPatientId(), "REPORT_PUBLISHED",
+                    Map.of("reportId", reportId, "applicationId", report.getApplicationId(),
+                            "patientId", report.getPatientId()));
+        }
+        log.info("[检查报告] 审核完成: reportId={}, status={}, auditorId={}", reportId, status, auditorId);
+        return examReportMapper.selectById(reportId);
+    }
+
+    // ---- 检查执行 ----
+
+    /**
+     * 检查执行登记：状态 PENDING → EXECUTING
+     *
+     * @param applicationId 检查申请 ID
+     * @param operatorId    执行技师 ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ExamApplication executeExam(Long applicationId, Long operatorId) {
+        if (applicationId == null) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "applicationId 不能为空");
+        }
+        ExamApplication application = examApplicationMapper.selectById(applicationId);
+        if (application == null) {
+            throw new BusinessException(ErrorCodeEnum.EXAM_APPLICATION_NOT_FOUND);
+        }
+        if (!"PAID".equals(application.getPayStatus())) {
+            throw new BusinessException(ErrorCodeEnum.PAY_NOT_COMPLETED, "检查尚未缴费，不可执行");
+        }
+        if (!"PENDING".equals(application.getStatus())) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "仅待执行状态的检查申请可执行登记");
+        }
+        int rows = examApplicationMapper.markExecuted(applicationId, "EXECUTING", operatorId);
+        if (rows == 0) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "执行登记失败，状态已变更");
+        }
+        log.info("[检查执行] 执行登记成功: applicationId={}, operatorId={}", applicationId, operatorId);
+        return examApplicationMapper.selectById(applicationId);
+    }
+
+    /**
+     * 影像科（item_type != LAB）按状态查询申请列表
+     *
+     * @param status 申请状态（PENDING/EXECUTING/COMPLETED/CANCELLED）
+     * @param offset 偏移量
+     * @param limit  每页条数
+     */
+    public List<ExamApplication> listImagingByStatus(String status, int offset, int limit) {
+        return examApplicationMapper.selectImagingByStatus(status, offset, limit);
+    }
+
+    /**
+     * 检验科（item_type = LAB）按状态查询申请列表
+     *
+     * @param status 申请状态（PENDING/EXECUTING/COMPLETED/CANCELLED）
+     * @param offset 偏移量
+     * @param limit  每页条数
+     */
+    public List<ExamApplication> listLabByStatus(String status, int offset, int limit) {
+        return examApplicationMapper.selectLabByStatus(status, offset, limit);
     }
 }

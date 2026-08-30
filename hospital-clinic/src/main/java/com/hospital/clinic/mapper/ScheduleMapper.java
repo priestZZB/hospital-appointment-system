@@ -34,4 +34,12 @@ public interface ScheduleMapper {
 
     /** 更新状态 */
     int updateStatus(@Param("id") Long id, @Param("status") Integer status);
+
+    /** 更新排班审批状态 */
+    int updateAuditStatus(@Param("id") Long id, @Param("auditStatus") String auditStatus);
+
+    /** 按审批状态查询排班（用于门诊部确认列表） */
+    List<Schedule> selectByAuditStatus(@Param("auditStatus") String auditStatus,
+                                       @Param("offset") int offset,
+                                       @Param("limit") int limit);
 }

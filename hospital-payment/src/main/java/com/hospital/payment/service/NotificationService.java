@@ -81,7 +81,7 @@ public class NotificationService {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "通知不存在");
         }
         // 患者仅可标记本人通知，管理员可操作全部
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             Long patientId = resolvePatientId(userId);
             if (patientId == null || !patientId.equals(notification.getPatientId())) {
                 throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权操作他人通知");

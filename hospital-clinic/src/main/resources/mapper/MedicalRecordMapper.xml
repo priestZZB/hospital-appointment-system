@@ -89,6 +89,14 @@
         SELECT COUNT(*) FROM medical_record WHERE patient_id = #{patientId}
     </select>
 
+    <select id="selectByPatientIdAndDoctorId" resultMap="BaseResultMap">
+        SELECT * FROM medical_record
+        WHERE patient_id = #{patientId}
+          AND doctor_id = #{doctorId}
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
     <select id="selectByDoctorId" resultMap="BaseResultMap">
         SELECT * FROM medical_record
         WHERE doctor_id = #{doctorId}

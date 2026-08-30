@@ -29,10 +29,11 @@ public interface DrugDispenseMapper {
     /** 按患者 ID 统计总数 */
     long countByPatientId(@Param("patientId") Long patientId);
 
-    /** 审核操作（通过或驳回） */
+    /** 审核操作（通过或驳回，写入四查十对核查结果） */
     int updateReview(@Param("id") Long id,
                      @Param("status") String status,
                      @Param("reviewComment") String reviewComment,
+                     @Param("reviewCheck") String reviewCheck,
                      @Param("reviewOperatorId") Long reviewOperatorId);
 
     /** 发药确认 */

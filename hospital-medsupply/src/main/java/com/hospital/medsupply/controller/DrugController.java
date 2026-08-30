@@ -1,6 +1,8 @@
 package com.hospital.medsupply.controller;
 
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -19,6 +21,7 @@ public class DrugController {
 
     private final DrugService drugService;
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DRUG_QUERY)
     @GetMapping("/page")
     public Result<Map<String, Object>> page(@RequestParam(defaultValue = "1") int pageNo,
                                              @RequestParam(defaultValue = "10") int pageSize,
@@ -27,12 +30,14 @@ public class DrugController {
         return Result.ok(drugService.page(keyword, pageNo, pageSize));
     }
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DRUG_QUERY)
     @GetMapping("/{id}")
     public Result<Drug> getById(@PathVariable Long id) {
         requireAdmin();
         return Result.ok(drugService.getById(id));
     }
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DRUG_CREATE)
     @PostMapping
     @AuditLog(value = "创建药品", operationType = "INSERT")
     public Result<Drug> create(@RequestBody Drug drug) {
@@ -40,6 +45,7 @@ public class DrugController {
         return Result.ok(drugService.create(drug));
     }
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DRUG_UPDATE)
     @PutMapping("/{id}")
     @AuditLog(value = "更新药品", operationType = "UPDATE")
     public Result<Void> update(@PathVariable Long id, @RequestBody Drug drug) {
@@ -50,7 +56,7 @@ public class DrugController {
     }
 
     private void requireAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
         }
     }

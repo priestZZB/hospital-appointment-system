@@ -4,6 +4,8 @@ import com.hospital.clinic.dto.StopApproveDTO;
 import com.hospital.clinic.service.StopService;
 import com.hospital.clinic.vo.StopApplicationVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -41,14 +43,28 @@ public class StopController {
         return Result.ok(stopService.apply(userId, dto.getScheduleId(), dto.getApplyReason()));
     }
 
-    /** 管理员审批停诊申请 */
-    @AuditLog(value = "停诊审批", operationType = "STOP_APPROVE")
+    /** 科主任初审停诊申请（通过 → 待门诊部终审；驳回 → 驳回） */
+    @AuditLog(value = "停诊科主任初审", operationType = "STOP_CHIEF_REVIEW")
+    @RequiresPermission(PermissionConstant.CLINIC_STOP_CHIEF_REVIEW)
+    @PutMapping("/stop/{applicationId}/chief-review")
+    public Result<StopApplicationVO> chiefReview(@PathVariable("applicationId") Long applicationId,
+                                                 @Valid @RequestBody StopApproveDTO dto) {
+        Long userId = UserContext.getUserId();
+        if (!UserContext.isDeptChiefOrAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅科主任或管理员可初审停诊");
+        }
+        return Result.ok(stopService.chiefReview(applicationId, userId, dto.getAction(), dto.getApproveComment()));
+    }
+
+    /** 门诊部终审停诊申请 */
+    @AuditLog(value = "停诊终审", operationType = "STOP_APPROVE")
+    @RequiresPermission(PermissionConstant.CLINIC_STOP_APPROVE)
     @PutMapping("/stop/{applicationId}/approve")
     public Result<StopApplicationVO> approve(@PathVariable("applicationId") Long applicationId,
                                               @Valid @RequestBody StopApproveDTO dto) {
         Long userId = UserContext.getUserId();
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
-            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可审批停诊");
+        if (!UserContext.isAdminOrSuperAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅门诊部管理员可终审停诊");
         }
         return Result.ok(stopService.approve(applicationId, userId, dto.getAction(), dto.getApproveComment()));
     }

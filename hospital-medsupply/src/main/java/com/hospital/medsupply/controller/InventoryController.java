@@ -1,6 +1,8 @@
 package com.hospital.medsupply.controller;
 
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -19,6 +21,7 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_INVENTORY_QUERY)
     @GetMapping("/list")
     public Result<Map<String, Object>> list(@RequestParam(defaultValue = "1") int pageNo,
                                              @RequestParam(defaultValue = "10") int pageSize,
@@ -28,6 +31,7 @@ public class InventoryController {
         return Result.ok(inventoryService.page(keyword, lowStock, pageNo, pageSize));
     }
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_INVENTORY_INBOUND)
     @PostMapping("/inbound")
     @AuditLog(value = "药品入库", operationType = "INSERT")
     public Result<DrugInventory> inbound(@RequestBody Map<String, Object> body) {
@@ -38,6 +42,7 @@ public class InventoryController {
         return Result.ok(inventoryService.inbound(drugId, quantity, remark, UserContext.getUserId()));
     }
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_INVENTORY_OUTBOUND)
     @PostMapping("/outbound")
     @AuditLog(value = "药品出库", operationType = "UPDATE")
     public Result<DrugInventory> outbound(@RequestBody Map<String, Object> body) {
@@ -48,6 +53,7 @@ public class InventoryController {
         return Result.ok(inventoryService.outbound(drugId, quantity, remark, UserContext.getUserId()));
     }
 
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_INVENTORY_ADJUST)
     @PostMapping("/adjust")
     @AuditLog(value = "库存盘点", operationType = "UPDATE")
     public Result<DrugInventory> adjust(@RequestBody Map<String, Object> body) {
@@ -59,7 +65,7 @@ public class InventoryController {
     }
 
     private void requireAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
         }
     }

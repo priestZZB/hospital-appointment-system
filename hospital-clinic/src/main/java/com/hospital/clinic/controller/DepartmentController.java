@@ -4,6 +4,8 @@ import com.hospital.clinic.dto.DepartmentSaveDTO;
 import com.hospital.clinic.service.DepartmentService;
 import com.hospital.clinic.vo.DepartmentVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -40,6 +42,7 @@ public class DepartmentController {
 
     /** 新增科室 */
     @AuditLog(value = "新增科室", operationType = "INSERT")
+    @RequiresPermission(PermissionConstant.CLINIC_DEPT_CREATE)
     @PostMapping
     public Result<DepartmentVO> create(@Valid @RequestBody DepartmentSaveDTO dto) {
         requireAdmin();
@@ -48,6 +51,7 @@ public class DepartmentController {
 
     /** 编辑科室 */
     @AuditLog(value = "编辑科室", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_DEPT_UPDATE)
     @PutMapping("/{id}")
     public Result<DepartmentVO> update(@PathVariable Long id, @Valid @RequestBody DepartmentSaveDTO dto) {
         requireAdmin();
@@ -56,6 +60,7 @@ public class DepartmentController {
 
     /** 更新科室状态 */
     @AuditLog(value = "更新科室状态", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_DEPT_STATUS)
     @PutMapping("/{id}/status")
     public Result<Void> updateStatus(@PathVariable Long id, @RequestParam("status") Integer status) {
         requireAdmin();
@@ -64,7 +69,7 @@ public class DepartmentController {
     }
 
     private void requireAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
         }
     }

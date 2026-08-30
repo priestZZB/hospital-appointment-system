@@ -33,4 +33,10 @@ public interface ExamReportMapper {
     int updateStatus(@Param("id") Long id,
                      @Param("status") String status,
                      @Param("completeTime") java.time.LocalDateTime completeTime);
+
+    /** 报告审核（发布/驳回），写审核人、审核时间、审核意见 */
+    int audit(@Param("id") Long id,
+              @Param("status") String status,
+              @Param("auditorId") Long auditorId,
+              @Param("auditComment") String auditComment);
 }

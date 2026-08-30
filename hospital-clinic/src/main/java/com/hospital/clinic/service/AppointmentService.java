@@ -126,6 +126,10 @@ public class AppointmentService {
         if (schedule == null || schedule.getStatus() != 1) {
             throw new BusinessException(ErrorCodeEnum.SLOT_NOT_AVAILABLE);
         }
+        // 校验排班已通过门诊部确认（真实业务：仅已确认排班生成号源供挂号）
+        if (!"CONFIRMED".equals(schedule.getAuditStatus())) {
+            throw new BusinessException(ErrorCodeEnum.SLOT_NOT_AVAILABLE, "该排班尚未确认，暂不可挂号");
+        }
         // 校验 slot 与 schedule 的关联关系
         if (!slot.getScheduleId().equals(scheduleId)) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "号源与排班信息不一致");
@@ -329,7 +333,7 @@ public class AppointmentService {
             throw new BusinessException(ErrorCodeEnum.APPOINTMENT_NOT_FOUND);
         }
         // 权限：管理员/医生可查看任意预约，患者仅可查看本人预约
-        if (!UserContext.hasRole("ROLE_ADMIN") && !UserContext.hasRole("ROLE_DOCTOR")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             Long patientId = resolvePatientId(userId);
             if (patientId == null || !patientId.equals(vo.getPatientId())) {
                 throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权查看他人预约");

@@ -3,6 +3,7 @@ package com.hospital.clinic.entity;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -35,6 +36,12 @@ public class Prescription implements Serializable {
 
     /** 审核意见 */
     private String reviewComment;
+
+    /** 处方总金额/实收金额（缴费回写时写入，默认 0） */
+    private BigDecimal totalAmount;
+
+    /** 缴费状态：UNPAID-待缴费 / PAID-已缴费 / REFUNDED-已退费 */
+    private String payStatus;
 
     /** 创建时间 */
     private LocalDateTime createTime;

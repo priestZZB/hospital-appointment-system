@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 支付订单表 Mapper
@@ -38,4 +39,16 @@ public interface PaymentOrderMapper {
     /** 查询超时未支付订单 */
     List<PaymentOrder> selectTimeoutOrders(@Param("status") String status,
                                            @Param("now") LocalDateTime now);
+
+    /** 记录收费员（收费员代缴费成功后写入 cashier_id） */
+    int setCashier(@Param("id") Long id, @Param("cashierId") Long cashierId);
+
+    /** 日结汇总：按订单类型 + 支付方式分组统计已支付订单（金额与笔数） */
+    List<Map<String, Object>> selectSettleSummary(@Param("start") LocalDateTime start,
+                                                  @Param("end") LocalDateTime end);
+
+    /** 日结后打标（将指定收费员当日的已支付未结订单标记为已结） */
+    int markSettled(@Param("cashierId") Long cashierId,
+                    @Param("start") LocalDateTime start,
+                    @Param("end") LocalDateTime end);
 }

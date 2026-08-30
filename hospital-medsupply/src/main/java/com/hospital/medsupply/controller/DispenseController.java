@@ -1,6 +1,8 @@
 package com.hospital.medsupply.controller;
 
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -20,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * 处方审核 / 发药管理接口（仅管理员）
+ * 处方审核 / 发药管理接口（仅管理员/药师）
  */
 @RestController
 @RequestMapping("/api/admin/drug/dispense")
@@ -31,16 +33,18 @@ public class DispenseController {
 
     /** 处方审核（APPROVE 通过 / REJECT 驳回） */
     @AuditLog(value = "处方审核", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DISPENSE_REVIEW)
     @PutMapping("/{prescriptionId}/review")
     public Result<DrugDispense> review(@PathVariable Long prescriptionId,
                                        @RequestBody Map<String, String> body) {
         requireAdmin();
         return Result.ok(dispenseService.review(prescriptionId, body.get("action"),
-                body.get("reviewComment"), UserContext.getUserId()));
+                body.get("reviewComment"), body.get("reviewCheck"), UserContext.getUserId()));
     }
 
     /** 发药确认（乐观锁扣减库存） */
     @AuditLog(value = "发药确认", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DISPENSE_EXEC)
     @PostMapping("/{prescriptionId}")
     public Result<DrugDispense> dispense(@PathVariable Long prescriptionId) {
         requireAdmin();
@@ -48,6 +52,7 @@ public class DispenseController {
     }
 
     /** 发药记录分页（按状态筛选） */
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DISPENSE_QUERY)
     @GetMapping("/list")
     public Result<Map<String, Object>> list(
             @RequestParam(value = "status", required = false) String status,
@@ -58,8 +63,8 @@ public class DispenseController {
     }
 
     private void requireAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
-            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
+        if (!UserContext.isPharmacistOrAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅药师或管理员可执行此操作");
         }
     }
 }

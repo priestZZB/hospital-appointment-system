@@ -55,7 +55,7 @@ public class CallService {
     @Transactional(rollbackFor = Exception.class)
     public CallMessageVO callNext(Long departmentId, String consultRoom, Long userId) {
         // 权限校验：仅医生或管理员可叫号
-        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅医生可执行叫号操作");
         }
         // 校验医生属于该科室
@@ -133,7 +133,7 @@ public class CallService {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "签到记录不存在");
         }
         // 权限校验：仅医生或管理员可重呼，且医生须属于该科室
-        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅医生可执行重呼操作");
         }
         Doctor callingDoctor = doctorMapper.selectByUserId(userId);
@@ -188,7 +188,7 @@ public class CallService {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "签到记录不存在");
         }
         // 权限校验：仅医生或管理员可处理过号，且医生须属于该科室
-        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅医生可处理过号");
         }
         Doctor doctor = doctorMapper.selectByUserId(userId);

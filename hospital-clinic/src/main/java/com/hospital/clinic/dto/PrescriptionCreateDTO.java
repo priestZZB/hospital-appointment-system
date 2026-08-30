@@ -32,6 +32,8 @@ public class PrescriptionCreateDTO {
         private String frequency;
         private Integer days;
         private Integer quantity;
+        /** 单价（开单时取药品参考价） */
+        private java.math.BigDecimal price;
         private String unit;
         private String remark;
     }

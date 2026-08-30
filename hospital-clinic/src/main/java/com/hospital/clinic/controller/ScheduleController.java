@@ -4,6 +4,8 @@ import com.hospital.clinic.dto.ScheduleCreateDTO;
 import com.hospital.clinic.service.ScheduleService;
 import com.hospital.clinic.vo.ScheduleVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -28,12 +30,42 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
 
-    /** 创建排班 */
-    @AuditLog(value = "创建排班", operationType = "INSERT")
+    /** 提交排班申请（医生/科主任上报；门诊部管理员可直接提交并确认） */
+    @AuditLog(value = "提交排班申请", operationType = "INSERT")
+    @RequiresPermission(PermissionConstant.CLINIC_SCHEDULE_CREATE)
     @PostMapping
     public Result<ScheduleVO> create(@Valid @RequestBody ScheduleCreateDTO dto) {
-        requireAdmin();
+        requireDoctorOrAdmin();
         return Result.ok(scheduleService.create(dto));
+    }
+
+    /** 门诊部确认排班（生成号源） */
+    @AuditLog(value = "确认排班", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_SCHEDULE_CONFIRM)
+    @PutMapping("/{id}/confirm")
+    public Result<ScheduleVO> confirm(@PathVariable Long id) {
+        requireAdmin();
+        return Result.ok(scheduleService.confirm(id));
+    }
+
+    /** 门诊部驳回排班 */
+    @AuditLog(value = "驳回排班", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_SCHEDULE_REJECT)
+    @PutMapping("/{id}/reject")
+    public Result<ScheduleVO> reject(@PathVariable Long id) {
+        requireAdmin();
+        return Result.ok(scheduleService.reject(id));
+    }
+
+    /** 待确认排班列表（门诊部确认用） */
+    @RequiresPermission(PermissionConstant.CLINIC_SCHEDULE_CONFIRM)
+    @GetMapping("/pending")
+    public Result<List<ScheduleVO>> listPending(
+            @RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
+            @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
+        requireAdmin();
+        long offset = (long) (Math.max(pageNo, 1) - 1) * Math.min(pageSize, 100);
+        return Result.ok(scheduleService.listPending(offset, pageSize));
     }
 
     /** 排班日历视图 */
@@ -53,6 +85,7 @@ public class ScheduleController {
 
     /** 取消排班 */
     @AuditLog(value = "取消排班", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_SCHEDULE_CANCEL)
     @PutMapping("/{id}/cancel")
     public Result<Void> cancel(@PathVariable Long id) {
         requireAdmin();
@@ -61,8 +94,14 @@ public class ScheduleController {
     }
 
     private void requireAdmin() {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
-            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");
+        if (!UserContext.isAdminOrSuperAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅门诊部管理员可执行此操作");
+        }
+    }
+
+    private void requireDoctorOrAdmin() {
+        if (!UserContext.isDoctorOrAdmin()) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅医生/科主任/管理员可提交排班");
         }
     }
 }

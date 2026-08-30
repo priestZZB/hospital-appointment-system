@@ -51,6 +51,9 @@ public class Schedule implements Serializable {
     /** 状态：1-正常 0-已取消 */
     private Integer status;
 
+    /** 排班审批状态：PENDING-待门诊部确认 / CONFIRMED-已确认（可挂号）/ REJECTED-已驳回 */
+    private String auditStatus;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

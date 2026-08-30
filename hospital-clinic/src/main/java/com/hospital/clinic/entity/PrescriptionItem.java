@@ -44,6 +44,9 @@ public class PrescriptionItem implements Serializable {
     /** 总量 */
     private Integer quantity;
 
+    /** 单价（开单时取药品参考价，明细计价） */
+    private java.math.BigDecimal unitPrice;
+
     /** 单位：TABLET-片 / VIAL-支 / BOTTLE-瓶 / BOX-盒 */
     private String unit;
 

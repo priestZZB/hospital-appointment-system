@@ -3,6 +3,7 @@ package com.hospital.clinic.vo;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -20,6 +21,8 @@ public class PrescriptionVO {
     private Long doctorId;
     private String status;
     private String reviewComment;
+    private BigDecimal totalAmount;
+    private String payStatus;
     private List<PrescriptionItemVO> items;
     private LocalDateTime createTime;
 }

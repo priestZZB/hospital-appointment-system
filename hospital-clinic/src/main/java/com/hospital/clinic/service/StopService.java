@@ -91,20 +91,61 @@ public class StopService {
             throw new BusinessException(ErrorCodeEnum.DUPLICATE_OPERATION, "该排班已有待审批的停诊申请");
         }
 
-        // 5. 创建停诊申请
+        // 5. 创建停诊申请（待科主任初审）
         StopApplication application = new StopApplication();
         application.setScheduleId(scheduleId);
         application.setDoctorId(doctorId);
         application.setApplyReason(applyReason);
         application.setStatus("PENDING");
+        application.setChiefReviewStatus("PENDING_CHIEF");
         stopApplicationMapper.insert(application);
-        log.info("[停诊] 申请已提交: id={}, scheduleId={}, doctorId={}", application.getId(), scheduleId, doctorId);
+        log.info("[停诊] 申请已提交（待科主任初审）: id={}, scheduleId={}, doctorId={}",
+                application.getId(), scheduleId, doctorId);
 
         return toVO(application);
     }
 
     /**
-     * 管理员审批
+     * 科主任初审（通过 → 待门诊部终审；驳回 → 驳回）
+     * <p>
+     * 真实医院业务：医生申请停诊 → 科主任初审 → 门诊部终审。
+     * 科主任初审通过后流转到「待门诊部终审」，由门诊部最终审批退款。
+     *
+     * @param applicationId 申请 ID
+     * @param chiefId       科主任用户 ID
+     * @param action        APPROVE / REJECT
+     * @param comment       初审意见
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public StopApplicationVO chiefReview(Long applicationId, Long chiefId, String action, String comment) {
+        StopApplication application = stopApplicationMapper.selectById(applicationId);
+        if (application == null) {
+            throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "停诊申请不存在");
+        }
+        if (!"PENDING".equals(application.getStatus())) {
+            throw new BusinessException(ErrorCodeEnum.STOP_ALREADY_PROCESSED);
+        }
+        if (!"PENDING_CHIEF".equals(application.getChiefReviewStatus())) {
+            throw new BusinessException(ErrorCodeEnum.STOP_ALREADY_PROCESSED, "该申请已初审");
+        }
+
+        if ("REJECT".equals(action)) {
+            // 科主任初审驳回：申请直接结束
+            stopApplicationMapper.updateChiefReview(applicationId, "CHIEF_REJECTED", "REJECTED",
+                    comment, chiefId, "PENDING");
+            log.info("[停诊] 科主任已驳回: id={}", applicationId);
+            return toVO(stopApplicationMapper.selectById(applicationId));
+        }
+
+        // 科主任初审通过：流转到待门诊部终审
+        stopApplicationMapper.updateChiefReview(applicationId, "CHIEF_PASSED", "PENDING_ADMIN",
+                comment, chiefId, "PENDING");
+        log.info("[停诊] 科主任初审通过（待门诊部终审）: id={}", applicationId);
+        return toVO(stopApplicationMapper.selectById(applicationId));
+    }
+
+    /**
+     * 门诊部终审
      * <p>
      * 通过 → 取消该排班下所有待签到预约 → 退款 → 释放号源 → 通知
      * 驳回 → 填写审批意见
@@ -121,14 +162,16 @@ public class StopService {
         if (application == null) {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "停诊申请不存在");
         }
-        if (!"PENDING".equals(application.getStatus())) {
-            throw new BusinessException(ErrorCodeEnum.STOP_ALREADY_PROCESSED);
+        // 终审仅处理「待门诊部终审」状态的申请（科主任初审通过后）
+        if (!"PENDING_ADMIN".equals(application.getStatus())) {
+            throw new BusinessException(ErrorCodeEnum.STOP_ALREADY_PROCESSED,
+                    "该申请尚未通过科主任初审或已处理，无法终审");
         }
 
         if ("REJECT".equals(action)) {
             stopApplicationMapper.updateApproval(applicationId, "REJECTED", comment,
-                    adminId, 0, BigDecimal.ZERO, "PENDING");
-            log.info("[停诊] 已驳回: id={}", applicationId);
+                    adminId, 0, BigDecimal.ZERO, "PENDING_ADMIN");
+            log.info("[停诊] 门诊部已驳回: id={}", applicationId);
             return toVO(stopApplicationMapper.selectById(applicationId));
         }
 
@@ -172,8 +215,8 @@ public class StopService {
 
         // 更新审批状态
         stopApplicationMapper.updateApproval(applicationId, "APPROVED", comment,
-                adminId, affectedCount, refundTotal, "PENDING");
-        log.info("[停诊] 已通过: id={}, 受影响{}人, 退款{}元", applicationId, affectedCount, refundTotal);
+                adminId, affectedCount, refundTotal, "PENDING_ADMIN");
+        log.info("[停诊] 门诊部已通过: id={}, 受影响{}人, 退款{}元", applicationId, affectedCount, refundTotal);
 
         return toVO(stopApplicationMapper.selectById(applicationId));
     }
@@ -200,6 +243,10 @@ public class StopService {
         return StopApplicationVO.builder()
                 .id(a.getId()).scheduleId(a.getScheduleId()).doctorId(a.getDoctorId())
                 .applyReason(a.getApplyReason()).status(a.getStatus())
+                .chiefReviewStatus(a.getChiefReviewStatus())
+                .chiefReviewedBy(a.getChiefReviewedBy())
+                .chiefReviewComment(a.getChiefReviewComment())
+                .chiefReviewTime(a.getChiefReviewTime())
                 .approveComment(a.getApproveComment()).approvedBy(a.getApprovedBy())
                 .approveTime(a.getApproveTime()).affectedCount(a.getAffectedCount())
                 .refundTotal(a.getRefundTotal()).createTime(a.getCreateTime())

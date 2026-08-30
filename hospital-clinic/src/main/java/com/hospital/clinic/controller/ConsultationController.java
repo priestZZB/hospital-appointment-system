@@ -9,6 +9,8 @@ import com.hospital.clinic.vo.MedicalRecordVO;
 import com.hospital.clinic.vo.PrescriptionVO;
 import com.hospital.clinic.vo.QueuePatientVO;
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -41,6 +43,7 @@ public class ConsultationController {
 
     /** 开始接诊 */
     @AuditLog(value = "开始接诊", operationType = "START_CONSULTATION")
+    @RequiresPermission(PermissionConstant.CLINIC_CONSULT_START)
     @PostMapping("/consultation/start")
     public Result<MedicalRecordVO> startConsultation(@RequestParam("appointmentId") Long appointmentId) {
         Long userId = UserContext.getUserId();
@@ -49,6 +52,7 @@ public class ConsultationController {
 
     /** 保存病历（草稿/提交） */
     @AuditLog(value = "保存病历", operationType = "SAVE_MEDICAL_RECORD")
+    @RequiresPermission(PermissionConstant.CLINIC_CONSULT_SAVE)
     @PutMapping("/consultation/{recordId}")
     public Result<MedicalRecordVO> saveMedicalRecord(@PathVariable("recordId") Long recordId,
                                                       @Valid @RequestBody MedicalRecordSaveDTO dto) {
@@ -57,6 +61,7 @@ public class ConsultationController {
 
     /** 处方开具 */
     @AuditLog(value = "处方开具", operationType = "CREATE_PRESCRIPTION")
+    @RequiresPermission(PermissionConstant.CLINIC_PRESCRIPTION_CREATE)
     @PostMapping("/prescription")
     public Result<PrescriptionVO> createPrescription(@Valid @RequestBody PrescriptionCreateDTO dto) {
         Long userId = UserContext.getUserId();
@@ -65,6 +70,7 @@ public class ConsultationController {
 
     /** 检查/检验申请 */
     @AuditLog(value = "检查检验申请", operationType = "REQUEST_EXAM")
+    @RequiresPermission(PermissionConstant.CLINIC_EXAM_REQUEST)
     @PostMapping("/consultation/exam")
     public Result<Void> requestExam(@Valid @RequestBody ExamRequestDTO dto) {
         Long userId = UserContext.getUserId();
@@ -74,6 +80,7 @@ public class ConsultationController {
 
     /** 结束就诊 */
     @AuditLog(value = "结束就诊", operationType = "FINISH_CONSULTATION")
+    @RequiresPermission(PermissionConstant.CLINIC_CONSULT_FINISH)
     @PutMapping("/consultation/{recordId}/finish")
     public Result<Void> finishConsultation(@PathVariable("recordId") Long recordId) {
         consultationService.finishConsultation(recordId);
@@ -81,12 +88,14 @@ public class ConsultationController {
     }
 
     /** 病历详情 */
+    @RequiresPermission(PermissionConstant.CLINIC_CONSULT_QUERY)
     @GetMapping("/consultation/{recordId}")
     public Result<MedicalRecordVO> getMedicalRecord(@PathVariable("recordId") Long recordId) {
         return Result.ok(consultationService.getMedicalRecord(recordId, UserContext.getUserId()));
     }
 
     /** 患者病历列表 */
+    @RequiresPermission(PermissionConstant.CLINIC_CONSULT_PATIENT)
     @GetMapping("/consultation/patient/{patientId}")
     public Result<List<MedicalRecordVO>> listByPatient(@PathVariable("patientId") Long patientId,
                                                         @RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
@@ -96,6 +105,7 @@ public class ConsultationController {
     }
 
     /** 医生工作台：今日待接诊/已叫号患者列表（医生/管理员） */
+    @RequiresPermission(PermissionConstant.CLINIC_CONSULT_TODAY)
     @GetMapping("/consultation/today")
     public Result<List<QueuePatientVO>> todayQueue(
             @RequestParam("departmentId") Long departmentId,
@@ -105,7 +115,7 @@ public class ConsultationController {
     }
 
     private void checkDoctorOrAdmin() {
-        if (!UserContext.hasRole("ROLE_DOCTOR") && !UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
     }

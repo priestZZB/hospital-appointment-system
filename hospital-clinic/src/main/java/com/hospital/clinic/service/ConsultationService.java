@@ -21,6 +21,8 @@ import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.PatientFeignClient;
 import com.hospital.common.interceptor.UserContext;
+import com.hospital.common.util.DataScopeUtil;
+import com.hospital.common.util.DataScopeUtil.ScopeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -187,13 +189,26 @@ public class ConsultationService {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权为此病历开具处方");
         }
 
-        // 创建处方主表
+        // 划价：按明细 Σ(单价 × 数量) 计算处方总金额
+        java.math.BigDecimal totalAmount = java.math.BigDecimal.ZERO;
+        if (dto.getItems() != null) {
+            for (PrescriptionCreateDTO.PrescriptionItemDTO itemDTO : dto.getItems()) {
+                java.math.BigDecimal price = itemDTO.getPrice() == null
+                        ? java.math.BigDecimal.ZERO : itemDTO.getPrice();
+                int qty = itemDTO.getQuantity() == null ? 1 : itemDTO.getQuantity();
+                totalAmount = totalAmount.add(price.multiply(java.math.BigDecimal.valueOf(qty)));
+            }
+        }
+
+        // 创建处方主表（含缴费状态与总金额）
         Prescription prescription = new Prescription();
         prescription.setPrescriptionNo("PRE" + UUID.fastUUID().toString().substring(0, 8).toUpperCase());
         prescription.setMedicalRecordId(dto.getMedicalRecordId());
         prescription.setPatientId(record.getPatientId());
         prescription.setDoctorId(doctor.getId());
         prescription.setStatus("PENDING_REVIEW");
+        prescription.setPayStatus("UNPAID");
+        prescription.setTotalAmount(totalAmount);
         prescriptionMapper.insert(prescription);
 
         // 批量插入处方明细
@@ -210,6 +225,7 @@ public class ConsultationService {
                 item.setFrequency(itemDTO.getFrequency());
                 item.setDays(itemDTO.getDays());
                 item.setQuantity(itemDTO.getQuantity());
+                item.setUnitPrice(itemDTO.getPrice());
                 item.setUnit(itemDTO.getUnit());
                 item.setRemark(itemDTO.getRemark());
                 items.add(item);
@@ -287,13 +303,25 @@ public class ConsultationService {
 
     /**
      * 查询病历详情
+     * <p>
+     * 数据范围（迭代 5 阶段 3）：医师（含科主任）=仅本人开具的病历；
+     * 管理员/超管=全量；患者=仅本人。
      */
     public MedicalRecordVO getMedicalRecord(Long recordId, Long userId) {
         MedicalRecord record = medicalRecordMapper.selectById(recordId);
         if (record == null) {
             throw new BusinessException(ErrorCodeEnum.RECORD_NOT_FOUND);
         }
-        checkRecordOwner(record, userId);
+        // 数据范围：医师 → 仅本人病历
+        ScopeType scope = DataScopeUtil.getScopeType();
+        if (scope == ScopeType.SELF) {
+            com.hospital.clinic.entity.Doctor doctor = doctorMapper.selectByUserId(userId);
+            if (doctor == null || !Objects.equals(record.getDoctorId(), doctor.getId())) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅可查看本人开具的病历");
+            }
+        } else {
+            checkRecordOwner(record, userId);
+        }
         List<Prescription> prescriptions = prescriptionMapper.selectByMedicalRecordId(recordId);
         List<PrescriptionVO> prescriptionVOs = prescriptions.stream()
                 .map(p -> {
@@ -306,10 +334,25 @@ public class ConsultationService {
 
     /**
      * 查询患者病历列表
+     * <p>
+     * 数据范围（迭代 5 阶段 3）：管理员/超管=全量；医师（含科主任）=仅本人开具的病历；
+     * 患者=仅本人；其余角色按原逻辑（医生或管理员可查任意，否则仅本人）。
      */
     public List<MedicalRecordVO> listByPatient(Long patientId, long offset, Integer limit, Long userId) {
-        // 权限：管理员/医生可查任意患者，患者仅可查本人病历
-        if (!UserContext.hasRole("ROLE_ADMIN") && !UserContext.hasRole("ROLE_DOCTOR")) {
+        // 数据范围：医师 → 仅本人病历
+        ScopeType scope = DataScopeUtil.getScopeType();
+        if (scope == ScopeType.SELF) {
+            com.hospital.clinic.entity.Doctor doctor = doctorMapper.selectByUserId(userId);
+            if (doctor == null) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "医师账号未关联医生档案");
+            }
+            List<MedicalRecord> myRecords = medicalRecordMapper.selectByPatientIdAndDoctorId(
+                    patientId, doctor.getId(), (int) offset, limit);
+            return myRecords.stream().map(r -> toVO(r, Collections.emptyList())).collect(Collectors.toList());
+        }
+
+        // 原逻辑：管理员/医生可查任意患者，患者仅可查本人病历
+        if (!UserContext.isDoctorOrAdmin()) {
             Long myPatientId = resolvePatientId(userId);
             if (myPatientId == null || !myPatientId.equals(patientId)) {
                 throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权查看他人病历");
@@ -323,7 +366,7 @@ public class ConsultationService {
      * 病历归属校验：管理员/医生可查看，患者仅可查看本人病历
      */
     private void checkRecordOwner(MedicalRecord record, Long userId) {
-        if (UserContext.hasRole("ROLE_ADMIN") || UserContext.hasRole("ROLE_DOCTOR")) {
+        if (UserContext.isDoctorOrAdmin()) {
             return;
         }
         Long myPatientId = resolvePatientId(userId);
@@ -389,6 +432,7 @@ public class ConsultationService {
                         .specification(i.getSpecification()).dosage(i.getDosage())
                         .usageMethod(i.getUsageMethod()).frequency(i.getFrequency())
                         .days(i.getDays()).quantity(i.getQuantity())
+                        .unitPrice(i.getUnitPrice())
                         .unit(i.getUnit()).remark(i.getRemark())
                         .build())
                 .collect(Collectors.toList());
@@ -397,7 +441,9 @@ public class ConsultationService {
                 .id(p.getId()).prescriptionNo(p.getPrescriptionNo())
                 .medicalRecordId(p.getMedicalRecordId()).patientId(p.getPatientId())
                 .doctorId(p.getDoctorId()).status(p.getStatus())
-                .reviewComment(p.getReviewComment()).items(itemVOs)
+                .reviewComment(p.getReviewComment())
+                .totalAmount(p.getTotalAmount()).payStatus(p.getPayStatus())
+                .items(itemVOs)
                 .createTime(p.getCreateTime()).build();
     }
 }

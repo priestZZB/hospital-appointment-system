@@ -41,7 +41,16 @@ public class ExamReport implements Serializable {
     /** 报告录入人ID */
     private Long operatorId;
 
-    /** DRAFT-草稿 / PUBLISHED-已发布 */
+    /** 报告审核人ID */
+    private Long auditorId;
+
+    /** 报告审核时间 */
+    private LocalDateTime auditTime;
+
+    /** 审核意见 */
+    private String auditComment;
+
+    /** DRAFT-草稿 / PENDING_AUDIT-待审核 / PUBLISHED-已发布 / REJECTED-已驳回 */
     private String status;
 
     /** 报告完成时间 */
