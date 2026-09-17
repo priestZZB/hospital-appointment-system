@@ -576,3 +576,318 @@ export interface SettleRecordVO {
   detail?: string
   createTime?: string
 }
+/** 会诊请求 VO（迭代6） */
+export interface ConsultationRequestVO {
+  id: number
+  requestNo?: string
+  medicalRecordId?: number
+  patientId?: number
+  applyDeptId?: number
+  applyDeptName?: string
+  applyDoctorId?: number
+  applyDoctorName?: string
+  targetDeptId?: number
+  targetDeptName?: string
+  targetDoctorId?: number
+  targetDoctorName?: string
+  reason?: string
+  status?: string
+  consultOpinion?: string
+  consultDoctorId?: number
+  consultDoctorName?: string
+  consultTime?: string
+  createTime?: string
+}
+
+/** 转诊单 VO（迭代6） */
+export interface ReferralOrderVO {
+  id: number
+  referralNo?: string
+  medicalRecordId?: number
+  patientId?: number
+  fromDeptId?: number
+  fromDeptName?: string
+  fromDoctorId?: number
+  fromDoctorName?: string
+  toDeptId?: number
+  toDeptName?: string
+  reason?: string
+  status?: string
+  acceptTime?: string
+  completeTime?: string
+  createTime?: string
+}
+
+/** 随访记录 VO（迭代6） */
+export interface FollowUpRecordVO {
+  id: number
+  planId?: number
+  patientId?: number
+  doctorId?: number
+  doctorName?: string
+  content?: string
+  nextFollowDate?: string
+  createTime?: string
+}
+
+/** 随访计划 VO（迭代6） */
+export interface FollowUpPlanVO {
+  id: number
+  patientId?: number
+  patientName?: string
+  medicalRecordId?: number
+  doctorId?: number
+  doctorName?: string
+  followDate?: string
+  followMethod?: string
+  template?: string
+  status?: string
+  createTime?: string
+  records?: FollowUpRecordVO[]
+}
+
+/** 医疗证明 VO（迭代6） */
+export interface MedicalCertificateVO {
+  id: number
+  certNo?: string
+  certType?: string
+  patientId?: number
+  patientName?: string
+  doctorId?: number
+  doctorName?: string
+  medicalRecordId?: number
+  content?: string
+  days?: number
+  startDate?: string
+  status?: string
+  createTime?: string
+}
+
+/** 危急值 VO（迭代6） */
+export interface CriticalValueVO {
+  id: number
+  reportId?: number
+  applicationId?: number
+  patientId?: number
+  itemName?: string
+  resultValue?: string
+  referenceRange?: string
+  criticalLevel?: string
+  status?: string
+  reporterId?: number
+  reporterName?: string
+  confirmDoctorId?: number
+  confirmDoctorName?: string
+  confirmComment?: string
+  confirmTime?: string
+  createTime?: string
+}
+
+/** 处方点评 VO（迭代6） */
+export interface PrescriptionReviewVO {
+  id: number
+  prescriptionId?: number
+  patientId?: number
+  pharmacistId?: number
+  pharmacistName?: string
+  rating?: string
+  problemType?: string
+  comment?: string
+  createTime?: string
+}
+
+/** ==================== 住院模块（迭代6） ==================== */
+
+/** 入院登记 VO */
+export interface AdmissionVO {
+  id: number
+  admissionNo?: string
+  patientId?: number
+  patientName?: string
+  departmentId?: number
+  attendingDoctorId?: number
+  attendingDoctorName?: string
+  admissionDiag?: string
+  expectedDays?: number
+  admissionTime?: string
+  status?: string
+  currentBedId?: number
+  currentRoomNo?: string
+  currentBedNo?: string
+  depositBalance?: number
+  totalFee?: number
+  createTime?: string
+}
+
+/** 床位 VO */
+export interface BedVO {
+  id: number
+  departmentId?: number
+  roomNo?: string
+  bedNo?: string
+  bedType?: string
+  dailyFee?: number
+  status?: string
+  occupantAdmissionNo?: string
+  occupantPatientId?: number
+}
+
+/** 住院医嘱 VO */
+export interface MedicalOrderVO {
+  id: number
+  orderNo?: string
+  admissionId?: number
+  doctorId?: number
+  orderType?: string
+  category?: string
+  content?: string
+  frequency?: string
+  status?: string
+  openTime?: string
+  confirmTime?: string
+  stopTime?: string
+  createTime?: string
+}
+
+/** 生命体征 VO */
+export interface VitalSignVO {
+  id: number
+  admissionId?: number
+  temperature?: number
+  pulse?: number
+  respiration?: number
+  bloodPressure?: string
+  bloodOxygen?: number
+  recordTime?: string
+}
+
+/** 住院总览 VO（护士站/医生站看板） */
+export interface InpatientOverviewVO {
+  admissionId: number
+  admissionNo?: string
+  patientName?: string
+  roomNo?: string
+  bedNo?: string
+  status?: string
+  pendingOrderCount?: number
+  executingOrderCount?: number
+  depositBalance?: number
+  totalFee?: number
+  latestVital?: VitalSignVO | null
+}
+
+/** 预交金流水 VO */
+export interface DepositVO {
+  id: number
+  admissionId?: number
+  amount?: number
+  payMethod?: string
+  balanceAfter?: number
+  operatorId?: number
+  createTime?: string
+}
+
+/** 住院费用 VO */
+export interface InpatientFeeVO {
+  id: number
+  admissionId?: number
+  feeType?: string
+  itemName?: string
+  amount?: number
+  billDate?: string
+  createTime?: string
+}
+
+/** 每日费用清单 VO */
+export interface DailyBillVO {
+  billDate?: string
+  items?: InpatientFeeVO[]
+  total?: number
+}
+
+/** 出院小结 VO */
+export interface DischargeSummaryVO {
+  id: number
+  admissionId?: number
+  admissionNo?: string
+  patientId?: number
+  admissionDiag?: string
+  dischargeDiag?: string
+  treatmentProcess?: string
+  dischargeCondition?: string
+  dischargeAdvice?: string
+  doctorId?: number
+  settlementAmount?: number
+  depositBalance?: number
+  totalFee?: number
+  dischargeTime?: string
+  createTime?: string
+}
+
+/** 护理病历 VO */
+export interface NursingRecordVO {
+  id: number
+  admissionId?: number
+  recordType?: string
+  content?: string
+  intakeMl?: number
+  outputMl?: number
+  nurseId?: number
+  recordTime?: string
+}
+
+/** 住院会诊 VO */
+export interface ConsultVO {
+  id: number
+  admissionId?: number
+  admissionNo?: string
+  patientId?: number
+  requestDeptId?: number
+  requestDoctorId?: number
+  targetDeptId?: number
+  targetDoctorId?: number
+  reason?: string
+  opinion?: string
+  status?: string
+  handleDoctorId?: number
+  handleTime?: string
+  createTime?: string
+}
+
+/** 手术申请 VO */
+export interface SurgeryApplyVO {
+  id: number
+  admissionId?: number
+  admissionNo?: string
+  patientId?: number
+  surgeryName?: string
+  anesthesiaType?: string
+  applyDoctorId?: number
+  scheduledTime?: string
+  operatingRoom?: string
+  status?: string
+  remark?: string
+  createTime?: string
+}
+
+/** 病案首页 VO */
+export interface MedicalRecordHomeVO {
+  id: number
+  admissionId?: number
+  admissionNo?: string
+  patientId?: number
+  departmentId?: number
+  doctorId?: number
+  admissionTime?: string
+  dischargeTime?: string
+  hospitalDays?: number
+  dischargeDiag?: string
+  mainOperation?: string
+  feeBed?: number
+  feeDrug?: number
+  feeExam?: number
+  feeLab?: number
+  feeOther?: number
+  feeTotal?: number
+  settlementAmount?: number
+}

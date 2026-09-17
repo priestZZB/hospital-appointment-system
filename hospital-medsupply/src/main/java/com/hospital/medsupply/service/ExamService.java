@@ -8,6 +8,8 @@ import com.hospital.medsupply.entity.ExamItem;
 import com.hospital.medsupply.entity.ExamReport;
 import com.hospital.medsupply.mapper.ExamApplicationMapper;
 import com.hospital.medsupply.mapper.ExamItemMapper;
+import com.hospital.medsupply.entity.CriticalValue;
+import com.hospital.medsupply.mapper.CriticalValueMapper;
 import com.hospital.medsupply.mapper.ExamReportMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ public class ExamService {
 
     private final ExamItemMapper examItemMapper;
     private final ExamReportMapper examReportMapper;
+    private final CriticalValueMapper criticalValueMapper;
     private final ExamApplicationMapper examApplicationMapper;
     private final FileService fileService;
     private final RealtimePublisher realtimePublisher;
@@ -143,10 +146,14 @@ public class ExamService {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "报告审核失败");
         }
         if ("PUBLISHED".equals(status)) {
-            // 审核通过发布 → 跨服务实时推送
+            // 审核通过发布 → 跨服务实时推送 + 结果命中高危词自动登记危急值
             realtimePublisher.publishToPatient(report.getPatientId(), "REPORT_PUBLISHED",
                     Map.of("reportId", reportId, "applicationId", report.getApplicationId(),
                             "patientId", report.getPatientId()));
+            autoRegisterCritical(report, auditorId);
+        } else if ("REJECTED".equals(status)) {
+            // 报告驳回 → 检查申请退回待执行，允许技师重录
+            examApplicationMapper.updateStatus(report.getApplicationId(), "PENDING");
         }
         log.info("[检查报告] 审核完成: reportId={}, status={}, auditorId={}", reportId, status, auditorId);
         return examReportMapper.selectById(reportId);
@@ -204,4 +211,39 @@ public class ExamService {
     public List<ExamApplication> listLabByStatus(String status, int offset, int limit) {
         return examApplicationMapper.selectLabByStatus(status, offset, limit);
     }
+
+    /**
+     * 报告发布时自动识别危急值：结果文本命中高危关键结果词（如 危急/偏高/偏低/异常 且含数值）
+     * 时登记一条 PENDING 危急值记录，供医生复核。
+     * 真实场景建议由检验仪器阈值规则驱动，这里做演示级关键词识别。
+     */
+    private void autoRegisterCritical(ExamReport report, Long auditorId) {
+        try {
+            String result = report.getReportResult() == null ? "" : report.getReportResult();
+            String desc = report.getReportDesc() == null ? "" : report.getReportDesc();
+            String text = (result + " " + desc).toUpperCase();
+            boolean criticalHit = text.contains("CRITICAL") || text.contains("危急")
+                    || (text.contains("偏高") && text.matches(".*\\d.*"))
+                    || (text.contains("偏低") && text.matches(".*\\d.*"))
+                    || text.contains("PANIC");
+            if (!criticalHit) {
+                return;
+            }
+            CriticalValue value = new CriticalValue();
+            value.setReportId(report.getId());
+            value.setApplicationId(report.getApplicationId());
+            value.setPatientId(report.getPatientId());
+            value.setItemName("报告危急值");
+            value.setResultValue(result.length() > 200 ? result.substring(0, 200) : result);
+            value.setReferenceRange(null);
+            value.setCriticalLevel("HIGH");
+            value.setReporterId(auditorId);
+            criticalValueMapper.insert(value);
+            log.info("[检查报告] 自动登记危急值: valueId={}, reportId={}", value.getId(), report.getId());
+        } catch (Exception e) {
+            // 自动识别失败不阻断审核发布
+            log.warn("[检查报告] 自动危急值识别失败（忽略）: reportId={}", report.getId(), e);
+        }
+    }
+
 }

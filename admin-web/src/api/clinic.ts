@@ -2,13 +2,17 @@ import { request } from './request'
 import type {
   AppointmentVO,
   BiOverviewVO,
+  ConsultationRequestVO,
   DepartmentVO,
   DoctorVO,
+  FollowUpPlanVO,
+  MedicalCertificateVO,
   MedicalRecordVO,
   PageResult,
   PrescriptionVO,
   QueuePatientVO,
   QueueSnapshotVO,
+  ReferralOrderVO,
   ScheduleVO,
   SlotVO,
   StopApplicationVO,
@@ -237,4 +241,81 @@ export function getStopListApi(params: Record<string, unknown>): Promise<PageRes
 /** 某医生停诊记录（依据：§3.6 #52） */
 export function getDoctorStopApi(doctorId: number, params: Record<string, unknown>): Promise<PageResult<StopApplicationVO>> {
   return request({ url: `/clinic/stop/doctor/${doctorId}`, method: 'get', params })
+}
+
+// ==================== 迭代6 功能补全：会诊 / 转诊 / 随访 / 证明 ====================
+
+/** 创建会诊请求 */
+export function createConsultRequestApi(data: Record<string, unknown>): Promise<ConsultationRequestVO> {
+  return request({ url: '/clinic/consult-request', method: 'post', data })
+}
+
+/** 查询会诊（医生/患者） */
+export function getConsultRequestApi(id: number): Promise<ConsultationRequestVO> {
+  return request({ url: `/clinic/consult-request/${id}`, method: 'get' })
+}
+
+/** 会诊列表 */
+export function listConsultRequestsApi(params: Record<string, unknown>): Promise<ConsultationRequestVO[]> {
+  return request({ url: '/clinic/consult-request', method: 'get', params })
+}
+
+/** 处理会诊：ACCEPT / COMPLETE / REJECT */
+export function handleConsultRequestApi(id: number, action: string, opinion?: string): Promise<unknown> {
+  return request({ url: `/clinic/consult-request/${id}/handle`, method: 'put', params: { action, opinion } })
+}
+
+/** 创建转诊单 */
+export function createReferralApi(data: Record<string, unknown>): Promise<ReferralOrderVO> {
+  return request({ url: '/clinic/referral', method: 'post', data })
+}
+
+/** 转诊列表 */
+export function listReferralsApi(params: Record<string, unknown>): Promise<ReferralOrderVO[]> {
+  return request({ url: '/clinic/referral', method: 'get', params })
+}
+
+/** 处理转诊：ACCEPT / COMPLETE / REJECT */
+export function handleReferralApi(id: number, action: string): Promise<unknown> {
+  return request({ url: `/clinic/referral/${id}/handle`, method: 'put', params: { action } })
+}
+
+/** 创建随访计划 */
+export function createFollowUpPlanApi(data: Record<string, unknown>): Promise<FollowUpPlanVO> {
+  return request({ url: '/clinic/follow-up', method: 'post', data })
+}
+
+/** 随访计划列表 */
+export function listFollowUpPlansApi(params: Record<string, unknown>): Promise<FollowUpPlanVO[]> {
+  return request({ url: '/clinic/follow-up', method: 'get', params })
+}
+
+/** 填写随访记录 */
+export function addFollowUpRecordApi(id: number, content?: string, nextFollowDate?: string): Promise<unknown> {
+  return request({ url: `/clinic/follow-up/${id}/record`, method: 'post', params: { content, nextFollowDate } })
+}
+
+/** 取消随访计划 */
+export function cancelFollowUpPlanApi(id: number): Promise<unknown> {
+  return request({ url: `/clinic/follow-up/${id}/cancel`, method: 'put' })
+}
+
+/** 创建医疗证明 */
+export function createCertificateApi(data: Record<string, unknown>): Promise<MedicalCertificateVO> {
+  return request({ url: '/clinic/certificate', method: 'post', data })
+}
+
+/** 医疗证明列表 */
+export function listCertificatesApi(params: Record<string, unknown>): Promise<MedicalCertificateVO[]> {
+  return request({ url: '/clinic/certificate', method: 'get', params })
+}
+
+/** 下载证明 PDF */
+export function downloadCertificateApi(id: number): Promise<unknown> {
+  return request({ url: `/clinic/certificate/${id}/pdf`, method: 'get', responseType: 'blob' })
+}
+
+/** 作废证明 */
+export function cancelCertificateApi(id: number): Promise<unknown> {
+  return request({ url: `/clinic/certificate/${id}/cancel`, method: 'put' })
 }

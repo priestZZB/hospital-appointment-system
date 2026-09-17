@@ -16,6 +16,8 @@ springdoc:
         url: /v3/api-docs/payment-service
       - name: medsupply-service / 医辅物资服务
         url: /v3/api-docs/medsupply-service
+      - name: inpatient-service / 住院服务
+        url: /v3/api-docs/inpatient-service
       - name: ai-service / AI辅助服务
         url: /v3/api-docs/ai-service
   api-docs:
@@ -50,6 +52,11 @@ spring:
           uri: lb://medsupply-service
           predicates:
             - Path=/api/medsupply/**,/api/admin/drug/**,/api/admin/exam/**,/api/exam/**,/api/admin/drug/dispense/**,/api/infusion/**,/api/lab/**
+        # inpatient-service: 住院（入院/床位/医嘱/执行/生命体征/预交金/出院）
+        - id: inpatient-service
+          uri: lb://inpatient-service
+          predicates:
+            - Path=/api/inpatient/**,/api/admin/inpatient/**
         # payment-service: 支付、退款、通知、凭证
         - id: payment-service
           uri: lb://payment-service
@@ -85,6 +92,12 @@ spring:
             - Path=/v3/api-docs/medsupply-service
           filters:
             - RewritePath=/v3/api-docs/medsupply-service, /v3/api-docs
+        - id: inpatient-service-swagger
+          uri: lb://inpatient-service
+          predicates:
+            - Path=/v3/api-docs/inpatient-service
+          filters:
+            - RewritePath=/v3/api-docs/inpatient-service, /v3/api-docs
         - id: payment-service-swagger
           uri: lb://payment-service
           predicates:

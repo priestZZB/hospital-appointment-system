@@ -105,6 +105,14 @@ const adminMenuGroups: MenuGroup[] = [
       { path: '/cashier', label: '收费工作台', icon: Send, permissions: ['menu:cashier:workbench'] },
       { path: '/triage', label: '分诊台', icon: Computer, permissions: ['menu:triage:workbench'] },
       { path: '/stop', label: '停诊审批', icon: Stop, permissions: ['menu:admin:stop'] },
+      { path: '/consult-request', label: '会诊管理', icon: Flow, permissions: ['menu:doctor:consult-request'] },
+      { path: '/referral', label: '转诊管理', icon: Flow, permissions: ['menu:doctor:referral'] },
+      { path: '/follow-up', label: '随访管理', icon: DateIcon, permissions: ['menu:doctor:follow-up'] },
+      { path: '/certificate', label: '医疗证明', icon: File, permissions: ['menu:doctor:certificate'] },
+      { path: '/critical', label: '危急值', icon: Send, permissions: ['api:medsupply:critical:query'] },
+      { path: '/prescription-review', label: '处方点评', icon: Tool, permissions: ['api:medsupply:prescription-review:query'] },
+      { path: '/inpatient-doctor', label: '住院医生站', icon: Hospital, permissions: ['menu:inpatient:doctor'] },
+      { path: '/inpatient-nurse', label: '住院护士站', icon: Tool, permissions: ['menu:inpatient:nurse'] },
     ],
   },
   {
@@ -124,6 +132,11 @@ const doctorTabs: MenuItem[] = [
   { path: '/schedules', label: '我的排班', permissions: ['menu:admin:schedule'] },
   { path: '/slots', label: '号源查询', permissions: ['menu:admin:slot'] },
   { path: '/stop', label: '停诊申请', permissions: ['menu:admin:stop'] },
+  { path: '/consult-request', label: '会诊', icon: Flow, permissions: ['menu:doctor:consult-request'] },
+  { path: '/referral', label: '转诊', icon: Flow, permissions: ['menu:doctor:referral'] },
+  { path: '/follow-up', label: '随访', icon: DateIcon, permissions: ['menu:doctor:follow-up'] },
+  { path: '/certificate', label: '证明', icon: File, permissions: ['menu:doctor:certificate'] },
+  { path: '/inpatient-doctor', label: '住院医生站', permissions: ['menu:inpatient:doctor'] },
 ]
 
 /* ================= 患者：C 端顶部 ================= */
@@ -139,6 +152,7 @@ const staffTabs = computed<MenuItem[]>(() => {
   if (userStore.isTriageNurse) tabs.push({ path: '/triage', label: '分诊台', permissions: ['menu:triage:workbench'] })
   if (userStore.isLabTech) tabs.push({ path: '/lab-tech', label: '检验工作台', permissions: ['menu:lab-tech:workbench'] })
   if (userStore.isNurse) tabs.push({ path: '/infusion-nurse', label: '护士站输液', permissions: ['menu:nurse:workbench'] })
+  if (userStore.isNurse) tabs.push({ path: '/inpatient-nurse', label: '住院护士站', permissions: ['menu:inpatient:nurse'] })
   if (userStore.isExamTech) tabs.push({ path: '/exam-tech', label: '检查执行', permissions: ['menu:exam-tech:workbench'] })
   if (userStore.isPharmacist) tabs.push({ path: '/drugs', label: '药房', permissions: ['menu:admin:drug'] })
   tabs.push({ path: '/profile', label: '个人中心' })

@@ -18,6 +18,7 @@
         <module>hospital-patient</module>
         <module>hospital-clinic</module>
         <module>hospital-medsupply</module>
+        <module>hospital-inpatient</module>
         <module>hospital-payment</module>
         <module>hospital-ai</module>
         <module>hospital-api-test</module>

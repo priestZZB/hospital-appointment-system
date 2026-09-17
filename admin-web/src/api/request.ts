@@ -19,6 +19,10 @@ service.interceptors.request.use((config) => {
 
 service.interceptors.response.use(
   (response) => {
+    // 二进制响应（PDF 等）直接返回 Blob，不走 Result 包装
+    if (response.config.responseType === 'blob') {
+      return response.data as unknown as AxiosResponse
+    }
     const res = response.data as Result
     if (res.code === 0) {
       return res.data as unknown as AxiosResponse

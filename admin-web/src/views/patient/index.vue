@@ -6,11 +6,16 @@ import { CircleCheck, Date as DateIcon, Guide, Hospital, Refresh, Send, Talk, Ti
 import { cancelAppointmentApi, getMyAppointmentsApi, getUnpaidPrescriptionsApi } from '@/api/clinic'
 import { createTreatmentOrderApi, getNotificationsApi, payTreatmentOrderApi, readNotificationApi } from '@/api/payment'
 import { getMyInfusionOrdersApi, getUnpaidExamApplicationsApi } from '@/api/medsupply'
+import { getAdmissionsApi, getDailyBillApi, getDepositsApi, getDischargeSummaryApi, payDepositApi } from '@/api/inpatient'
 import { getProfileApi } from '@/api/patient'
 import { triageApi } from '@/api/ai'
 import { useUserStore } from '@/stores/user'
 import type {
+  AdmissionVO,
   AppointmentVO,
+  DailyBillVO,
+  DepositVO,
+  DischargeSummaryVO,
   ExamApplicationVO,
   InfusionOrder,
   NotificationVO,
@@ -50,6 +55,7 @@ const quickEntries: QuickEntry[] = [
   { key: 'book', label: '预约挂号', desc: '按科室查询号源', icon: Hospital, action: 'route', route: '/slots' },
   { key: 'appointments', label: '我的预约', desc: '预约与就诊记录', icon: DateIcon, action: 'anchor', anchor: 'appointments' },
   { key: 'infusions', label: '我的输液', desc: '查询本人输液单', icon: Time, action: 'anchor', anchor: 'infusions' },
+  { key: 'inpatient', label: '住院服务', desc: '押金 / 清单 / 出院小结', icon: Hospital, action: 'anchor', anchor: 'inpatient' },
   { key: 'payment', label: '待缴费', desc: '诊疗费支付', icon: Send, action: 'anchor', anchor: 'payment' },
   { key: 'notifications', label: '站内信', desc: '通知与消息提醒', icon: Talk, action: 'anchor', anchor: 'notifications' },
 ]
@@ -312,11 +318,58 @@ async function handlePayInfusion(order: InfusionOrder) {
   }
 }
 
+// 住院服务（迭代6 E5）
+const inpatientLoading = ref(false)
+const myAdmission = ref<AdmissionVO | null>(null)
+const myDeposits = ref<DepositVO[]>([])
+const myDailyBills = ref<DailyBillVO[]>([])
+const myDischarge = ref<DischargeSummaryVO | null>(null)
+const depositAmount = ref<number>(500)
+const depositLoading = ref(false)
+
+async function loadMyInpatient() {
+  inpatientLoading.value = true
+  try {
+    const list = await getAdmissionsApi({})
+    myAdmission.value = list.length > 0 ? list[0] : null
+    if (myAdmission.value) {
+      const admissionId = myAdmission.value.id
+      const [deposits, bills, discharge] = await Promise.allSettled([
+        getDepositsApi(admissionId),
+        getDailyBillApi(admissionId),
+        getDischargeSummaryApi(admissionId),
+      ])
+      myDeposits.value = deposits.status === 'fulfilled' ? deposits.value : []
+      myDailyBills.value = bills.status === 'fulfilled' ? bills.value : []
+      myDischarge.value = discharge.status === 'fulfilled' ? discharge.value : null
+    }
+  } catch (e) {
+    WMessage.error((e as Error).message || '住院信息加载失败')
+  } finally {
+    inpatientLoading.value = false
+  }
+}
+
+async function payMyDeposit() {
+  if (!myAdmission.value) return
+  depositLoading.value = true
+  try {
+    await payDepositApi({ admissionId: myAdmission.value.id, amount: depositAmount.value, payMethod: 'WECHAT' })
+    WMessage.success('预交金缴纳成功')
+    await loadMyInpatient()
+  } catch (e) {
+    WMessage.error((e as Error).message || '缴纳失败')
+  } finally {
+    depositLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadMyAppointments()
   loadMyInfusions()
   loadNotifications()
   loadUnpaidAll()
+  loadMyInpatient()
 })
 </script>
 
@@ -485,6 +538,54 @@ onMounted(() => {
               <div class="infusion-item__amount">{{ formatMoney(infusionAmount(o)) }}</div>
             </div>
             <w-empty v-if="!infusionLoading && !infusions.length" type="patient" description="暂无输液记录" :image-size="96" />
+          </div>
+        </w-card>
+
+        <!-- 住院服务 -->
+        <w-card id="inpatient" shadow="never" class="hospital-card section-card">
+          <template #header>
+            <div class="section-head">
+              <span class="section-head__title"><Hospital class="section-head__icon" />住院服务</span>
+              <span class="section-head__hint">预交金 {{ myDeposits.length }} 笔 · 每日清单 / 出院小结</span>
+            </div>
+          </template>
+          <div v-loading="inpatientLoading">
+            <template v-if="myAdmission">
+              <div class="inpatient-head">
+                <div class="inpatient-head__info">
+                  <span class="inpatient-head__no">{{ myAdmission.admissionNo }}</span>
+                  <w-tag size="small" effect="light" :type="myAdmission.status === 'ADMITTED' ? 'success' : 'info'">
+                    {{ myAdmission.status === 'ADMITTED' ? '在院' : '已出院' }}
+                  </w-tag>
+                  <span class="inpatient-head__diag">{{ myAdmission.admissionDiag }}</span>
+                </div>
+                <div class="inpatient-head__money">
+                  <span>预交金余额 <b>￥{{ formatMoney(myAdmission.depositBalance) }}</b></span>
+                  <span>累计费用 <b>￥{{ formatMoney(myAdmission.totalFee) }}</b></span>
+                </div>
+              </div>
+              <div v-if="myAdmission.status === 'ADMITTED'" class="inpatient-deposit">
+                <w-input-number v-model="depositAmount" :min="100" :max="100000" :step="100" style="width: 180px" />
+                <w-button type="primary" :loading="depositLoading" @click="payMyDeposit">缴纳预交金</w-button>
+              </div>
+              <div class="inpatient-bills">
+                <div v-for="b in myDailyBills" :key="b.billDate" class="inpatient-bill">
+                  <span class="inpatient-bill__date">{{ b.billDate }}</span>
+                  <span class="inpatient-bill__detail">
+                    {{ (b.items || []).map((i) => i.itemName).join('、') || '—' }}
+                  </span>
+                  <span class="inpatient-bill__total">￥{{ formatMoney(b.total) }}</span>
+                </div>
+                <w-empty v-if="!myDailyBills.length" description="暂无费用清单" :image-size="80" />
+              </div>
+              <div v-if="myDischarge" class="inpatient-discharge">
+                <div class="inpatient-discharge__title">出院小结</div>
+                <div class="inpatient-discharge__row">出院诊断：{{ myDischarge.dischargeDiag }}</div>
+                <div class="inpatient-discharge__row">结算金额（正补 / 负退）：￥{{ formatMoney(myDischarge.settlementAmount) }}</div>
+                <div class="inpatient-discharge__row">出院医嘱：{{ myDischarge.dischargeAdvice || '—' }}</div>
+              </div>
+            </template>
+            <w-empty v-else-if="!inpatientLoading" description="暂无住院记录" :image-size="96" />
           </div>
         </w-card>
       </div>
@@ -1011,4 +1112,28 @@ onMounted(() => {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* 住院服务（迭代6 E5） */
+.inpatient-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.inpatient-head__info { display: flex; align-items: center; gap: 10px; }
+.inpatient-head__no { font-weight: 600; }
+.inpatient-head__diag { color: #888; font-size: 13px; }
+.inpatient-head__money { display: flex; gap: 18px; font-size: 13px; color: #666; }
+.inpatient-head__money b { color: #d35400; }
+.inpatient-deposit { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.inpatient-bills { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.inpatient-bill { display: flex; align-items: center; gap: 12px; font-size: 13px; padding: 6px 8px; background: #f8fafc; border-radius: 6px; }
+.inpatient-bill__date { width: 96px; color: #666; }
+.inpatient-bill__detail { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inpatient-bill__total { font-weight: 600; }
+.inpatient-discharge { margin-top: 14px; padding: 10px 12px; border: 1px dashed #e4e7ed; border-radius: 8px; }
+.inpatient-discharge__title { font-weight: 600; margin-bottom: 6px; }
+.inpatient-discharge__row { font-size: 13px; color: #555; margin: 3px 0; }
 </style>

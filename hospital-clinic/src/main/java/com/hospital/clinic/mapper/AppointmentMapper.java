@@ -87,4 +87,8 @@ public interface AppointmentMapper {
 
     /** 按科室分组统计当日预约数 */
     List<java.util.Map<String, Object>> countGroupByDept(@Param("date") LocalDate date);
+
+    /** 统计某患者从指定日期起（含）已完成就诊次数（用于复诊识别） */
+    long countCompletedSince(@Param("patientId") Long patientId,
+                             @Param("date") LocalDate date);
 }

@@ -1,6 +1,8 @@
 package com.hospital.patient.controller;
 
 import com.hospital.common.annotation.AuditLog;
+import com.hospital.common.annotation.RequiresPermission;
+import com.hospital.common.constant.PermissionConstant;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.interceptor.UserContext;
@@ -40,10 +42,11 @@ public class RealnameController {
 
     /** 管理员审核实名认证 */
     @AuditLog(value = "审核实名认证", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.PATIENT_REALNAME_REVIEW)
     @PutMapping("/{patientId}/review")
     public Result<Void> review(@PathVariable Long patientId,
                                @Valid @RequestBody RealnameReviewDTO dto) {
-        if (!UserContext.hasRole("ROLE_ADMIN")) {
+        if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION);
         }
         realnameService.review(patientId, dto);

@@ -296,4 +296,116 @@ public final class PermissionConstant {
      * 超管（{@link RoleConstant#SUPER_ADMIN}）无需逐条绑定，拦截器遇到本码直接放行。
      */
     public static final String ALL_PERMISSIONS = "*:*:*";
+
+    // ==================== 功能补全（迭代6 第一批） ====================
+
+    /** 发起会诊 */
+    public static final String CLINIC_CONSULT_REQUEST_CREATE = "api:clinic:consult-request:create";
+    /** 处理会诊（接受/填写结论/完成/拒绝） */
+    public static final String CLINIC_CONSULT_REQUEST_HANDLE = "api:clinic:consult-request:handle";
+    /** 查询会诊 */
+    public static final String CLINIC_CONSULT_REQUEST_QUERY = "api:clinic:consult-request:query";
+    /** 创建转诊单 */
+    public static final String CLINIC_REFERRAL_CREATE = "api:clinic:referral:create";
+    /** 处理转诊（接收/完成/退回） */
+    public static final String CLINIC_REFERRAL_HANDLE = "api:clinic:referral:handle";
+    /** 查询转诊 */
+    public static final String CLINIC_REFERRAL_QUERY = "api:clinic:referral:query";
+    /** 创建随访计划 */
+    public static final String CLINIC_FOLLOW_UP_CREATE = "api:clinic:follow-up:create";
+    /** 随访记录回填 */
+    public static final String CLINIC_FOLLOW_UP_RECORD = "api:clinic:follow-up:record";
+    /** 查询随访 */
+    public static final String CLINIC_FOLLOW_UP_QUERY = "api:clinic:follow-up:query";
+    /** 开具证明 */
+    public static final String CLINIC_CERTIFICATE_CREATE = "api:clinic:certificate:create";
+    /** 查询证明 */
+    public static final String CLINIC_CERTIFICATE_QUERY = "api:clinic:certificate:query";
+    /** 下载证明 PDF */
+    public static final String CLINIC_CERTIFICATE_DOWNLOAD = "api:clinic:certificate:download";
+
+    /** 菜单：会诊管理 */
+    public static final String MENU_DOCTOR_CONSULT_REQUEST = "menu:doctor:consult-request";
+    /** 菜单：转诊管理 */
+    public static final String MENU_DOCTOR_REFERRAL = "menu:doctor:referral";
+    /** 菜单：随访管理 */
+    public static final String MENU_DOCTOR_FOLLOW_UP = "menu:doctor:follow-up";
+    /** 菜单：医疗证明 */
+    public static final String MENU_DOCTOR_CERTIFICATE = "menu:doctor:certificate";
+    /** 菜单：门诊协同（管理员） */
+    public static final String MENU_ADMIN_CLINIC_EXTENSION = "menu:admin:clinic-extension";
+
+    // ==================== 功能补全（迭代6 第二批：危急值 + 处方点评） ====================
+
+    /** 危急值上报（检验/检查技师） */
+    public static final String MEDSUPPLY_CRITICAL_REPORT = "api:medsupply:critical:report";
+    /** 危急值复核（医生/主任） */
+    public static final String MEDSUPPLY_CRITICAL_CONFIRM = "api:medsupply:critical:confirm";
+    /** 危急值查询 */
+    public static final String MEDSUPPLY_CRITICAL_QUERY = "api:medsupply:critical:query";
+    /** 处方点评（药师） */
+    public static final String MEDSUPPLY_PRESCRIPTION_REVIEW_CREATE = "api:medsupply:prescription-review:create";
+    /** 处方点评查询 */
+    public static final String MEDSUPPLY_PRESCRIPTION_REVIEW_QUERY = "api:medsupply:prescription-review:query";
+    // ==================== 住院服务（inpatient · 迭代6 A1） ====================
+
+    /** 入院登记 */
+    public static final String INPATIENT_ADMISSION_CREATE = "api:inpatient:admission:create";
+    /** 住院查询（患者/医生/管理员） */
+    public static final String INPATIENT_ADMISSION_QUERY = "api:inpatient:admission:query";
+    /** 床位查询 */
+    public static final String INPATIENT_BED_QUERY = "api:inpatient:bed:query";
+    /** 分床/转床（护士） */
+    public static final String INPATIENT_BED_ASSIGN = "api:inpatient:bed:assign";
+    /** 开立医嘱（医生） */
+    public static final String INPATIENT_ORDER_CREATE = "api:inpatient:order:create";
+    /** 医嘱核对（护士） */
+    public static final String INPATIENT_ORDER_CONFIRM = "api:inpatient:order:confirm";
+    /** 医嘱执行（护士） */
+    public static final String INPATIENT_ORDER_EXECUTE = "api:inpatient:order:execute";
+    /** 停止医嘱（医生） */
+    public static final String INPATIENT_ORDER_STOP = "api:inpatient:order:stop";
+    /** 医嘱查询 */
+    public static final String INPATIENT_ORDER_QUERY = "api:inpatient:order:query";
+    /** 生命体征录入（护士） */
+    public static final String INPATIENT_VITAL_RECORD = "api:inpatient:vital:record";
+    /** 预交金缴纳（收费员） */
+    public static final String INPATIENT_DEPOSIT_PAY = "api:inpatient:deposit:pay";
+    /** 出院小结与结算（医生/收费员） */
+    public static final String INPATIENT_DISCHARGE = "api:inpatient:discharge";
+    // ==================== 住院扩展（inpatient · 迭代6 E1~E6） ====================
+
+    /** 转科（医生） */
+    public static final String INPATIENT_TRANSFER_DEPT = "api:inpatient:transfer";
+    /** 住院总览看板（医护） */
+    public static final String INPATIENT_OVERVIEW = "api:inpatient:overview";
+    /** 护理病历录入（护士） */
+    public static final String INPATIENT_NURSING_RECORD = "api:inpatient:nursing:record";
+    /** 护理病历查询 */
+    public static final String INPATIENT_NURSING_QUERY = "api:inpatient:nursing:query";
+    /** 住院会诊发起（医生） */
+    public static final String INPATIENT_CONSULT_CREATE = "api:inpatient:consult:create";
+    /** 住院会诊处理（受邀科室医生） */
+    public static final String INPATIENT_CONSULT_HANDLE = "api:inpatient:consult:handle";
+    /** 住院会诊查询 */
+    public static final String INPATIENT_CONSULT_QUERY = "api:inpatient:consult:query";
+    /** 手术申请（医生） */
+    public static final String INPATIENT_SURGERY_APPLY = "api:inpatient:surgery:apply";
+    /** 手术申请排台/取消 */
+    public static final String INPATIENT_SURGERY_SCHEDULE = "api:inpatient:surgery:schedule";
+    /** 手术申请查询 */
+    public static final String INPATIENT_SURGERY_QUERY = "api:inpatient:surgery:query";
+    /** 住院费用登记（护士/收费员） */
+    public static final String INPATIENT_FEE_POST = "api:inpatient:fee:post";
+    /** 住院费用查询（含患者本人） */
+    public static final String INPATIENT_FEE_QUERY = "api:inpatient:fee:query";
+    /** 床位费日结（管理员） */
+    public static final String INPATIENT_FEE_DAILY = "api:inpatient:fee:daily";
+    /** 病案首页查询 */
+    public static final String INPATIENT_HOME_QUERY = "api:inpatient:home:query";
+
+    /** 菜单：住院医生站 */
+    public static final String MENU_INPATIENT_DOCTOR = "menu:inpatient:doctor";
+    /** 菜单：住院护士站 */
+    public static final String MENU_INPATIENT_NURSE = "menu:inpatient:nurse";
 }

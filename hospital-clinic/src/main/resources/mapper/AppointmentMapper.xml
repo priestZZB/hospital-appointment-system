@@ -218,6 +218,13 @@
         WHERE schedule_id = #{scheduleId}
     </select>
 
+    <select id="countCompletedSince" resultType="long">
+        SELECT COUNT(*)
+        FROM appointment
+        WHERE patient_id = #{patientId}
+          AND visit_status = 'COMPLETED'
+          AND appointment_date >= #{date}
+    </select>
     <update id="updateVisitStatus">
         UPDATE appointment SET visit_status = #{visitStatus}, update_time = NOW()
         WHERE id = #{id}
@@ -255,3 +262,4 @@
     </select>
 
 </mapper>
+

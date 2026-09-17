@@ -1,5 +1,6 @@
 import { request } from './request'
 import type {
+  CriticalValueVO,
   Drug,
   DrugDispense,
   DrugInventory,
@@ -9,6 +10,7 @@ import type {
   InfusionOrder,
   InfusionRecord,
   PageResult,
+  PrescriptionReviewVO,
 } from '@/types'
 
 /** 药品目录分页（依据：API接口文档.md §5 #60） */
@@ -167,4 +169,31 @@ export function getUnpaidInfusionOrdersApi(patientId: number): Promise<InfusionO
 /** 报告审核（依据：迭代4 PUT /api/admin/exam/report/{id}/audit?status=&auditComment=） */
 export function auditExamReportApi(id: number, params: { status: string; auditComment?: string }): Promise<unknown> {
   return request({ url: `/admin/exam/report/${id}/audit`, method: 'put', params })
+}
+
+// ==================== 迭代6 功能补全：危急值 + 处方点评 ====================
+
+/** 上报危急值 */
+export function reportCriticalApi(data: Record<string, unknown>): Promise<CriticalValueVO> {
+  return request({ url: '/medsupply/critical', method: 'post', data })
+}
+
+/** 危急值列表 */
+export function listCriticalApi(params: Record<string, unknown>): Promise<CriticalValueVO[]> {
+  return request({ url: '/medsupply/critical', method: 'get', params })
+}
+
+/** 复核危急值：CONFIRMED / RESOLVED */
+export function confirmCriticalApi(id: number, action: string, comment?: string): Promise<CriticalValueVO> {
+  return request({ url: `/medsupply/critical/${id}/confirm`, method: 'put', params: { action, comment } })
+}
+
+/** 创建处方点评 */
+export function createPrescriptionReviewApi(data: Record<string, unknown>): Promise<PrescriptionReviewVO> {
+  return request({ url: '/medsupply/prescription-review', method: 'post', data })
+}
+
+/** 处方点评列表 */
+export function listPrescriptionReviewsApi(params: Record<string, unknown>): Promise<PrescriptionReviewVO[]> {
+  return request({ url: '/medsupply/prescription-review', method: 'get', params })
 }

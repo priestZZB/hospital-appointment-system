@@ -192,7 +192,15 @@ public class AppointmentService {
         appointment.setRegisterFee(schedule.getRegisterFee());
         appointment.setOrderStatus("PENDING_PAY");
         appointment.setVisitStatus(null);
-        appointment.setIsRevisit(0);
+        int revisit = 0;
+        try {
+            LocalDate since = LocalDate.now().minusDays(30);
+            long completed = appointmentMapper.countCompletedSince(patientId, since);
+            revisit = completed > 0 ? 1 : 0;
+        } catch (Exception e) {
+            log.warn("[挂号] 复诊识别异常，按初诊处理: patientId={}", patientId, e);
+        }
+        appointment.setIsRevisit(revisit);
         appointmentMapper.insert(appointment);
         log.info("[挂号] 预约记录已创建: appointmentId={}, appointmentNo={}, patientId={}",
                 appointment.getId(), appointment.getAppointmentNo(), patientId);
@@ -557,3 +565,4 @@ public class AppointmentService {
         return vo;
     }
 }
+
