@@ -22,7 +22,7 @@
         FROM department
         WHERE status = 1
         <if test="keyword != null and keyword != ''">
-            AND dept_name LIKE CONCAT('%', #{keyword}, '%')
+            AND dept_name LIKE '%' || #{keyword} || '%'
         </if>
         ORDER BY sort_order ASC, id ASC
     </select>
@@ -45,14 +45,14 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Department"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO department (dept_name, dept_code, description, location, phone, status, sort_order, create_time, update_time)
         VALUES (#{deptName}, #{deptCode}, #{description}, #{location}, #{phone},
-                COALESCE(#{status}, 1), COALESCE(#{sortOrder}, 0), NOW(), NOW())
+                COALESCE(#{status}, 1), COALESCE(#{sortOrder}, 0), SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.clinic.entity.Department">
-        UPDATE department SET update_time = NOW()
+        UPDATE department SET update_time = SYSDATE
         <if test="deptName != null">, dept_name = #{deptName}</if>
         <if test="deptCode != null">, dept_code = #{deptCode}</if>
         <if test="description != null">, description = #{description}</if>
@@ -63,7 +63,7 @@
     </update>
 
     <update id="updateStatus">
-        UPDATE department SET status = #{status}, update_time = NOW()
+        UPDATE department SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

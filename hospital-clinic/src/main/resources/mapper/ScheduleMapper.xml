@@ -21,14 +21,14 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Schedule"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO schedule (doctor_id, department_id, schedule_date, period,
                               period_start, period_end, total_slots, slot_duration,
                               register_fee, status, audit_status, create_time, update_time)
         VALUES (#{doctorId}, #{departmentId}, #{scheduleDate}, #{period},
                 #{periodStart}, #{periodEnd}, #{totalSlots}, #{slotDuration},
                 #{registerFee}, COALESCE(#{status}, 1),
-                COALESCE(#{auditStatus}, 'PENDING'), NOW(), NOW())
+                COALESCE(#{auditStatus}, 'PENDING'), SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -79,16 +79,16 @@
         FROM schedule
         WHERE audit_status = #{auditStatus}
         ORDER BY schedule_date ASC, period ASC
-        LIMIT #{limit} OFFSET #{offset}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <update id="updateStatus">
-        UPDATE schedule SET status = #{status}, update_time = NOW()
+        UPDATE schedule SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 
     <update id="updateAuditStatus">
-        UPDATE schedule SET audit_status = #{auditStatus}, update_time = NOW()
+        UPDATE schedule SET audit_status = #{auditStatus}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

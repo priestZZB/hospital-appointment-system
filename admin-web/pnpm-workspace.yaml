@@ -1,2 +1,5 @@
 allowBuilds:
-  vue-demi: set this to true or false
+  vue-demi: true
+overrides:
+  '@win-design-next/icons-vue': file:vendor/win-design-next-icons-vue-1.0.4.tgz
+  '@win-design-next/iconi-vue': file:vendor/win-design-next-iconi-vue-1.0.4.tgz

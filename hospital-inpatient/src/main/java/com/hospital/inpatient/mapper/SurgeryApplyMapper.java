@@ -20,6 +20,13 @@ public interface SurgeryApplyMapper {
     String COLS = "id, admission_id, patient_id, surgery_name, anesthesia_type, apply_doctor_id, " +
             "scheduled_time, operating_room, status, remark, create_time, update_time";
 
+    @Insert("INSERT INTO surgery_apply (admission_id, patient_id, surgery_name, anesthesia_type, " +
+            "apply_doctor_id, status, remark, create_time, update_time) " +
+            "VALUES (#{admissionId}, #{patientId}, #{surgeryName}, #{anesthesiaType}, " +
+            "#{applyDoctorId}, 'PENDING', #{remark}, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+    int insert(SurgeryApply apply);
+
     @Results(id = "surgeryMap", value = {
             @Result(column = "id", property = "id", id = true),
             @Result(column = "admission_id", property = "admissionId"),
@@ -34,14 +41,6 @@ public interface SurgeryApplyMapper {
             @Result(column = "create_time", property = "createTime"),
             @Result(column = "update_time", property = "updateTime")
     })
-    @Insert("INSERT INTO surgery_apply (admission_id, patient_id, surgery_name, anesthesia_type, " +
-            "apply_doctor_id, status, remark, create_time, update_time) " +
-            "VALUES (#{admissionId}, #{patientId}, #{surgeryName}, #{anesthesiaType}, " +
-            "#{applyDoctorId}, 'PENDING', #{remark}, NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
-    int insert(SurgeryApply apply);
-
-    @ResultMap("surgeryMap")
     @Select("SELECT " + COLS + " FROM surgery_apply WHERE id = #{id}")
     SurgeryApply selectById(@Param("id") Long id);
 
@@ -49,18 +48,18 @@ public interface SurgeryApplyMapper {
     @Select("<script>SELECT " + COLS + " FROM surgery_apply WHERE 1=1 " +
             "<if test='admissionId != null'> AND admission_id = #{admissionId} </if>" +
             "<if test='status != null and status != &quot;&quot;'> AND status = #{status} </if>" +
-            "ORDER BY create_time DESC LIMIT 200</script>")
+            "ORDER BY create_time DESC FETCH FIRST 200 ROWS ONLY</script>")
     List<SurgeryApply> selectList(@Param("admissionId") Long admissionId, @Param("status") String status);
 
     /** 排台（PENDING -> SCHEDULED） */
     @Update("UPDATE surgery_apply SET status = 'SCHEDULED', scheduled_time = #{scheduledTime}, " +
-            "operating_room = #{operatingRoom}, update_time = NOW() " +
+            "operating_room = #{operatingRoom}, update_time = SYSDATE " +
             "WHERE id = #{id} AND status = 'PENDING'")
     int schedule(@Param("id") Long id, @Param("scheduledTime") java.time.LocalDateTime scheduledTime,
                  @Param("operatingRoom") String operatingRoom);
 
     /** 取消（PENDING/SCHEDULED -> CANCELLED） */
-    @Update("UPDATE surgery_apply SET status = 'CANCELLED', update_time = NOW() " +
+    @Update("UPDATE surgery_apply SET status = 'CANCELLED', update_time = SYSDATE " +
             "WHERE id = #{id} AND status IN ('PENDING','SCHEDULED')")
     int cancel(@Param("id") Long id);
 }

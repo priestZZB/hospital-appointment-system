@@ -24,13 +24,13 @@
     <!-- ==================== SQL ==================== -->
 
     <insert id="insert" parameterType="com.hospital.auth.entity.AuditLog"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO audit_log (user_id, username, operation, http_method, request_uri,
                                request_ip, request_params, response_result, execution_time,
                                status, error_message, create_time)
         VALUES (#{userId}, #{username}, #{operation}, #{httpMethod}, #{requestUri},
                 #{requestIp}, #{requestParams}, #{responseResult}, #{executionTime},
-                #{status}, #{errorMessage}, NOW())
+                #{status}, #{errorMessage}, SYSDATE)
     </insert>
 
     <select id="pageQuery" resultMap="BaseResultMap">
@@ -42,7 +42,7 @@
             AND user_id = #{userId}
         </if>
         <if test="operationType != null and operationType != ''">
-            AND operation LIKE CONCAT('%', #{operationType}, '%')
+            AND operation LIKE '%' || #{operationType} || '%'
         </if>
         <if test="startTime != null">
             AND create_time &gt;= #{startTime}
@@ -51,7 +51,7 @@
             AND create_time &lt;= #{endTime}
         </if>
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countPageQuery" resultType="long">
@@ -62,7 +62,7 @@
             AND user_id = #{userId}
         </if>
         <if test="operationType != null and operationType != ''">
-            AND operation LIKE CONCAT('%', #{operationType}, '%')
+            AND operation LIKE '%' || #{operationType} || '%'
         </if>
         <if test="startTime != null">
             AND create_time &gt;= #{startTime}

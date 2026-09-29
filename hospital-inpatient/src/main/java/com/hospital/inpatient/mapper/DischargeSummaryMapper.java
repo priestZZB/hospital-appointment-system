@@ -20,6 +20,13 @@ public interface DischargeSummaryMapper {
     String COLS = "id, admission_id, admission_diag, discharge_diag, treatment_process, discharge_condition, " +
             "discharge_advice, doctor_id, settlement_amount, deposit_balance, discharge_time, create_time, update_time";
 
+    @Insert("INSERT INTO discharge_summary (admission_id, admission_diag, discharge_diag, treatment_process, " +
+            "discharge_condition, discharge_advice, doctor_id, settlement_amount, deposit_balance, discharge_time, " +
+            "create_time, update_time) VALUES (#{admissionId}, #{admissionDiag}, #{dischargeDiag}, #{treatmentProcess}, " +
+            "#{dischargeCondition}, #{dischargeAdvice}, #{doctorId}, #{settlementAmount}, #{depositBalance}, SYSDATE, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+    int insert(DischargeSummary summary);
+
     @Results(id = "dischargeMap", value = {
             @Result(column = "id", property = "id", id = true),
             @Result(column = "admission_id", property = "admissionId"),
@@ -35,19 +42,11 @@ public interface DischargeSummaryMapper {
             @Result(column = "create_time", property = "createTime"),
             @Result(column = "update_time", property = "updateTime")
     })
-    @Insert("INSERT INTO discharge_summary (admission_id, admission_diag, discharge_diag, treatment_process, " +
-            "discharge_condition, discharge_advice, doctor_id, settlement_amount, deposit_balance, discharge_time, " +
-            "create_time, update_time) VALUES (#{admissionId}, #{admissionDiag}, #{dischargeDiag}, #{treatmentProcess}, " +
-            "#{dischargeCondition}, #{dischargeAdvice}, #{doctorId}, #{settlementAmount}, #{depositBalance}, NOW(), NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
-    int insert(DischargeSummary summary);
-
-    @ResultMap("dischargeMap")
     @Select("SELECT " + COLS + " FROM discharge_summary WHERE admission_id = #{admissionId}")
     DischargeSummary selectByAdmission(@Param("admissionId") Long admissionId);
 
     @Update("UPDATE discharge_summary SET settlement_amount = #{settlement}, deposit_balance = #{balance}, " +
-            "update_time = NOW() WHERE admission_id = #{admissionId}")
+            "update_time = SYSDATE WHERE admission_id = #{admissionId}")
     int updateSettlement(@Param("admissionId") Long admissionId,
                          @Param("settlement") BigDecimal settlement,
                          @Param("balance") BigDecimal balance);

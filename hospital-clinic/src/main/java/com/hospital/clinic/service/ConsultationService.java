@@ -225,7 +225,7 @@ public class ConsultationService {
                 item.setFrequency(itemDTO.getFrequency());
                 item.setDays(itemDTO.getDays());
                 item.setQuantity(itemDTO.getQuantity());
-                item.setUnitPrice(itemDTO.getPrice());
+                item.setUnitPrice(itemDTO.getPrice() == null ? java.math.BigDecimal.ZERO : itemDTO.getPrice());
                 item.setUnit(itemDTO.getUnit());
                 item.setRemark(itemDTO.getRemark());
                 items.add(item);

@@ -23,22 +23,22 @@
         SELECT * FROM drug
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (drug_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR drug_code LIKE CONCAT('%', #{keyword}, '%')
-                     OR generic_name LIKE CONCAT('%', #{keyword}, '%'))
+                AND (drug_name LIKE '%' || #{keyword} || '%'
+                     OR drug_code LIKE '%' || #{keyword} || '%'
+                     OR generic_name LIKE '%' || #{keyword} || '%')
             </if>
         </where>
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="count" resultType="long">
         SELECT COUNT(*) FROM drug
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (drug_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR drug_code LIKE CONCAT('%', #{keyword}, '%')
-                     OR generic_name LIKE CONCAT('%', #{keyword}, '%'))
+                AND (drug_name LIKE '%' || #{keyword} || '%'
+                     OR drug_code LIKE '%' || #{keyword} || '%'
+                     OR generic_name LIKE '%' || #{keyword} || '%')
             </if>
         </where>
     </select>
@@ -52,13 +52,13 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.Drug"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO drug (drug_code, drug_name, generic_name, specification,
                           dosage_form, manufacturer, reference_price, unit,
                           description, status, create_time, update_time)
         VALUES (#{drugCode}, #{drugName}, #{genericName}, #{specification},
                 #{dosageForm}, #{manufacturer}, #{referencePrice}, #{unit},
-                #{description}, #{status}, NOW(), NOW())
+                #{description}, #{status}, SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.medsupply.entity.Drug">
@@ -72,13 +72,13 @@
             <if test="referencePrice != null">reference_price = #{referencePrice},</if>
             <if test="unit != null">unit = #{unit},</if>
             <if test="description != null">description = #{description},</if>
-            update_time = NOW()
+            update_time = SYSDATE
         </set>
         WHERE id = #{id}
     </update>
 
     <update id="updateStatus">
-        UPDATE drug SET status = #{status}, update_time = NOW()
+        UPDATE drug SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

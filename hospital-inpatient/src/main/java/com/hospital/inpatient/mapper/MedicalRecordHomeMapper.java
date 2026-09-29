@@ -16,6 +16,15 @@ import java.math.BigDecimal;
 @Mapper
 public interface MedicalRecordHomeMapper {
 
+    @Insert("INSERT INTO medical_record_home (admission_id, patient_id, department_id, doctor_id, " +
+            "admission_time, discharge_time, hospital_days, discharge_diag, main_operation, " +
+            "fee_bed, fee_drug, fee_exam, fee_lab, fee_other, fee_total, settlement_amount, create_time) " +
+            "VALUES (#{admissionId}, #{patientId}, #{departmentId}, #{doctorId}, #{admissionTime}, " +
+            "#{dischargeTime}, #{hospitalDays}, #{dischargeDiag}, #{mainOperation}, " +
+            "#{feeBed}, #{feeDrug}, #{feeExam}, #{feeLab}, #{feeOther}, #{feeTotal}, #{settlementAmount}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+    int insert(MedicalRecordHome home);
+
     @Results(id = "homeMap", value = {
             @Result(column = "id", property = "id", id = true),
             @Result(column = "admission_id", property = "admissionId"),
@@ -36,16 +45,6 @@ public interface MedicalRecordHomeMapper {
             @Result(column = "settlement_amount", property = "settlementAmount"),
             @Result(column = "create_time", property = "createTime")
     })
-    @Insert("INSERT INTO medical_record_home (admission_id, patient_id, department_id, doctor_id, " +
-            "admission_time, discharge_time, hospital_days, discharge_diag, main_operation, " +
-            "fee_bed, fee_drug, fee_exam, fee_lab, fee_other, fee_total, settlement_amount, create_time) " +
-            "VALUES (#{admissionId}, #{patientId}, #{departmentId}, #{doctorId}, #{admissionTime}, " +
-            "#{dischargeTime}, #{hospitalDays}, #{dischargeDiag}, #{mainOperation}, " +
-            "#{feeBed}, #{feeDrug}, #{feeExam}, #{feeLab}, #{feeOther}, #{feeTotal}, #{settlementAmount}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
-    int insert(MedicalRecordHome home);
-
-    @ResultMap("homeMap")
     @Select("SELECT id, admission_id, patient_id, department_id, doctor_id, admission_time, discharge_time, " +
             "hospital_days, discharge_diag, main_operation, fee_bed, fee_drug, fee_exam, fee_lab, fee_other, " +
             "fee_total, settlement_amount, create_time FROM medical_record_home WHERE admission_id = #{admissionId}")

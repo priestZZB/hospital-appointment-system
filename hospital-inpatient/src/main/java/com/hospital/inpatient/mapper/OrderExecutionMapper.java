@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Select;
 public interface OrderExecutionMapper {
 
     @Insert("INSERT INTO order_execution (order_id, admission_id, executor_id, execute_time, result, create_time) " +
-            "VALUES (#{orderId}, #{admissionId}, #{executorId}, NOW(), #{result}, NOW())")
+            "VALUES (#{orderId}, #{admissionId}, #{executorId}, SYSDATE, #{result}, SYSDATE)")
     int insert(@Param("orderId") Long orderId,
                @Param("admissionId") Long admissionId,
                @Param("executorId") Long executorId,

@@ -17,11 +17,12 @@
 
     <insert id="batchInsert" parameterType="com.hospital.clinic.entity.Slot">
         INSERT INTO slot (schedule_id, slot_seq, slot_start, slot_end, status, version, create_time, update_time)
-        VALUES
-        <foreach collection="list" item="item" separator=",">
-            (#{item.scheduleId}, #{item.slotSeq}, #{item.slotStart}, #{item.slotEnd},
-             'AVAILABLE', 0, NOW(), NOW())
+        SELECT t.schedule_id, t.slot_seq, t.slot_start, t.slot_end, 'AVAILABLE', 0, SYSDATE, SYSDATE FROM (
+        <foreach collection="list" item="item" separator=" UNION ALL ">
+            SELECT #{item.scheduleId} AS schedule_id, #{item.slotSeq} AS slot_seq,
+                   #{item.slotStart} AS slot_start, #{item.slotEnd} AS slot_end FROM dual
         </foreach>
+        ) t
     </insert>
 
     <select id="selectAvailableBySchedule" resultMap="BaseResultMap">
@@ -50,7 +51,7 @@
     </select>
 
     <update id="updateStatusWithVersion">
-        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
+        UPDATE slot SET status = #{status}, version = version + 1, update_time = SYSDATE
         WHERE id = #{id}
           AND status = 'AVAILABLE'
           AND version = #{version}
@@ -64,20 +65,20 @@
     </select>
 
     <update id="releaseSlot">
-        UPDATE slot SET status = 'AVAILABLE', version = version + 1, update_time = NOW()
+        UPDATE slot SET status = 'AVAILABLE', version = version + 1, update_time = SYSDATE
         WHERE id = #{id}
           AND status = 'BOOKED'
           AND version = #{version}
     </update>
 
     <update id="updateStatusByScheduleId">
-        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
+        UPDATE slot SET status = #{status}, version = version + 1, update_time = SYSDATE
         WHERE schedule_id = #{scheduleId}
           AND status IN ('AVAILABLE', 'BOOKED')
     </update>
 
     <update id="updateAvailableStatusByScheduleId">
-        UPDATE slot SET status = #{status}, version = version + 1, update_time = NOW()
+        UPDATE slot SET status = #{status}, version = version + 1, update_time = SYSDATE
         WHERE schedule_id = #{scheduleId}
           AND status = 'AVAILABLE'
     </update>

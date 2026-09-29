@@ -16,8 +16,8 @@ import java.util.List;
 public interface MedicalCertificateMapper {
 
     @Insert("INSERT INTO medical_certificate (cert_no, cert_type, patient_id, doctor_id, medical_record_id, content, days, start_date, status, create_time, update_time) " +
-            "VALUES (#{certNo}, #{certType}, #{patientId}, #{doctorId}, #{medicalRecordId}, #{content}, #{days}, #{startDate}, 'ISSUED', NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "VALUES (#{certNo}, #{certType}, #{patientId}, #{doctorId}, #{medicalRecordId}, #{content}, #{days}, #{startDate}, 'ISSUED', SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(MedicalCertificate certificate);
 
     @Select("SELECT id, cert_no, cert_type, patient_id, doctor_id, medical_record_id, content, days, start_date, status, create_time, update_time " +
@@ -38,6 +38,6 @@ public interface MedicalCertificateMapper {
                                           @Param("patientId") Long patientId,
                                           @Param("certType") String certType);
 
-    @Update("UPDATE medical_certificate SET status = 'CANCELLED', update_time = NOW() WHERE id = #{id} AND status='ISSUED'")
+    @Update("UPDATE medical_certificate SET status = 'CANCELLED', update_time = SYSDATE WHERE id = #{id} AND status='ISSUED'")
     int cancel(@Param("id") Long id);
 }

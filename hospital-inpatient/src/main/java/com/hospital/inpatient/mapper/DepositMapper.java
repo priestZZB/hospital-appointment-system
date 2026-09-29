@@ -30,8 +30,8 @@ public interface DepositMapper {
     List<Deposit> selectByAdmission(@Param("admissionId") Long admissionId);
 
     @Insert("INSERT INTO deposit (admission_id, amount, pay_method, balance_after, operator_id, create_time) " +
-            "VALUES (#{admissionId}, #{amount}, #{payMethod}, #{balanceAfter}, #{operatorId}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "VALUES (#{admissionId}, #{amount}, #{payMethod}, #{balanceAfter}, #{operatorId}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(Deposit deposit);
 
     @Select("SELECT COALESCE(SUM(amount), 0) FROM deposit WHERE admission_id = #{admissionId}")

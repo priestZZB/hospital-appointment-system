@@ -43,9 +43,9 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.auth.entity.Role"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO role (role_code, role_name, description, status, create_time, update_time)
-        VALUES (#{roleCode}, #{roleName}, #{description}, #{status}, NOW(), NOW())
+        VALUES (#{roleCode}, #{roleName}, #{description}, #{status}, SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.auth.entity.Role">
@@ -54,7 +54,7 @@
             <if test="roleName != null">role_name = #{roleName},</if>
             <if test="description != null">description = #{description},</if>
             <if test="status != null">status = #{status},</if>
-            update_time = NOW()
+            update_time = SYSDATE
         </set>
         WHERE id = #{id}
     </update>
@@ -65,7 +65,7 @@
 
     <insert id="insertUserRole">
         INSERT INTO user_role (user_id, role_id, create_time)
-        VALUES (#{userId}, #{roleId}, NOW())
+        VALUES (#{userId}, #{roleId}, SYSDATE)
     </insert>
 
     <delete id="deleteUserRole">

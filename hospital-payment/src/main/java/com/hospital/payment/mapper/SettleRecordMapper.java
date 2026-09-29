@@ -17,13 +17,13 @@ public interface SettleRecordMapper {
 
     /** 插入日结单 */
     @Insert("INSERT INTO settle_record (settle_no, cashier_id, settle_date, total_amount, order_count, detail, create_time) " +
-            "VALUES (#{settleNo}, #{cashierId}, #{settleDate}, #{totalAmount}, #{orderCount}, #{detail}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "VALUES (#{settleNo}, #{cashierId}, #{settleDate}, #{totalAmount}, #{orderCount}, #{detail}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(SettleRecord record);
 
     /** 按收费员 + 日期查询（幂等：同一收费员同一天唯一） */
     @Select("SELECT id, settle_no, cashier_id, settle_date, total_amount, order_count, detail, create_time " +
-            "FROM settle_record WHERE cashier_id = #{cashierId} AND settle_date = #{settleDate} LIMIT 1")
+            "FROM settle_record WHERE cashier_id = #{cashierId} AND settle_date = #{settleDate} FETCH FIRST 1 ROWS ONLY")
     SettleRecord selectByCashierAndDate(@Param("cashierId") Long cashierId,
                                         @Param("settleDate") LocalDate settleDate);
 }

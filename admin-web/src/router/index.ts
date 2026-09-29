@@ -1,20 +1,10 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { getToken, getUser } from '@/utils/auth'
+import { homeForRoles } from '@/utils/permission'
 
-function homeForRoles(): string {
+function defaultHome(): string {
   const user = getUser()
-  const roles = (user?.roles as string[]) || []
-  // 超级管理员与管理员均进入管理后台首页
-  if (roles.includes('ROLE_SUPER_ADMIN') || roles.includes('ROLE_ADMIN')) return '/dashboard'
-  // 细分医技/护理/收费角色优先判断；ROLE_DEPT_CHIEF 通常也带 ROLE_DOCTOR，故医生判断放最后
-  if (roles.includes('ROLE_CASHIER')) return '/cashier'
-  if (roles.includes('ROLE_TRIAGE_NURSE')) return '/triage'
-  if (roles.includes('ROLE_LAB_TECH')) return '/lab-tech'
-  if (roles.includes('ROLE_EXAM_TECH')) return '/exam-tech'
-  if (roles.includes('ROLE_NURSE')) return '/infusion-nurse'
-  if (roles.includes('ROLE_PHARMACIST')) return '/drugs'
-  if (roles.includes('ROLE_DOCTOR')) return '/workbench'
-  return '/patient'
+  return homeForRoles((user?.roles as string[]) || [])
 }
 
 const routes: RouteRecordRaw[] = [
@@ -33,7 +23,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('@/layout/index.vue'),
-    redirect: () => homeForRoles(),
+    redirect: () => defaultHome(),
     children: [
       {
         path: 'dashboard',

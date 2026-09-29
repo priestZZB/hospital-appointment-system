@@ -19,13 +19,13 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Checkin"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO checkin (appointment_id, patient_id, department_id, doctor_id,
                              checkin_time, queue_status, call_time, call_count,
                              rejoin_time, consult_room, create_time)
         VALUES (#{appointmentId}, #{patientId}, #{departmentId}, #{doctorId},
                 #{checkinTime}, #{queueStatus}, #{callTime}, #{callCount},
-                #{rejoinTime}, #{consultRoom}, NOW())
+                #{rejoinTime}, #{consultRoom}, SYSDATE)
     </insert>
 
     <select id="selectByAppointmentId" resultMap="BaseResultMap">
@@ -38,7 +38,7 @@
 
     <select id="selectByPatientId" resultMap="BaseResultMap">
         SELECT * FROM checkin WHERE patient_id = #{patientId}
-        ORDER BY create_time DESC LIMIT 1
+        ORDER BY create_time DESC FETCH FIRST 1 ROWS ONLY
     </select>
 
     <select id="selectWaitingByDeptId" resultMap="BaseResultMap">
@@ -101,13 +101,13 @@
         WHERE c.department_id = #{departmentId}
           AND c.queue_status IN ('CALLED', 'RE_CALLED', 'IN_CONSULT')
         ORDER BY c.call_time DESC
-        LIMIT 1
+        FETCH FIRST 1 ROWS ONLY
     </select>
 
     <select id="selectTodayQueueByDept" resultMap="QueuePatientResultMap">
         <include refid="QueueJoinSql"/>
         WHERE c.department_id = #{departmentId}
-          AND a.appointment_date = CURDATE()
+          AND a.appointment_date = TRUNC(SYSDATE)
           <if test="doctorId != null">
               AND a.doctor_id = #{doctorId}
           </if>
@@ -128,7 +128,7 @@
     <update id="updateCallInfo">
         UPDATE checkin
         SET queue_status = #{queueStatus},
-            call_time = NOW(),
+            call_time = SYSDATE,
             call_count = #{callCount},
             consult_room = #{consultRoom}
         WHERE id = #{id}
@@ -137,7 +137,7 @@
     <update id="updateRejoin">
         UPDATE checkin
         SET queue_status = #{queueStatus},
-            rejoin_time = NOW()
+            rejoin_time = SYSDATE
         WHERE id = #{id}
     </update>
 

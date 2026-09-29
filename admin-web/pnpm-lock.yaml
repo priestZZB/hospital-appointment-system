@@ -4,6 +4,10 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@win-design-next/icons-vue': file:vendor/win-design-next-icons-vue-1.0.4.tgz
+  '@win-design-next/iconi-vue': file:vendor/win-design-next-iconi-vue-1.0.4.tgz
+
 importers:
 
   .:
@@ -12,8 +16,8 @@ importers:
         specifier: ^7.1.1
         version: 7.3.0
       '@win-design-next/icons-vue':
-        specifier: ^1.0.4
-        version: 1.0.4(vue@3.5.42(typescript@5.9.3))
+        specifier: file:vendor/win-design-next-icons-vue-1.0.4.tgz
+        version: file:vendor/win-design-next-icons-vue-1.0.4.tgz(vue@3.5.42(typescript@5.9.3))
       axios:
         specifier: ^1.19.0
         version: 1.20.0(debug@4.4.3)
@@ -33,8 +37,8 @@ importers:
         specifier: ~4.5.0
         version: 4.5.1(vue@3.5.42(typescript@5.9.3))
       win-design-next:
-        specifier: ^1.2.5
-        version: 1.3.4(typescript@5.9.3)(vue@3.5.42(typescript@5.9.3))
+        specifier: file:vendor/win-design-next-1.3.4.tgz
+        version: file:vendor/win-design-next-1.3.4.tgz(typescript@5.9.3)(vue@3.5.42(typescript@5.9.3))
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -276,13 +280,15 @@ packages:
   '@vueuse/shared@12.8.2':
     resolution: {integrity: sha512-dznP38YzxZoNloI0qpEfpkms8knDtaoQ6Y/sfS0L7Yki4zh40LFHEhur0odJC6xTHG5dxWVPiUWBXn+wCG2s5w==}
 
-  '@win-design-next/iconi-vue@1.0.4':
-    resolution: {integrity: sha512-MdgipD8HwPh9boSk+PCvC8qfYiXBe1XwxGBQ9r88PKcrzzccqbXfmGJbwxGsoJjWOmN9l/G4bhv7J6HNTfASgw==}
+  '@win-design-next/iconi-vue@file:vendor/win-design-next-iconi-vue-1.0.4.tgz':
+    resolution: {integrity: sha512-MdgipD8HwPh9boSk+PCvC8qfYiXBe1XwxGBQ9r88PKcrzzccqbXfmGJbwxGsoJjWOmN9l/G4bhv7J6HNTfASgw==, tarball: file:vendor/win-design-next-iconi-vue-1.0.4.tgz}
+    version: 1.0.4
     peerDependencies:
       vue: ^3.2.0
 
-  '@win-design-next/icons-vue@1.0.4':
-    resolution: {integrity: sha512-OWsbvt6iQfPxRnOrjJCjO+UXySHFnXmWgs68og0r/ZmcITkMJ3ec2JbOAQ93toeQwUkTzzbZLfRjyRMIRU0Psw==}
+  '@win-design-next/icons-vue@file:vendor/win-design-next-icons-vue-1.0.4.tgz':
+    resolution: {integrity: sha512-OWsbvt6iQfPxRnOrjJCjO+UXySHFnXmWgs68og0r/ZmcITkMJ3ec2JbOAQ93toeQwUkTzzbZLfRjyRMIRU0Psw==, tarball: file:vendor/win-design-next-icons-vue-1.0.4.tgz}
+    version: 1.0.4
     peerDependencies:
       vue: ^3.2.0
 
@@ -709,8 +715,9 @@ packages:
     resolution: {integrity: sha512-OqedPIGOfsDlo31UNwYbCFMSaO9m9G/0faIHj5/dZFDMFqPTcx6UwqyOy3COEaEOg/9VsGIpdqn62W5KhoKSpg==}
     engines: {node: '>=0.8.0'}
 
-  win-design-next@1.3.4:
-    resolution: {integrity: sha512-vxpwXin24KAb4YL2lDdAIpYrtASS3fb6PJnCVB0J2ETSR8t9DKpJaFRvV3z/7BOLgZ7CCNgc1KZuoU7AR74nsQ==}
+  win-design-next@file:vendor/win-design-next-1.3.4.tgz:
+    resolution: {integrity: sha512-vxpwXin24KAb4YL2lDdAIpYrtASS3fb6PJnCVB0J2ETSR8t9DKpJaFRvV3z/7BOLgZ7CCNgc1KZuoU7AR74nsQ==, tarball: file:vendor/win-design-next-1.3.4.tgz}
+    version: 1.3.4
     peerDependencies:
       vue: ^3.3.0
 
@@ -917,11 +924,11 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@win-design-next/iconi-vue@1.0.4(vue@3.5.42(typescript@5.9.3))':
+  '@win-design-next/iconi-vue@file:vendor/win-design-next-iconi-vue-1.0.4.tgz(vue@3.5.42(typescript@5.9.3))':
     dependencies:
       vue: 3.5.42(typescript@5.9.3)
 
-  '@win-design-next/icons-vue@1.0.4(vue@3.5.42(typescript@5.9.3))':
+  '@win-design-next/icons-vue@file:vendor/win-design-next-icons-vue-1.0.4.tgz(vue@3.5.42(typescript@5.9.3))':
     dependencies:
       vue: 3.5.42(typescript@5.9.3)
 
@@ -1272,7 +1279,7 @@ snapshots:
 
   websocket-extensions@0.1.4: {}
 
-  win-design-next@1.3.4(typescript@5.9.3)(vue@3.5.42(typescript@5.9.3)):
+  win-design-next@file:vendor/win-design-next-1.3.4.tgz(typescript@5.9.3)(vue@3.5.42(typescript@5.9.3)):
     dependencies:
       '@ctrl/tinycolor': 3.6.1
       '@floating-ui/dom': 1.8.0
@@ -1280,8 +1287,8 @@ snapshots:
       '@types/lodash': 4.17.25
       '@types/lodash-es': 4.17.12
       '@vueuse/core': 12.8.2(typescript@5.9.3)
-      '@win-design-next/iconi-vue': 1.0.4(vue@3.5.42(typescript@5.9.3))
-      '@win-design-next/icons-vue': 1.0.4(vue@3.5.42(typescript@5.9.3))
+      '@win-design-next/iconi-vue': file:vendor/win-design-next-iconi-vue-1.0.4.tgz(vue@3.5.42(typescript@5.9.3))
+      '@win-design-next/icons-vue': file:vendor/win-design-next-icons-vue-1.0.4.tgz(vue@3.5.42(typescript@5.9.3))
       async-validator: 4.2.5
       dayjs: 1.11.23
       escape-html: 1.0.3

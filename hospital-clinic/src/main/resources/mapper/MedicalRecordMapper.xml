@@ -28,7 +28,7 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.MedicalRecord"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO medical_record (appointment_id, patient_id, doctor_id, department_id,
                                     chief_complaint, present_illness, past_history,
                                     temperature, pulse, respiration, blood_pressure,
@@ -40,7 +40,7 @@
                 #{temperature}, #{pulse}, #{respiration}, #{bloodPressure},
                 #{diagnosisCode}, #{diagnosisDesc}, #{treatmentOpinion},
                 #{referralDeptId}, #{referralReason}, #{status}, #{isReturnVisit},
-                NOW(), NOW())
+                SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -68,13 +68,13 @@
             <if test="referralReason != null">referral_reason = #{referralReason},</if>
             <if test="status != null">status = #{status},</if>
             <if test="isReturnVisit != null">is_return_visit = #{isReturnVisit},</if>
-            update_time = NOW()
+            update_time = SYSDATE
         </set>
         WHERE id = #{id}
     </update>
 
     <update id="updateStatus">
-        UPDATE medical_record SET status = #{status}, update_time = NOW()
+        UPDATE medical_record SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 
@@ -82,7 +82,7 @@
         SELECT * FROM medical_record
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByPatientId" resultType="long">
@@ -94,14 +94,14 @@
         WHERE patient_id = #{patientId}
           AND doctor_id = #{doctorId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="selectByDoctorId" resultMap="BaseResultMap">
         SELECT * FROM medical_record
         WHERE doctor_id = #{doctorId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
 </mapper>

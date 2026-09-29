@@ -19,8 +19,8 @@ public interface InfusionRecordMapper {
     @Insert("INSERT INTO infusion_record (infusion_order_id, record_type, record_content, " +
             "skin_test_result, drop_rate, operator_id, operator_name, create_time) " +
             "VALUES (#{infusionOrderId}, #{recordType}, #{recordContent}, " +
-            "#{skinTestResult}, #{dropRate}, #{operatorId}, #{operatorName}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{skinTestResult}, #{dropRate}, #{operatorId}, #{operatorName}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(InfusionRecord record);
 
     /** 按输液单 ID 查询执行记录（按时间倒序） */

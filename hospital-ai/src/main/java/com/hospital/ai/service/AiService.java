@@ -100,8 +100,8 @@ public class AiService {
         try {
             // 简单 JSON 解析，避免引入额外依赖
             String json = responseText.trim();
-            if (json.startsWith("```")) {
-                json = json.replaceAll("```\\w*", "").replaceAll("```", "").trim();
+            if (json.startsWith("")) {
+                json = json.replaceAll("\\w*", "").replaceAll("", "").trim();
             }
             deptName = extractJsonValue(json, "deptName");
             String confidenceStr = extractJsonValue(json, "confidence");

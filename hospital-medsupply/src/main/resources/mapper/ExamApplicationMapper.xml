@@ -22,7 +22,7 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.ExamApplication"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO exam_application (application_no, medical_record_id, patient_id,
                                       doctor_id, exam_item_id, exam_item_name,
                                       item_type, apply_remark, total_amount, pay_status,
@@ -30,7 +30,7 @@
         VALUES (#{applicationNo}, #{medicalRecordId}, #{patientId},
                 #{doctorId}, #{examItemId}, #{examItemName},
                 #{itemType}, #{applyRemark}, #{totalAmount}, #{payStatus},
-                #{status}, NOW())
+                #{status}, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -45,7 +45,7 @@
         SELECT * FROM exam_application
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByPatientId" resultType="long">
@@ -62,7 +62,7 @@
     <update id="markExecuted">
         UPDATE exam_application
         SET status = #{status},
-            exec_time = NOW(),
+            exec_time = SYSDATE,
             exec_operator_id = #{execOperatorId}
         WHERE id = #{id}
     </update>
@@ -71,7 +71,7 @@
         SELECT * FROM exam_application
         WHERE status = #{status}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <update id="markPaid">
@@ -93,7 +93,7 @@
         WHERE status = #{status}
           AND item_type &lt;&gt; 'LAB'
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="selectLabByStatus" resultMap="BaseResultMap">
@@ -101,7 +101,7 @@
         WHERE status = #{status}
           AND item_type = 'LAB'
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <update id="markRefunded">

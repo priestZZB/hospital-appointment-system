@@ -23,7 +23,7 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.StopApplication"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO stop_application (schedule_id, doctor_id, apply_reason,
                                       status, chief_review_status,
                                       approve_comment, approved_by,
@@ -33,7 +33,7 @@
                 #{status}, #{chiefReviewStatus},
                 #{approveComment}, #{approvedBy},
                 #{approveTime}, #{affectedCount}, #{refundTotal},
-                NOW(), NOW())
+                SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -44,14 +44,14 @@
         SELECT * FROM stop_application
         WHERE schedule_id = #{scheduleId}
           AND status IN ('PENDING', 'PENDING_ADMIN')
-        LIMIT 1
+        FETCH FIRST 1 ROWS ONLY
     </select>
 
     <select id="selectByStatus" resultMap="BaseResultMap">
         SELECT * FROM stop_application
         WHERE status = #{status}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByStatus" resultType="long">
@@ -62,7 +62,7 @@
         SELECT * FROM stop_application
         WHERE doctor_id = #{doctorId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <update id="updateApproval">
@@ -70,10 +70,10 @@
         SET status = #{status},
             approve_comment = #{approveComment},
             approved_by = #{approvedBy},
-            approve_time = NOW(),
+            approve_time = SYSDATE,
             affected_count = #{affectedCount},
             refund_total = #{refundTotal},
-            update_time = NOW()
+            update_time = SYSDATE
         WHERE id = #{id}
           AND status = #{expectedStatus}
     </update>
@@ -84,8 +84,8 @@
             status = #{status},
             chief_review_comment = #{chiefReviewComment},
             chief_reviewed_by = #{chiefReviewedBy},
-            chief_review_time = NOW(),
-            update_time = NOW()
+            chief_review_time = SYSDATE,
+            update_time = SYSDATE
         WHERE id = #{id}
           AND status = #{expectedStatus}
     </update>

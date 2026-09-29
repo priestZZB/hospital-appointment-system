@@ -24,11 +24,11 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.DrugInventory"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO drug_inventory (drug_id, current_stock, min_threshold, version,
                                     last_stockin_time, last_stockout_time, create_time, update_time)
         VALUES (#{drugId}, #{currentStock}, #{minThreshold}, #{version},
-                #{lastStockinTime}, #{lastStockoutTime}, NOW(), NOW())
+                #{lastStockinTime}, #{lastStockoutTime}, SYSDATE, SYSDATE)
     </insert>
 
     <!-- 乐观锁扣减库存 -->
@@ -36,8 +36,8 @@
         UPDATE drug_inventory
         SET current_stock = current_stock - #{quantity},
             version = version + 1,
-            last_stockout_time = NOW(),
-            update_time = NOW()
+            last_stockout_time = SYSDATE,
+            update_time = SYSDATE
         WHERE drug_id = #{drugId}
           AND current_stock >= #{quantity}
           AND version = #{version}
@@ -48,15 +48,15 @@
         UPDATE drug_inventory
         SET current_stock = current_stock + #{quantity},
             version = version + 1,
-            last_stockin_time = NOW(),
-            update_time = NOW()
+            last_stockin_time = SYSDATE,
+            update_time = SYSDATE
         WHERE drug_id = #{drugId}
           AND version = #{version}
     </update>
 
     <update id="updateThreshold">
         UPDATE drug_inventory
-        SET min_threshold = #{minThreshold}, update_time = NOW()
+        SET min_threshold = #{minThreshold}, update_time = SYSDATE
         WHERE drug_id = #{drugId}
     </update>
 
@@ -71,16 +71,16 @@
         INNER JOIN drug d ON i.drug_id = d.id
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (d.drug_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR d.drug_code LIKE CONCAT('%', #{keyword}, '%')
-                     OR d.generic_name LIKE CONCAT('%', #{keyword}, '%'))
+                AND (d.drug_name LIKE '%' || #{keyword} || '%'
+                     OR d.drug_code LIKE '%' || #{keyword} || '%'
+                     OR d.generic_name LIKE '%' || #{keyword} || '%')
             </if>
             <if test="lowStock != null and lowStock == true">
                 AND i.current_stock &lt;= i.min_threshold
             </if>
         </where>
         ORDER BY i.update_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countPage" resultType="long">
@@ -88,9 +88,9 @@
         INNER JOIN drug d ON i.drug_id = d.id
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (d.drug_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR d.drug_code LIKE CONCAT('%', #{keyword}, '%')
-                     OR d.generic_name LIKE CONCAT('%', #{keyword}, '%'))
+                AND (d.drug_name LIKE '%' || #{keyword} || '%'
+                     OR d.drug_code LIKE '%' || #{keyword} || '%'
+                     OR d.generic_name LIKE '%' || #{keyword} || '%')
             </if>
             <if test="lowStock != null and lowStock == true">
                 AND i.current_stock &lt;= i.min_threshold

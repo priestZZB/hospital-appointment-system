@@ -21,7 +21,7 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.ExamReport"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO exam_report (application_id, patient_id, report_desc,
                                  report_result, attachment_url, attachment_name,
                                  operator_id, auditor_id, audit_time, audit_comment,
@@ -29,7 +29,7 @@
         VALUES (#{applicationId}, #{patientId}, #{reportDesc},
                 #{reportResult}, #{attachmentUrl}, #{attachmentName},
                 #{operatorId}, #{auditorId}, #{auditTime}, #{auditComment},
-                #{status}, #{completeTime}, NOW())
+                #{status}, #{completeTime}, SYSDATE)
     </insert>
 
     <select id="selectByApplicationId" resultMap="BaseResultMap">
@@ -44,7 +44,7 @@
         SELECT * FROM exam_report
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByPatientId" resultType="long">
@@ -63,9 +63,9 @@
         UPDATE exam_report
         SET status = #{status},
             auditor_id = #{auditorId},
-            audit_time = NOW(),
+            audit_time = SYSDATE,
             audit_comment = #{auditComment},
-            complete_time = CASE WHEN #{status} = 'PUBLISHED' THEN NOW() ELSE complete_time END
+            complete_time = CASE WHEN #{status} = 'PUBLISHED' THEN SYSDATE ELSE complete_time END
         WHERE id = #{id}
     </update>
 

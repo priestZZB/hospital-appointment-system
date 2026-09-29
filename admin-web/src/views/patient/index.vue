@@ -10,6 +10,7 @@ import { getAdmissionsApi, getDailyBillApi, getDepositsApi, getDischargeSummaryA
 import { getProfileApi } from '@/api/patient'
 import { triageApi } from '@/api/ai'
 import { useUserStore } from '@/stores/user'
+import { useWebSocket } from '@/composables/useWebSocket'
 import type {
   AdmissionVO,
   AppointmentVO,
@@ -226,12 +227,40 @@ const unpaidExams = ref<ExamApplicationVO[]>([])
 const unpaidLoading = ref(false)
 const myPatientId = ref<number>()
 
+// 报告发布/输液完成实时推送（后端 RealtimePublisher → clinic STOMP 桥接 → /topic/report/{patientId}）
+const { subscribe: wsSubscribe } = useWebSocket()
+let reportSubscriptionReady = false
+
+interface RealtimePayload {
+  destination?: string
+  type?: string
+  payload?: { examItemName?: string; [key: string]: unknown }
+}
+
+function ensureReportSubscription() {
+  if (reportSubscriptionReady || !myPatientId.value) return
+  reportSubscriptionReady = true
+  wsSubscribe(`/topic/report/${myPatientId.value}`, (raw) => {
+    const msg = raw as RealtimePayload
+    const name = msg?.payload?.examItemName
+    if (msg?.type === 'REPORT_PUBLISHED') {
+      WMessage.success(name ? `您的「${name}」报告已发布，可查看` : '您的检查/检验报告已发布')
+    } else if (msg?.type === 'INFUSION_COMPLETED') {
+      WMessage.success('输液已完成')
+    }
+    // 状态变化后刷新站内信与待缴费列表（尽力刷新，失败静默）
+    loadNotifications()
+    loadUnpaidAll()
+  })
+}
+
 async function loadUnpaidAll() {
   unpaidLoading.value = true
   try {
     if (!myPatientId.value) {
       const profile = await getProfileApi()
       myPatientId.value = profile.id
+      ensureReportSubscription()
     }
     const [rx, ex] = await Promise.all([
       getUnpaidPrescriptionsApi(myPatientId.value),

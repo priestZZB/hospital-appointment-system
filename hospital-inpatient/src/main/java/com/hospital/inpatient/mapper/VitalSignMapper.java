@@ -29,13 +29,13 @@ public interface VitalSignMapper {
     })
     @Select("SELECT id, admission_id, temperature, pulse, respiration, blood_pressure, blood_oxygen, " +
             "record_time, operator_id, create_time FROM vital_sign " +
-            "WHERE admission_id = #{admissionId} ORDER BY record_time DESC LIMIT #{limit}")
+            "WHERE admission_id = #{admissionId} ORDER BY record_time DESC FETCH FIRST #{limit} ROWS ONLY")
     List<VitalSign> selectByAdmission(@Param("admissionId") Long admissionId, @Param("limit") int limit);
 
     @Insert("INSERT INTO vital_sign (admission_id, temperature, pulse, respiration, blood_pressure, " +
             "blood_oxygen, record_time, operator_id, create_time) " +
             "VALUES (#{admissionId}, #{temperature}, #{pulse}, #{respiration}, #{bloodPressure}, " +
-            "#{bloodOxygen}, NOW(), #{operatorId}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{bloodOxygen}, SYSDATE, #{operatorId}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(VitalSign vital);
 }

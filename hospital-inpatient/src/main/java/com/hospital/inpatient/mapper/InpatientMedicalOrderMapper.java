@@ -43,8 +43,8 @@ public interface InpatientMedicalOrderMapper {
     @Insert("INSERT INTO inpatient_medical_order (order_no, admission_id, doctor_id, order_type, category, " +
             "content, frequency, status, open_time, create_time, update_time) " +
             "VALUES (#{orderNo}, #{admissionId}, #{doctorId}, #{orderType}, #{category}, " +
-            "#{content}, #{frequency}, 'OPEN', NOW(), NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{content}, #{frequency}, 'OPEN', SYSDATE, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(InpatientMedicalOrder order);
 
     @ResultMap("orderMap")
@@ -59,12 +59,12 @@ public interface InpatientMedicalOrderMapper {
                                            @Param("statusList") List<String> statusList);
 
     /** 核对（仅 OPEN 可核对） */
-    @Update("UPDATE inpatient_medical_order SET status = 'CONFIRMED', confirm_time = NOW(), confirm_nurse_id = #{nurseId}, " +
-            "update_time = NOW() WHERE id = #{id} AND status = 'OPEN'")
+    @Update("UPDATE inpatient_medical_order SET status = 'CONFIRMED', confirm_time = SYSDATE, confirm_nurse_id = #{nurseId}, " +
+            "update_time = SYSDATE WHERE id = #{id} AND status = 'OPEN'")
     int confirm(@Param("id") Long id, @Param("nurseId") Long nurseId);
 
     /** 停止（OPEN/CONFIRMED/EXECUTING 可停止） */
-    @Update("UPDATE inpatient_medical_order SET status = 'STOPPED', stop_time = NOW(), update_time = NOW() " +
+    @Update("UPDATE inpatient_medical_order SET status = 'STOPPED', stop_time = SYSDATE, update_time = SYSDATE " +
             "WHERE id = #{id} AND status IN ('OPEN','CONFIRMED','EXECUTING')")
     int stop(@Param("id") Long id);
 
@@ -74,7 +74,7 @@ public interface InpatientMedicalOrderMapper {
     List<InpatientMedicalOrder> selectActiveLongTerm(@Param("admissionId") Long admissionId);
 
     /** 执行状态流转（CONFIRMED -> EXECUTING/COMPLETED，长期医嘱可反复执行） */
-    @Update("UPDATE inpatient_medical_order SET status = #{status}, update_time = NOW() " +
+    @Update("UPDATE inpatient_medical_order SET status = #{status}, update_time = SYSDATE " +
             "WHERE id = #{id} AND status IN ('CONFIRMED','EXECUTING')")
     int updateExecStatus(@Param("id") Long id, @Param("status") String status);
 

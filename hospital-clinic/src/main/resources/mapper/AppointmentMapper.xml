@@ -25,7 +25,7 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Appointment"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO appointment (appointment_no, patient_id, slot_id, schedule_id,
                                  doctor_id, department_id, appointment_date, period,
                                  slot_seq, register_fee, order_status, visit_status,
@@ -33,7 +33,7 @@
         VALUES (#{appointmentNo}, #{patientId}, #{slotId}, #{scheduleId},
                 #{doctorId}, #{departmentId}, #{appointmentDate}, #{period},
                 #{slotSeq}, #{registerFee}, #{orderStatus}, #{visitStatus},
-                COALESCE(#{isRevisit}, 0), NOW(), NOW())
+                COALESCE(#{isRevisit}, 0), SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -62,7 +62,7 @@
         FROM appointment
         WHERE slot_id = #{slotId}
         ORDER BY create_time DESC
-        LIMIT 1
+        FETCH FIRST 1 ROWS ONLY
     </select>
 
     <select id="selectByPatientId" resultMap="BaseResultMap">
@@ -159,7 +159,7 @@
             AND a.appointment_date = #{appointmentDate}
         </if>
         ORDER BY a.create_time DESC
-        LIMIT #{offset}, #{pageSize}
+        OFFSET #{offset} ROWS FETCH NEXT #{pageSize} ROWS ONLY
     </select>
 
     <select id="countPageWithDetail" resultType="long">
@@ -184,7 +184,7 @@
     </select>
 
     <update id="updateOrderStatus">
-        UPDATE appointment SET order_status = #{orderStatus}, update_time = NOW()
+        UPDATE appointment SET order_status = #{orderStatus}, update_time = SYSDATE
         WHERE id = #{id}
           AND order_status = #{expectedStatus}
     </update>
@@ -192,8 +192,8 @@
     <update id="cancel">
         UPDATE appointment SET order_status = #{orderStatus},
                                cancel_reason = #{cancelReason},
-                               cancel_time = NOW(),
-                               update_time = NOW()
+                               cancel_time = SYSDATE,
+                               update_time = SYSDATE
         WHERE id = #{id}
           AND order_status = #{expectedStatus}
     </update>
@@ -203,8 +203,8 @@
         INNER JOIN slot s ON a.slot_id = s.id
         SET a.order_status = 'CANCELLED',
             a.cancel_reason = #{cancelReason},
-            a.cancel_time = NOW(),
-            a.update_time = NOW()
+            a.cancel_time = SYSDATE,
+            a.update_time = SYSDATE
         WHERE s.schedule_id = #{scheduleId}
           AND a.order_status = 'PENDING_PAY'
     </update>
@@ -226,7 +226,7 @@
           AND appointment_date >= #{date}
     </select>
     <update id="updateVisitStatus">
-        UPDATE appointment SET visit_status = #{visitStatus}, update_time = NOW()
+        UPDATE appointment SET visit_status = #{visitStatus}, update_time = SYSDATE
         WHERE id = #{id}
         <if test="expectedStatus != null">
           AND visit_status = #{expectedStatus}

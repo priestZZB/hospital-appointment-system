@@ -18,8 +18,8 @@ public interface ConsultationRequestMapper {
     @Insert("INSERT INTO consultation_request (request_no, medical_record_id, patient_id, apply_dept_id, apply_doctor_id, " +
             "target_dept_id, target_doctor_id, reason, status, create_time, update_time) " +
             "VALUES (#{requestNo}, #{medicalRecordId}, #{patientId}, #{applyDeptId}, #{applyDoctorId}, " +
-            "#{targetDeptId}, #{targetDoctorId}, #{reason}, #{status}, NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{targetDeptId}, #{targetDoctorId}, #{reason}, #{status}, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(ConsultationRequest request);
 
     @Select("SELECT id, request_no, medical_record_id, patient_id, apply_dept_id, apply_doctor_id, " +
@@ -74,7 +74,7 @@ public interface ConsultationRequestMapper {
     List<ConsultationRequest> selectByPatient(@Param("patientId") Long patientId);
 
     @Update("UPDATE consultation_request SET status = #{status}, consult_opinion = #{opinion}, " +
-            "consult_doctor_id = #{consultDoctorId}, consult_time = NOW(), update_time = NOW() " +
+            "consult_doctor_id = #{consultDoctorId}, consult_time = SYSDATE, update_time = SYSDATE " +
             "WHERE id = #{id}")
     int updateHandle(@Param("id") Long id, @Param("status") String status,
                      @Param("opinion") String opinion, @Param("consultDoctorId") Long consultDoctorId);

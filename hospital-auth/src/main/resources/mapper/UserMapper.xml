@@ -44,36 +44,36 @@
     <select id="findByPhone" resultMap="BaseResultMap">
         SELECT id, phone, password, real_name, gender, user_type, position_id, status,
                last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted
-        FROM `user`
+        FROM sys_user
         WHERE phone = #{phone} AND deleted = 0
     </select>
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT id, phone, password, real_name, gender, user_type, position_id, status,
                last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted
-        FROM `user`
+        FROM sys_user
         WHERE id = #{id} AND deleted = 0
     </select>
 
     <insert id="insert" parameterType="com.hospital.auth.entity.User"
-            useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO `user` (phone, password, real_name, gender, user_type, position_id, status,
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO sys_user (phone, password, real_name, gender, user_type, position_id, status,
                             last_login_time, last_login_ip, need_password_change, create_time, update_time, deleted)
         VALUES (#{phone}, #{password}, #{realName}, #{gender}, #{userType}, #{positionId}, #{status},
-                #{lastLoginTime}, #{lastLoginIp}, #{needPasswordChange}, NOW(), NOW(), 0)
+                #{lastLoginTime}, #{lastLoginIp}, #{needPasswordChange}, SYSDATE, SYSDATE, 0)
     </insert>
 
     <select id="selectPage" resultMap="UserVOMap">
         SELECT u.id, u.phone, u.real_name, u.gender, u.user_type, u.position_id,
                p.position_name, p.title AS position_title,
                u.status, u.last_login_time, u.create_time, r.role_code
-        FROM `user` u
-        LEFT JOIN `position` p ON u.position_id = p.id
+        FROM sys_user u
+        LEFT JOIN position p ON u.position_id = p.id
         LEFT JOIN user_role ur ON u.id = ur.user_id
         LEFT JOIN role r ON ur.role_id = r.id AND r.status = 1
         WHERE u.deleted = 0
         <if test="phone != null and phone != ''">
-            AND u.phone LIKE CONCAT('%', #{phone}, '%')
+            AND u.phone LIKE '%' || #{phone} || '%'
         </if>
         <if test="userType != null and userType != ''">
             AND u.user_type = #{userType}
@@ -82,17 +82,17 @@
             AND u.status = #{status}
         </if>
         ORDER BY u.create_time DESC
-        LIMIT #{offset}, #{pageSize}
+        OFFSET #{offset} ROWS FETCH NEXT #{pageSize} ROWS ONLY
     </select>
 
     <select id="countPage" resultType="long">
         SELECT COUNT(DISTINCT u.id)
-        FROM `user` u
+        FROM sys_user u
         LEFT JOIN user_role ur ON u.id = ur.user_id
         LEFT JOIN role r ON ur.role_id = r.id AND r.status = 1
         WHERE u.deleted = 0
         <if test="phone != null and phone != ''">
-            AND u.phone LIKE CONCAT('%', #{phone}, '%')
+            AND u.phone LIKE '%' || #{phone} || '%'
         </if>
         <if test="userType != null and userType != ''">
             AND u.user_type = #{userType}
@@ -103,25 +103,25 @@
     </select>
 
     <update id="updateStatus">
-        UPDATE `user` SET status = #{status}, update_time = NOW()
+        UPDATE sys_user SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 
     <update id="updateLastLogin">
-        UPDATE `user` SET last_login_time = NOW(), last_login_ip = #{lastLoginIp}
+        UPDATE sys_user SET last_login_time = SYSDATE, last_login_ip = #{lastLoginIp}
         WHERE id = #{id}
     </update>
 
     <select id="selectRoleCodesByUserId" resultType="string">
         SELECT r.role_code
-        FROM `user` u
+        FROM sys_user u
         JOIN user_role ur ON u.id = ur.user_id
         JOIN role r ON ur.role_id = r.id AND r.status = 1
         WHERE u.id = #{userId} AND u.deleted = 0
     </select>
 
     <update id="updatePositionId">
-        UPDATE `user` SET position_id = #{positionId}, update_time = NOW()
+        UPDATE sys_user SET position_id = #{positionId}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

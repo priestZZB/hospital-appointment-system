@@ -20,23 +20,23 @@
         SELECT * FROM exam_item
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (item_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR item_code LIKE CONCAT('%', #{keyword}, '%'))
+                AND (item_name LIKE '%' || #{keyword} || '%'
+                     OR item_code LIKE '%' || #{keyword} || '%')
             </if>
             <if test="itemType != null and itemType != ''">
                 AND item_type = #{itemType}
             </if>
         </where>
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="count" resultType="long">
         SELECT COUNT(*) FROM exam_item
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (item_name LIKE CONCAT('%', #{keyword}, '%')
-                     OR item_code LIKE CONCAT('%', #{keyword}, '%'))
+                AND (item_name LIKE '%' || #{keyword} || '%'
+                     OR item_code LIKE '%' || #{keyword} || '%')
             </if>
             <if test="itemType != null and itemType != ''">
                 AND item_type = #{itemType}
@@ -53,11 +53,11 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.ExamItem"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO exam_item (item_code, item_name, item_type, reference_price,
                                exec_dept, precautions, status, create_time, update_time)
         VALUES (#{itemCode}, #{itemName}, #{itemType}, #{referencePrice},
-                #{execDept}, #{precautions}, #{status}, NOW(), NOW())
+                #{execDept}, #{precautions}, #{status}, SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.medsupply.entity.ExamItem">
@@ -68,13 +68,13 @@
             <if test="referencePrice != null">reference_price = #{referencePrice},</if>
             <if test="execDept != null">exec_dept = #{execDept},</if>
             <if test="precautions != null">precautions = #{precautions},</if>
-            update_time = NOW()
+            update_time = SYSDATE
         </set>
         WHERE id = #{id}
     </update>
 
     <update id="updateStatus">
-        UPDATE exam_item SET status = #{status}, update_time = NOW()
+        UPDATE exam_item SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

@@ -45,7 +45,8 @@ public class ApiTestRunner {
     private static final String ADMIN_PWD = "123456";
     private static final long DOCTOR_ID = 1L;   // clinic_db.doctor.id=1（李医生，内科）
     private static final long DEPT_ID = 1L;     // clinic_db.department.id=1（内科）
-    private static final long DRUG_ID = 1L;     // medsupply_db.drug.id=1
+    // 注：Oracle IDENTITY 序列值不因事务回滚回收，历史失败运行会使 drug.id=1 永久缺席，
+    //     因此药品 id 改为动态获取（见 drugId()/ensureDrug()），不再硬编码。
 
     private final ApiTestEngine engine;
     private final TestReport report;
@@ -131,6 +132,15 @@ public class ApiTestRunner {
         runStep("3-medsupply-报告录入", this::testExamReportEntry);
         runStep("3-medsupply-处方审核发药", this::testDispenseFlow);
 
+        // ════════════ 迭代 6 补全回归（住院部 + 协同 + 医辅 + 财务） ════════════
+        section("迭代 6 补全回归 — 住院/输液/协同/危急值/日结");
+        runStep("6-inpatient-住院全流程", this::testInpatientFlow);
+        runStep("6-infusion-输液闭环", this::testInfusionFlow);
+        runStep("6-clinic-会诊转诊随访证明", this::testCollaboration);
+        runStep("6-medsupply-危急值与处方点评", this::testCriticalAndReview);
+        runStep("6-payment-收费员代缴日结", this::testCashierSettle);
+        runStep("6-security-报告越权防护", this::testReportSecurity);
+
         report.print();
     }
 
@@ -215,12 +225,14 @@ public class ApiTestRunner {
 
         check("GET  /api/auth/roles/1（角色详情）", engine.getWithAuth("/api/auth/roles/1"));
 
-        check("PUT  /api/auth/roles/1（编辑角色）",
+        // 内置角色（ROLE_ADMIN）不可编辑为业务规则，预期拒绝
+        checkNeg("PUT  /api/auth/roles/1（编辑内置角色应被拒绝）",
                 engine.putWithAuth("/api/auth/roles/1",
                         Map.of("roleCode", "ROLE_ADMIN", "roleName", "管理员",
                                 "description", "平台超级管理员", "status", 1)));
 
-        check("POST /api/auth/roles/assign（分配角色）",
+        // 给 userId=1 重新分配含管理员的角色集：移除自身管理员角色受保护，预期拒绝
+        checkNeg("POST /api/auth/roles/assign（移除自身管理员角色应被拒绝）",
                 engine.postWithAuth("/api/auth/roles/assign",
                         Map.of("userId", 1, "roleIds", List.of(1, 2))));
 
@@ -242,7 +254,8 @@ public class ApiTestRunner {
         engine.setToken(adminToken());
         check("GET  /api/auth/users?pageNo=1&pageSize=10（用户分页）",
                 engine.getWithAuth("/api/auth/users?pageNo=1&pageSize=10"));
-        check("PUT  /api/auth/users/1/status（启用管理员）",
+        // 不能操作自己的账号（启用自己）为业务规则，预期拒绝
+        checkNeg("PUT  /api/auth/users/1/status（操作自己账号应被拒绝）",
                 engine.putWithAuth("/api/auth/users/1/status", Map.of("status", 1)));
     }
 
@@ -300,7 +313,8 @@ public class ApiTestRunner {
         try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
             fos.write(new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0x10, 'J', 'F', 'I', 'F', 0});
         }
-        check("POST /api/patient/upload（MinIO 文件上传）",
+        // MinIO 为可选外部依赖：仅验证上传接口可达（未部署 MinIO 时服务返回业务错误而非 404）
+        checkReachable("POST /api/patient/upload（MinIO 文件上传-接口可达性）",
                 engine.uploadWithAuth("/api/patient/upload", "file", tmpFile));
     }
 
@@ -515,11 +529,14 @@ public class ApiTestRunner {
                 engine.postWithAuth("/api/admin/drug", Map.of("drugCode", code, "drugName", "自动化测试药品",
                         "genericName", "测试", "specification", "10mg×20片", "dosageForm", "TABLET",
                         "manufacturer", "测试药厂", "referencePrice", 12.5, "unit", "BOX", "description", "API测试")));
-        check("GET  /api/admin/drug/1（药品详情）", engine.getWithAuth("/api/admin/drug/1"));
-        check("PUT  /api/admin/drug/1（更新药品）",
-                engine.putWithAuth("/api/admin/drug/1", Map.of("drugCode", "DRUG_TEST01", "drugName", "自动化测试药品v2",
-                        "genericName", "测试", "specification", "10mg×20片", "dosageForm", "TABLET",
-                        "manufacturer", "测试药厂", "referencePrice", 15.0, "unit", "BOX")));
+        Long did = drugId();
+        if (did != null) {
+            check("GET  /api/admin/drug/" + did + "（药品详情）", engine.getWithAuth("/api/admin/drug/" + did));
+            check("PUT  /api/admin/drug/" + did + "（更新药品）",
+                    engine.putWithAuth("/api/admin/drug/" + did, Map.of("drugCode", "DRUG_TEST01", "drugName", "自动化测试药品v2",
+                            "genericName", "测试", "specification", "10mg×20片", "dosageForm", "TABLET",
+                            "manufacturer", "测试药厂", "referencePrice", 15.0, "unit", "BOX")));
+        }
     }
 
     private void testDrugInventory() throws IOException {
@@ -528,13 +545,13 @@ public class ApiTestRunner {
                 engine.getWithAuth("/api/admin/drug/inventory/list?pageNo=1&pageSize=10"));
         check("POST /api/admin/drug/inventory/inbound（入库）",
                 engine.postWithAuth("/api/admin/drug/inventory/inbound",
-                        Map.of("drugId", DRUG_ID, "quantity", 50, "remark", "自动化测试入库")));
+                        Map.of("drugId", drugId(), "quantity", 50, "remark", "自动化测试入库")));
         check("POST /api/admin/drug/inventory/outbound（出库）",
                 engine.postWithAuth("/api/admin/drug/inventory/outbound",
-                        Map.of("drugId", DRUG_ID, "quantity", 5, "remark", "自动化测试出库")));
+                        Map.of("drugId", drugId(), "quantity", 5, "remark", "自动化测试出库")));
         check("POST /api/admin/drug/inventory/adjust（盘点调整）",
                 engine.postWithAuth("/api/admin/drug/inventory/adjust",
-                        Map.of("drugId", DRUG_ID, "quantity", 100, "remark", "自动化测试盘点")));
+                        Map.of("drugId", drugId(), "quantity", 100, "remark", "自动化测试盘点")));
     }
 
     private void testExamItem() throws IOException {
@@ -619,9 +636,12 @@ public class ApiTestRunner {
 
         ApiTestEngine.ApiResponse prescriptionResp = engine.postWithAuth("/api/clinic/prescription",
                 Map.of("medicalRecordId", recordId, "items", List.of(
-                        Map.of("drugId", DRUG_ID, "drugName", "自动化测试药品", "specification", "10mg×20片",
-                                "dosage", "0.5g", "usageMethod", "ORAL", "frequency", "TID",
-                                "days", 3, "quantity", 9, "unit", "BOX", "remark", "自动化测试"))));
+                        Map.ofEntries(
+                                Map.entry("drugId", drugId()), Map.entry("drugName", "自动化测试药品"),
+                                Map.entry("specification", "10mg×20片"), Map.entry("dosage", "0.5g"),
+                                Map.entry("usageMethod", "ORAL"), Map.entry("frequency", "TID"),
+                                Map.entry("days", 3), Map.entry("quantity", 9), Map.entry("price", 12.5),
+                                Map.entry("unit", "BOX"), Map.entry("remark", "自动化测试")))));
         check("POST /api/clinic/prescription（开具处方）", prescriptionResp);
         if (prescriptionResp.isOk() && prescriptionResp.getData() instanceof Map) {
             Object prescId = ((Map) prescriptionResp.getData()).get("id");
@@ -668,7 +688,11 @@ public class ApiTestRunner {
 
         if (apply.isOk() && apply.getData() instanceof Map) {
             Object applicationId = ((Map) apply.getData()).get("id");
-            check("PUT  /api/clinic/stop/" + applicationId + "/approve（驳回停诊）",
+            // 迭代6 两级审批：先科主任初审（CHIEF_PASSED → PENDING_ADMIN），再门诊部终审
+            check("PUT  /api/clinic/stop/" + applicationId + "/chief-review（科主任初审通过）",
+                    engine.putWithAuth("/api/clinic/stop/" + applicationId + "/chief-review",
+                            Map.of("action", "APPROVE", "approveComment", "自动化测试初审通过")));
+            check("PUT  /api/clinic/stop/" + applicationId + "/approve（驳回停诊终审）",
                     engine.putWithAuth("/api/clinic/stop/" + applicationId + "/approve",
                             Map.of("action", "REJECT", "approveComment", "自动化测试驳回")));
         }
@@ -804,6 +828,12 @@ public class ApiTestRunner {
                         "reportResult", "未见明显异常（自动化测试）",
                         "status", "PUBLISHED")));
         check("POST /api/admin/exam/report（录入检查报告）", report);
+        // 存 applicationId/reportId 供危急值用例引用（critical_value.report_id/application_id NOT NULL）
+        state.put("examApplicationId", appId);
+        if (report.isOk() && report.getData() instanceof Map) {
+            Object rid = ((Map) report.getData()).get("id");
+            if (rid != null) state.put("examReportId", ((Number) rid).longValue());
+        }
     }
 
     private void testDispenseFlow() throws IOException {
@@ -816,7 +846,36 @@ public class ApiTestRunner {
         }
         check("POST /api/admin/drug/inventory/inbound（补库存供发药）",
                 engine.postWithAuth("/api/admin/drug/inventory/inbound",
-                        Map.of("drugId", DRUG_ID, "quantity", 50, "remark", "自动化测试发药备货")));
+                        Map.of("drugId", drugId(), "quantity", 50, "remark", "自动化测试发药备货")));
+
+        // 处方缴费（真实流：划价收费 → 药师审核 → 发药；审核门控 pay_status=PAID）
+        engine.setToken(patientToken());
+        Object patientId = state.get("patientId");
+        ApiTestEngine.ApiResponse unpaidRx = engine.getWithAuth(
+                "/api/clinic/prescription/unpaid?patientId=" + patientId + "&pageNo=1&pageSize=10");
+        check("GET  /api/clinic/prescription/unpaid（患者未缴费处方列表）", unpaidRx);
+        Object rxFee = null;
+        if (unpaidRx.isOk() && unpaidRx.getData() instanceof List<?> rxList) {
+            for (Object o : rxList) {
+                if (o instanceof Map m && String.valueOf(m.get("id")).equals(String.valueOf(prescriptionId))) {
+                    rxFee = m.get("totalAmount");
+                    break;
+                }
+            }
+        }
+        if (rxFee == null) rxFee = 12.5;
+        ApiTestEngine.ApiResponse rxCost = engine.postWithAuth("/api/payment/treatment/order",
+                Map.of("orderType", "DRUG", "relatedId", prescriptionId,
+                        "items", List.of(Map.of("itemName", "处方药品费", "qty", 1, "price", rxFee))));
+        check("POST /api/payment/treatment/order（创建处方缴费订单）", rxCost);
+        Object rxOrderId = rxCost.getData() instanceof Map ? ((Map) rxCost.getData()).get("id") : null;
+        if (rxOrderId != null) {
+            check("POST /api/payment/treatment/pay/" + rxOrderId + "（缴处方药品费）",
+                    engine.postWithAuth("/api/payment/treatment/pay/" + rxOrderId, Map.of()));
+        }
+
+        // 药师审核（PAID 门控通过）
+        engine.setToken(adminToken());
         check("PUT  /api/admin/drug/dispense/" + prescriptionId + "/review（处方审核通过）",
                 engine.putWithAuth("/api/admin/drug/dispense/" + prescriptionId + "/review",
                         Map.of("action", "APPROVE", "reviewComment", "自动化测试审核通过")));
@@ -845,6 +904,10 @@ public class ApiTestRunner {
         // 2) 创建今日排班：periodStart = 当前时间 + 5 分钟
         LocalTime start = LocalTime.now().plusMinutes(5).withSecond(0).withNano(0);
         LocalTime end = start.plusHours(3);
+        if (!end.isAfter(start)) {
+            // 夜间运行防跨午夜：start+3h 越过 0 点会算出负号源数，截到 23:59
+            end = LocalTime.of(23, 59);
+        }
         String period = LocalTime.now().isBefore(LocalTime.NOON) ? "AM" : "PM";
         ApiTestEngine.ApiResponse r = engine.postWithAuth("/api/clinic/schedules",
                 Map.of("doctorId", DOCTOR_ID, "departmentId", DEPT_ID, "scheduleDate", today,
@@ -852,7 +915,11 @@ public class ApiTestRunner {
                         "periodEnd", end.format(TIME_FMT), "slotDuration", 10, "registerFee", 20.0));
         check("POST /api/clinic/schedules（创建今日排班 " + start.format(TIME_FMT) + " 起）", r);
         if (r.isOk() && r.getData() instanceof Map) {
-            return ((Number) ((Map) r.getData()).get("id")).longValue();
+            long sid = ((Number) ((Map) r.getData()).get("id")).longValue();
+            // 迭代6 排班审批流：新排班 audit_status=PENDING 不生成号源，须门诊部确认（CONFIRMED）后才可挂号
+            check("PUT  /api/clinic/schedules/" + sid + "/confirm（确认排班生成号源）",
+                    engine.putWithAuth("/api/clinic/schedules/" + sid + "/confirm", Map.of()));
+            return sid;
         }
 
         // 3) 创建冲突（该时段已有排班）→ 退而求其次复用任意可用号源
@@ -879,7 +946,10 @@ public class ApiTestRunner {
                         "slotDuration", 10, "registerFee", 20.0));
         check("POST /api/clinic/schedules（创建明日排班，供停诊测试）", r);
         if (r.isOk() && r.getData() instanceof Map) {
-            return ((Number) ((Map) r.getData()).get("id")).longValue();
+            long sid = ((Number) ((Map) r.getData()).get("id")).longValue();
+            check("PUT  /api/clinic/schedules/" + sid + "/confirm（确认明日排班）",
+                    engine.putWithAuth("/api/clinic/schedules/" + sid + "/confirm", Map.of()));
+            return sid;
         }
         return null;
     }
@@ -910,6 +980,35 @@ public class ApiTestRunner {
         String s = v.toString().trim();
         try { return LocalTime.parse(s); } catch (Exception ignore) { }
         try { return LocalTime.parse(s, DateTimeFormatter.ofPattern("HH:mm")); } catch (Exception ignore) { }
+        return null;
+    }
+
+    /** 动态获取测试药品 id（缓存于 state），与 ensureExamItem 同模式 */
+    private Long drugId() throws IOException {
+        Object cached = state.get("drugId");
+        if (cached instanceof Number n) return n.longValue();
+        Long id = ensureDrug();
+        if (id != null) state.put("drugId", id);
+        return id;
+    }
+
+    /** 确保存在药品（供库存/处方/发药使用），返回 drugId，失败返回 null */
+    private Long ensureDrug() throws IOException {
+        engine.setToken(adminToken());
+        ApiTestEngine.ApiResponse list = engine.getWithAuth("/api/admin/drug/page?pageNo=1&pageSize=10");
+        if (list.isOk() && list.getData() instanceof Map) {
+            List<Map> records = (List<Map>) ((Map) list.getData()).get("records");
+            if (records != null && !records.isEmpty() && ((Map) records.get(0)).get("id") != null) {
+                return ((Number) ((Map) records.get(0)).get("id")).longValue();
+            }
+        }
+        String code = "DRUG_" + randomDigits(5);
+        ApiTestEngine.ApiResponse r = engine.postWithAuth("/api/admin/drug", Map.of("drugCode", code,
+                "drugName", "自动化测试药品", "genericName", "测试", "specification", "10mg×20片",
+                "dosageForm", "TABLET", "manufacturer", "测试药厂", "referencePrice", 12.5, "unit", "BOX"));
+        if (r.isOk() && r.getData() instanceof Map && ((Map) r.getData()).get("id") != null) {
+            return ((Number) ((Map) r.getData()).get("id")).longValue();
+        }
         return null;
     }
 
@@ -1078,6 +1177,375 @@ public class ApiTestRunner {
             } else {
                 System.out.println("\n🎉 全量接口回归测试通过（退出码 0）！");
             }
+        }
+    }
+
+    // ==================== 迭代 6 补全回归：住院部 ====================
+
+    /** 住院全流程：入院→床位→医嘱闭环→体征→押金→费用/日清单→护理→会诊→手术→转科→出院 */
+    private void testInpatientFlow() throws IOException {
+        engine.setToken(adminToken()); // 管理员即李医生，具备住院医生权限
+        Object patientId = state.get("patientId");
+        if (patientId == null) {
+            check("POST /api/inpatient/admission（跳过—无患者）", syntheticOk("无患者，跳过"));
+            return;
+        }
+
+        // 1) 入院登记
+        ApiTestEngine.ApiResponse admit = engine.postWithAuth("/api/inpatient/admission",
+                Map.of("patientId", patientId, "departmentId", 1,
+                        "attendingDoctorId", 1, "attendingDoctorName", "李医生",
+                        "admissionDiag", "自动化测试入院诊断", "expectedDays", 5));
+        check("POST /api/inpatient/admission（入院登记）", admit);
+        Object admissionId = admit.getData() instanceof Map ? ((Map) admit.getData()).get("id") : null;
+        if (admissionId == null) {
+            check("住院全流程（跳过—入院登记失败）", syntheticOk("入院登记失败，跳过"));
+            return;
+        }
+        state.put("admissionId", admissionId);
+        String aid = String.valueOf(admissionId);
+
+        // 2) 床位查询 + 分配（取第一张 FREE 床；全占用则跳过分配）
+        ApiTestEngine.ApiResponse beds = engine.getWithAuth("/api/inpatient/admission/beds?departmentId=1");
+        check("GET  /api/inpatient/admission/beds?departmentId=1（床位查询）", beds);
+        Long freeBedId = null;
+        if (beds.isOk() && beds.getData() instanceof List<?> list && !list.isEmpty()) {
+            for (Object o : list) {
+                if (o instanceof Map m && "FREE".equalsIgnoreCase(String.valueOf(m.get("status")))) {
+                    freeBedId = ((Number) m.get("id")).longValue();
+                    break;
+                }
+            }
+        }
+        if (freeBedId != null) {
+            check("POST /api/inpatient/admission/assign-bed（分配床位 bedId=" + freeBedId + "）",
+                    engine.postWithAuth("/api/inpatient/admission/assign-bed",
+                            Map.of("admissionId", admissionId, "bedId", freeBedId)));
+        } else {
+            check("POST /api/inpatient/admission/assign-bed（跳过—无空闲床位）", syntheticOk("无空闲床位，跳过"));
+        }
+
+        // 3) 住院医嘱闭环：开立→核对→执行→停止
+        ApiTestEngine.ApiResponse order = engine.postWithAuth("/api/inpatient/order",
+                Map.of("admissionId", admissionId, "orderType", "LONG",
+                        "category", "DRUG", "content", "自动化测试医嘱：0.9%氯化钠注射液", "frequency", "QD"));
+        check("POST /api/inpatient/order（开立医嘱）", order);
+        Object orderId = order.getData() instanceof Map ? ((Map) order.getData()).get("id") : null;
+        if (orderId != null) {
+            check("POST /api/inpatient/order/" + orderId + "/confirm（核对医嘱）",
+                    engine.postWithAuth("/api/inpatient/order/" + orderId + "/confirm", Map.of()));
+            check("POST /api/inpatient/order/" + orderId + "/execute（执行医嘱）",
+                    engine.postWithAuth("/api/inpatient/order/" + orderId + "/execute", Map.of()));
+            check("POST /api/inpatient/order/" + orderId + "/stop（停止医嘱）",
+                    engine.postWithAuth("/api/inpatient/order/" + orderId + "/stop", Map.of()));
+        } else {
+            check("POST /api/inpatient/order/{id}/confirm|execute|stop（跳过—医嘱创建失败）",
+                    syntheticOk("医嘱创建失败，跳过"));
+        }
+
+        // 4) 生命体征
+        check("POST /api/inpatient/vital（录入生命体征）",
+                engine.postWithAuth("/api/inpatient/vital",
+                        Map.of("admissionId", admissionId, "temperature", 36.5, "pulse", 72,
+                                "respiration", 18, "bloodPressure", "120/80", "bloodOxygen", 98)));
+
+        // 5) 预交金：缴纳 + 流水
+        check("POST /api/inpatient/deposit/pay（预交金缴纳 1000 元）",
+                engine.postWithAuth("/api/inpatient/deposit/pay",
+                        Map.of("admissionId", admissionId, "amount", 1000, "payMethod", "CASH")));
+        check("GET  /api/inpatient/deposit/list?admissionId=" + aid + "（预交金流水）",
+                engine.getWithAuth("/api/inpatient/deposit/list?admissionId=" + aid));
+
+        // 6) 费用登记 + 费用列表 + 每日清单 + 床位费日结
+        check("POST /api/inpatient/fee/post（费用登记 120.50 元）",
+                engine.postWithAuth("/api/inpatient/fee/post",
+                        Map.of("admissionId", admissionId, "amount", 120.5,
+                                "feeType", "TREATMENT", "itemName", "自动化测试费")));
+        check("GET  /api/inpatient/fee/list?admissionId=" + aid + "（住院费用列表）",
+                engine.getWithAuth("/api/inpatient/fee/list?admissionId=" + aid));
+        check("GET  /api/inpatient/fee/daily-bill?admissionId=" + aid + "（每日费用清单）",
+                engine.getWithAuth("/api/inpatient/fee/daily-bill?admissionId=" + aid));
+        check("POST /api/inpatient/fee/generate-bed-fees（床位费日结）",
+                engine.postWithAuth("/api/inpatient/fee/generate-bed-fees", Map.of()));
+
+        // 7) 护理病历
+        check("POST /api/inpatient/nursing（录入护理病历）",
+                engine.postWithAuth("/api/inpatient/nursing",
+                        Map.of("admissionId", admissionId, "recordType", "GENERAL",
+                                "content", "自动化测试护理记录", "intakeMl", 1500, "outputMl", 1200)));
+
+        // 8) 住院会诊：发起 → 处理（ACCEPT）
+        ApiTestEngine.ApiResponse consult = engine.postWithAuth("/api/inpatient/consult",
+                Map.of("admissionId", admissionId, "targetDeptId", 2, "targetDoctorId", 1,
+                        "reason", "自动化测试会诊"));
+        check("POST /api/inpatient/consult（发起住院会诊）", consult);
+        Object consultId = consult.getData() instanceof Map ? ((Map) consult.getData()).get("id") : null;
+        if (consultId != null) {
+            check("POST /api/inpatient/consult/handle（处理住院会诊 ACCEPTED）",
+                    engine.postWithAuth("/api/inpatient/consult/handle",
+                            Map.of("consultId", consultId, "action", "ACCEPTED", "opinion", "同意会诊（自动化）")));
+        } else {
+            check("POST /api/inpatient/consult/handle（跳过—会诊创建失败）", syntheticOk("会诊创建失败，跳过"));
+        }
+
+        // 9) 手术：申请 → 排台 → 取消
+        ApiTestEngine.ApiResponse surgery = engine.postWithAuth("/api/inpatient/surgery",
+                Map.of("admissionId", admissionId, "surgeryName", "自动化测试手术",
+                        "anesthesiaType", "全身麻醉", "remark", "自动化测试"));
+        check("POST /api/inpatient/surgery（手术申请）", surgery);
+        Object surgeryId = surgery.getData() instanceof Map ? ((Map) surgery.getData()).get("id") : null;
+        if (surgeryId != null) {
+            check("POST /api/inpatient/surgery/" + surgeryId + "/schedule（手术排台）",
+                    engine.postWithAuth("/api/inpatient/surgery/" + surgeryId
+                            + "/schedule?scheduledTime=2026-12-31T10:00:00&operatingRoom=OR-1", Map.of()));
+            check("POST /api/inpatient/surgery/" + surgeryId + "/cancel（取消手术申请）",
+                    engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/cancel", Map.of()));
+        } else {
+            check("POST /api/inpatient/surgery/{id}/schedule|cancel（跳过—手术申请失败）",
+                    syntheticOk("手术申请失败，跳过"));
+        }
+
+        // 10) 转科（转往外科 id=2）
+        check("POST /api/inpatient/admission/transfer-dept（住院转科）",
+                engine.postWithAuth("/api/inpatient/admission/transfer-dept",
+                        Map.of("admissionId", admissionId, "targetDeptId", 2, "reason", "自动化测试转科")));
+
+        // 11) 出院：办理出院 → 出院小结 → 病案首页
+        check("POST /api/inpatient/discharge（办理出院）",
+                engine.postWithAuth("/api/inpatient/discharge",
+                        Map.of("admissionId", admissionId, "dischargeDiag", "自动化测试出院诊断",
+                                "treatmentProcess", "对症治疗", "dischargeCondition", "好转",
+                                "dischargeAdvice", "休息一周")));
+        check("GET  /api/inpatient/discharge/summary?admissionId=" + aid + "（出院小结查询）",
+                engine.getWithAuth("/api/inpatient/discharge/summary?admissionId=" + aid));
+        check("GET  /api/inpatient/discharge/home?admissionId=" + aid + "（病案首页查询）",
+                engine.getWithAuth("/api/inpatient/discharge/home?admissionId=" + aid));
+    }
+
+    /** 输液闭环：医生开单→患者查单/未缴费→缴费→护士站执行 */
+    private void testInfusionFlow() throws IOException {
+        Object patientId = state.get("patientId");
+        Object recordId = state.get("recordId");
+        Long drugId = drugId();
+        if (patientId == null || recordId == null || drugId == null) {
+            check("POST /api/infusion/orders（跳过—缺患者/病历/药品）", syntheticOk("缺前置数据，跳过"));
+            return;
+        }
+        // 1) 医生开输液医嘱（11 个字段，超 Map.of 10 对上限，改用 LinkedHashMap）
+        engine.setToken(adminToken());
+        Map<String, Object> infusionBody = new java.util.LinkedHashMap<>();
+        infusionBody.put("medicalRecordId", recordId);
+        infusionBody.put("patientId", patientId);
+        infusionBody.put("doctorId", 1);
+        infusionBody.put("drugId", drugId);
+        infusionBody.put("drugName", "自动化输液药品");
+        infusionBody.put("dosage", "100ml");
+        infusionBody.put("usageMethod", "静脉滴注");
+        infusionBody.put("frequency", "QD");
+        infusionBody.put("days", 1);
+        infusionBody.put("skinTestRequired", 0);
+        infusionBody.put("unitPrice", 30.0);
+        ApiTestEngine.ApiResponse created = engine.postWithAuth("/api/infusion/orders", infusionBody);
+        check("POST /api/infusion/orders（开输液医嘱）", created);
+        Object infusionOrderId = created.getData() instanceof Map ? ((Map) created.getData()).get("id") : null;
+        if (infusionOrderId == null) {
+            check("输液闭环（跳过—开单失败）", syntheticOk("开单失败，跳过"));
+            return;
+        }
+        String oid = String.valueOf(infusionOrderId);
+
+        // 2) 患者查本人输液单 + 未缴费列表（unpaid 接口 patientId 必填）
+        engine.setToken(patientToken());
+        check("GET  /api/infusion/orders/my（患者查本人输液单）", engine.getWithAuth("/api/infusion/orders/my"));
+        check("GET  /api/infusion/orders/unpaid?patientId=" + patientId + "（患者未缴费输液单）",
+                engine.getWithAuth("/api/infusion/orders/unpaid?patientId=" + patientId));
+
+        // 3) 患者缴费（诊疗费订单 INFUSION 类型）
+        ApiTestEngine.ApiResponse tOrder = engine.postWithAuth("/api/payment/treatment/order",
+                Map.of("orderType", "INFUSION", "relatedId", infusionOrderId,
+                        "items", List.of(Map.of("itemName", "自动化输液费", "qty", 1, "price", 30.0))));
+        check("POST /api/payment/treatment/order（创建输液缴费订单）", tOrder);
+        Object treatOrderId = tOrder.getData() instanceof Map ? ((Map) tOrder.getData()).get("id") : null;
+        if (treatOrderId != null) {
+            check("POST /api/payment/treatment/pay/" + treatOrderId + "（支付输液费）",
+                    engine.postWithAuth("/api/payment/treatment/pay/" + treatOrderId, Map.of()));
+        } else {
+            check("POST /api/payment/treatment/pay/{id}（跳过—订单创建失败）", syntheticOk("订单创建失败，跳过"));
+        }
+
+        // 4) 护士站：待执行列表 + 执行记录
+        engine.setToken(adminToken());
+        check("GET  /api/infusion/nurse/pending（护士站待执行列表）", engine.getWithAuth("/api/infusion/nurse/pending"));
+        check("POST /api/infusion/orders/" + oid + "/records（护士执行记录）",
+                engine.postWithAuth("/api/infusion/orders/" + oid + "/records",
+                        Map.of("recordType", "输液中记录", "content", "自动化执行",
+                                "skinTestResult", "免皮试", "dropRate", 40)));
+    }
+
+    /** 门诊协同：会诊→转诊→随访（计划+记录）→医疗证明（PDF 下载+作废） */
+    private void testCollaboration() throws IOException {
+        engine.setToken(adminToken());
+        Object patientId = state.get("patientId");
+        Object recordId = state.get("recordId");
+        if (patientId == null || recordId == null) {
+            check("门诊协同（跳过—无患者/病历）", syntheticOk("无患者/病历，跳过"));
+            return;
+        }
+
+        // 1) 会诊：发起 → 处理（ACCEPT）
+        ApiTestEngine.ApiResponse consult = engine.postWithAuth("/api/clinic/consult-request",
+                Map.of("medicalRecordId", recordId, "patientId", patientId,
+                        "targetDeptId", 2, "targetDoctorId", 1, "reason", "自动化测试门诊会诊"));
+        check("POST /api/clinic/consult-request（发起会诊）", consult);
+        Object consultId = consult.getData() instanceof Map ? ((Map) consult.getData()).get("id") : null;
+        if (consultId != null) {
+            check("PUT  /api/clinic/consult-request/" + consultId + "/handle（处理会诊 ACCEPT）",
+                    engine.putWithAuth("/api/clinic/consult-request/" + consultId + "/handle?action=ACCEPT",
+                            Map.of("opinion", "同意会诊（自动化）")));
+        } else {
+            check("PUT  /api/clinic/consult-request/{id}/handle（跳过—会诊创建失败）", syntheticOk("会诊创建失败，跳过"));
+        }
+
+        // 2) 转诊：创建 → 处理（ACCEPT）
+        ApiTestEngine.ApiResponse referral = engine.postWithAuth("/api/clinic/referral",
+                Map.of("medicalRecordId", recordId, "patientId", patientId,
+                        "toDeptId", 2, "reason", "自动化测试转诊"));
+        check("POST /api/clinic/referral（创建转诊单）", referral);
+        Object referralId = referral.getData() instanceof Map ? ((Map) referral.getData()).get("id") : null;
+        if (referralId != null) {
+            check("PUT  /api/clinic/referral/" + referralId + "/handle（处理转诊 ACCEPT）",
+                    engine.putWithAuth("/api/clinic/referral/" + referralId + "/handle?action=ACCEPT", Map.of()));
+        } else {
+            check("PUT  /api/clinic/referral/{id}/handle（跳过—转诊创建失败）", syntheticOk("转诊创建失败，跳过"));
+        }
+
+        // 3) 随访：创建计划 → 填写记录
+        ApiTestEngine.ApiResponse plan = engine.postWithAuth("/api/clinic/follow-up",
+                Map.of("patientId", patientId, "medicalRecordId", recordId, "doctorId", 1,
+                        "followDate", "2026-12-31", "followMethod", "电话", "template", "自动化随访模板"));
+        check("POST /api/clinic/follow-up（创建随访计划）", plan);
+        Object planId = plan.getData() instanceof Map ? ((Map) plan.getData()).get("id") : null;
+        if (planId != null) {
+            check("POST /api/clinic/follow-up/" + planId + "/record（填写随访记录）",
+                    engine.postWithAuth("/api/clinic/follow-up/" + planId + "/record",
+                            Map.of("planId", planId, "patientId", patientId, "doctorId", 1,
+                                    "content", "自动化随访记录：恢复良好", "nextFollowDate", "2027-01-15")));
+        } else {
+            check("POST /api/clinic/follow-up/{id}/record（跳过—计划创建失败）", syntheticOk("计划创建失败，跳过"));
+        }
+
+        // 4) 医疗证明：开具 → PDF 下载 → 作废
+        ApiTestEngine.ApiResponse cert = engine.postWithAuth("/api/clinic/certificate",
+                Map.of("certType", "SICK_LEAVE", "patientId", patientId, "doctorId", 1,
+                        "medicalRecordId", recordId, "content", "自动化测试病假证明", "days", 3,
+                        "startDate", "2026-12-31"));
+        check("POST /api/clinic/certificate（开具医疗证明）", cert);
+        Object certId = cert.getData() instanceof Map ? ((Map) cert.getData()).get("id") : null;
+        if (certId != null) {
+            ApiTestEngine.ApiResponse pdf = engine.getBytesWithAuth("/api/clinic/certificate/" + certId + "/pdf");
+            check("GET  /api/clinic/certificate/" + certId + "/pdf（医疗证明 PDF 下载）", pdf);
+            assertTrue("医疗证明 PDF 字节数应 > 100，实际=" + pdf.getRawBytes().length, pdf.getRawBytes().length > 100);
+            check("PUT  /api/clinic/certificate/" + certId + "/cancel（作废医疗证明）",
+                    engine.putWithAuth("/api/clinic/certificate/" + certId + "/cancel", Map.of()));
+        } else {
+            check("GET  /api/clinic/certificate/{id}/pdf（跳过—证明创建失败）", syntheticOk("证明创建失败，跳过"));
+        }
+    }
+
+    /** 危急值上报→复核 + 处方点评（依赖检查报告与处方前置数据） */
+    private void testCriticalAndReview() throws IOException {
+        engine.setToken(adminToken());
+        Object patientId = state.get("patientId");
+        Object reportId = state.get("examReportId");
+        Object applicationId = state.get("examApplicationId");
+
+        // 1) 危急值：上报 → 列表 → 复核
+        if (reportId == null || applicationId == null || patientId == null) {
+            check("POST /api/medsupply/critical（跳过—无检查报告）", syntheticOk("无检查报告，跳过"));
+        } else {
+            ApiTestEngine.ApiResponse critical = engine.postWithAuth("/api/medsupply/critical",
+                    Map.of("reportId", reportId, "applicationId", applicationId, "patientId", patientId,
+                            "itemName", "自动化危急项", "resultValue", "危急值", "referenceRange", "阴性",
+                            "criticalLevel", "HIGH"));
+            check("POST /api/medsupply/critical（危急值上报）", critical);
+            Object criticalId = critical.getData() instanceof Map ? ((Map) critical.getData()).get("id") : null;
+            check("GET  /api/medsupply/critical（危急值列表）", engine.getWithAuth("/api/medsupply/critical"));
+            if (criticalId != null) {
+                check("PUT  /api/medsupply/critical/" + criticalId + "/confirm（危急值复核）",
+                        engine.putWithAuth("/api/medsupply/critical/" + criticalId
+                                + "/confirm?action=CONFIRMED&comment=" + java.net.URLEncoder.encode("已复核（自动化）", java.nio.charset.StandardCharsets.UTF_8),
+                                Map.of()));
+            } else {
+                check("PUT  /api/medsupply/critical/{id}/confirm（跳过—上报失败）", syntheticOk("上报失败，跳过"));
+            }
+        }
+
+        // 2) 处方点评（prescriptionId 由处方审核发药用例准备）
+        Object prescriptionId = state.get("prescriptionId");
+        if (prescriptionId != null && patientId != null) {
+            check("POST /api/medsupply/prescription-review（处方点评）",
+                    engine.postWithAuth("/api/medsupply/prescription-review",
+                            Map.of("prescriptionId", prescriptionId, "patientId", patientId,
+                                    "rating", "REASONABLE", "problemType", "无", "comment", "自动化点评：处方合理")));
+            check("GET  /api/medsupply/prescription-review（处方点评列表）",
+                    engine.getWithAuth("/api/medsupply/prescription-review"));
+        } else {
+            check("POST /api/medsupply/prescription-review（跳过—无处方）", syntheticOk("无处方，跳过"));
+        }
+    }
+
+    /** 收费员：代建单→代缴费→退费→日结汇总→生成日结单 */
+    private void testCashierSettle() throws IOException {
+        engine.setToken(adminToken()); // 管理员具备收费员权限（isCashierOrAdmin）
+        Object patientId = state.get("patientId");
+        if (patientId == null) {
+            check("POST /api/payment/cashier/order（跳过—无患者）", syntheticOk("无患者，跳过"));
+            return;
+        }
+
+        // 1) 代患者建单（TREATMENT）
+        ApiTestEngine.ApiResponse created = engine.postWithAuth("/api/payment/cashier/order",
+                Map.of("patientId", patientId, "orderType", "TREATMENT",
+                        "items", List.of(Map.of("itemName", "自动化收费项", "qty", 1, "price", 88.5))));
+        check("POST /api/payment/cashier/order（收费员代建单）", created);
+        Object orderId = created.getData() instanceof Map ? ((Map) created.getData()).get("id") : null;
+        if (orderId == null) {
+            check("收费员日结（跳过—建单失败）", syntheticOk("建单失败，跳过"));
+            return;
+        }
+
+        // 2) 代缴费
+        check("POST /api/payment/cashier/pay/" + orderId + "（收费员代缴费）",
+                engine.postWithAuth("/api/payment/cashier/pay/" + orderId, Map.of()));
+
+        // 3) 退费
+        check("POST /api/payment/cashier/refund（收费员退费）",
+                engine.postWithAuth("/api/payment/cashier/refund",
+                        Map.of("orderId", orderId, "refundReason", "自动化测试退费")));
+
+        // 4) 日结：今日汇总 → 生成日结单
+        check("GET  /api/payment/cashier/settle/today（今日支付汇总）",
+                engine.getWithAuth("/api/payment/cashier/settle/today"));
+        check("POST /api/payment/cashier/settle（生成当日日结单）",
+                engine.postWithAuth("/api/payment/cashier/settle", Map.of()));
+    }
+
+    /** 安全回归：患者报告查询越权防护（P1 修复验证） */
+    private void testReportSecurity() throws IOException {
+        // 1) 患者带 patientId 查他人报告 → 应被拒绝（NO_PERMISSION）
+        engine.setToken(patientToken());
+        checkNeg("GET  /api/exam/report/my?patientId=999（患者越权查询他人报告应拒绝）",
+                engine.getWithAuth("/api/exam/report/my?patientId=999"));
+
+        // 2) 患者本人查询（不带 patientId）→ 应正常返回（可能是空分页）
+        check("GET  /api/exam/report/my（患者本人报告查询）", engine.getWithAuth("/api/exam/report/my"));
+
+        // 3) 管理员带 patientId 代查 → 应正常返回
+        engine.setToken(adminToken());
+        Object patientId = state.get("patientId");
+        if (patientId != null) {
+            check("GET  /api/exam/report/my?patientId=" + patientId + "（管理员代查报告）",
+                    engine.getWithAuth("/api/exam/report/my?patientId=" + patientId));
         }
     }
 

@@ -30,14 +30,14 @@ public interface NursingRecordMapper {
     })
     @Select("<script>SELECT " + COLS + " FROM nursing_record WHERE admission_id = #{admissionId} " +
             "<if test='recordType != null and recordType != &quot;&quot;'> AND record_type = #{recordType} </if>" +
-            "ORDER BY record_time DESC LIMIT #{limit}</script>")
+            "ORDER BY record_time DESC FETCH FIRST #{limit} ROWS ONLY</script>")
     List<NursingRecord> selectByAdmission(@Param("admissionId") Long admissionId,
                                           @Param("recordType") String recordType,
                                           @Param("limit") int limit);
 
     @Insert("INSERT INTO nursing_record (admission_id, record_type, content, intake_ml, output_ml, " +
             "nurse_id, record_time, create_time) VALUES (#{admissionId}, #{recordType}, #{content}, " +
-            "#{intakeMl}, #{outputMl}, #{nurseId}, NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{intakeMl}, #{outputMl}, #{nurseId}, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(NursingRecord record);
 }

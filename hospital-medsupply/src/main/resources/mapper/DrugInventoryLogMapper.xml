@@ -17,20 +17,20 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.DrugInventoryLog"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO drug_inventory_log (drug_id, change_type, change_quantity,
                                         before_stock, after_stock, related_order_id,
                                         operator_id, remark, create_time)
         VALUES (#{drugId}, #{changeType}, #{changeQuantity},
                 #{beforeStock}, #{afterStock}, #{relatedOrderId},
-                #{operatorId}, #{remark}, NOW())
+                #{operatorId}, #{remark}, SYSDATE)
     </insert>
 
     <select id="selectByDrugId" resultMap="BaseResultMap">
         SELECT * FROM drug_inventory_log
         WHERE drug_id = #{drugId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByDrugId" resultType="long">

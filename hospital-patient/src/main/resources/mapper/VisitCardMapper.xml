@@ -17,9 +17,9 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.patient.entity.VisitCard"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO visit_card (patient_id, card_no, status, issue_date, create_time)
-        VALUES (#{patientId}, #{cardNo}, #{status}, #{issueDate}, NOW())
+        VALUES (#{patientId}, #{cardNo}, #{status}, #{issueDate}, SYSDATE)
     </insert>
 
 </mapper>

@@ -22,8 +22,8 @@ public interface InfusionOrderMapper {
             "unit_price, total_amount, pay_status, status, create_time, update_time) " +
             "VALUES (#{infusionNo}, #{medicalRecordId}, #{patientId}, #{doctorId}, " +
             "#{drugId}, #{drugName}, #{dosage}, #{usageMethod}, #{frequency}, #{days}, #{skinTestRequired}, " +
-            "#{unitPrice}, #{totalAmount}, #{payStatus}, #{status}, NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{unitPrice}, #{totalAmount}, #{payStatus}, #{status}, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(InfusionOrder order);
 
     /** 根据主键查询 */
@@ -32,14 +32,15 @@ public interface InfusionOrderMapper {
 
     /** 按患者 ID 分页查询（倒序） */
     @Select("SELECT * FROM infusion_order WHERE patient_id = #{patientId} " +
-            "ORDER BY create_time DESC LIMIT #{offset}, #{limit}")
+            "ORDER BY create_time DESC OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY")
     List<InfusionOrder> selectByPatientId(@Param("patientId") Long patientId,
                                           @Param("offset") int offset,
                                           @Param("limit") int limit);
 
     /** 按状态分页查询（已缴费优先，护士站待执行列表） */
     @Select("SELECT * FROM infusion_order WHERE status = #{status} " +
-            "ORDER BY (pay_status = 'PAID') DESC, create_time ASC LIMIT #{offset}, #{limit}")
+            "ORDER BY CASE WHEN pay_status = 'PAID' THEN 1 ELSE 0 END DESC, create_time ASC " +
+            "OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY")
     List<InfusionOrder> selectByStatus(@Param("status") String status,
                                        @Param("offset") int offset,
                                        @Param("limit") int limit);

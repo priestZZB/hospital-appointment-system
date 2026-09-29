@@ -58,7 +58,7 @@
             </if>
         </where>
         ORDER BY apply_time DESC
-        LIMIT #{offset}, #{pageSize}
+        OFFSET #{offset} ROWS FETCH NEXT #{pageSize} ROWS ONLY
     </select>
 
     <select id="countPage" resultType="long">
@@ -86,11 +86,11 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.auth.entity.DataScopeApply"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO data_scope_apply (user_id, user_name, target_department_id, target_department_name,
                                       reason, status, apply_time, create_time, update_time)
         VALUES (#{userId}, #{userName}, #{targetDepartmentId}, #{targetDepartmentName},
-                #{reason}, 'PENDING', NOW(), NOW(), NOW())
+                #{reason}, 'PENDING', SYSDATE, SYSDATE, SYSDATE)
     </insert>
 
     <update id="updateApprove" parameterType="com.hospital.auth.entity.DataScopeApply">
@@ -100,8 +100,8 @@
             approver_name    = #{approverName},
             approve_comment  = #{approveComment},
             expire_time      = #{expireTime},
-            approve_time     = NOW(),
-            update_time      = NOW()
+            approve_time     = SYSDATE,
+            update_time      = SYSDATE
         WHERE id = #{id}
     </update>
 
@@ -113,7 +113,7 @@
         WHERE user_id = #{userId}
           AND target_department_id = #{departmentId}
           AND status = 'APPROVED'
-          AND (expire_time IS NULL OR expire_time > NOW())
+          AND (expire_time IS NULL OR expire_time > SYSDATE)
         ORDER BY approve_time DESC
     </select>
 

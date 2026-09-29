@@ -22,7 +22,7 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.ai.entity.AiCallLog"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO ai_call_log (patient_id, symptom_input, model_name,
                                  request_text, response_text,
                                  recommend_dept_id, recommend_dept_name,
@@ -32,7 +32,7 @@
                 #{requestText}, #{responseText},
                 #{recommendDeptId}, #{recommendDeptName},
                 #{confidence}, #{isDegraded}, #{degradedReason},
-                #{executionTimeMs}, #{status}, #{errorMessage}, NOW())
+                #{executionTimeMs}, #{status}, #{errorMessage}, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -43,7 +43,7 @@
         SELECT * FROM ai_call_log
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByPatientId" resultType="long">

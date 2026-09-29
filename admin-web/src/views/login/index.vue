@@ -5,6 +5,7 @@ import { WMessage } from 'win-design-next'
 import { Hospital, Key, Lock, Telephone, User } from '@win-design-next/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
+import { homeForRoles } from '@/utils/permission'
 import type { FormInstance, FormRules } from 'win-design-next'
 import bgImage from '@/assets/images/login-bg.jpg'
 
@@ -63,7 +64,7 @@ async function handleLogin() {
     }
     WMessage.success('登录成功')
     const roles = data.roles || []
-    const defaultHome = roles.includes('ROLE_SUPER_ADMIN') || roles.includes('ROLE_ADMIN') ? '/dashboard' : roles.includes('ROLE_DOCTOR') ? '/workbench' : '/patient'
+    const defaultHome = homeForRoles(roles)
     const redirect = (route.query.redirect as string) || defaultHome
     router.replace(redirect)
   } catch (e) {

@@ -18,8 +18,8 @@ public interface ReferralOrderMapper {
     @Insert("INSERT INTO referral_order (referral_no, medical_record_id, patient_id, from_dept_id, from_doctor_id, " +
             "to_dept_id, reason, status, create_time, update_time) " +
             "VALUES (#{referralNo}, #{medicalRecordId}, #{patientId}, #{fromDeptId}, #{fromDoctorId}, " +
-            "#{toDeptId}, #{reason}, #{status}, NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{toDeptId}, #{reason}, #{status}, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(ReferralOrder referral);
 
     @Select("SELECT id, referral_no, medical_record_id, patient_id, from_dept_id, from_doctor_id, " +
@@ -61,9 +61,9 @@ public interface ReferralOrderMapper {
             "WHERE r.id = #{id}")
     ReferralOrderVO selectVOById(@Param("id") Long id);
 
-    @Update("UPDATE referral_order SET status = #{status}, accept_time = NOW(), update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE referral_order SET status = #{status}, accept_time = SYSDATE, update_time = SYSDATE WHERE id = #{id}")
     int updateAccept(@Param("id") Long id, @Param("status") String status);
 
-    @Update("UPDATE referral_order SET status = 'COMPLETED', complete_time = NOW(), update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE referral_order SET status = 'COMPLETED', complete_time = SYSDATE, update_time = SYSDATE WHERE id = #{id}")
     int updateComplete(@Param("id") Long id);
 }

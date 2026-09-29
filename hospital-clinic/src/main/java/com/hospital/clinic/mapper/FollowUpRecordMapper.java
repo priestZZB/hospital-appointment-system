@@ -15,8 +15,8 @@ import java.util.List;
 public interface FollowUpRecordMapper {
 
     @Insert("INSERT INTO follow_up_record (plan_id, patient_id, doctor_id, content, next_follow_date, create_time) " +
-            "VALUES (#{planId}, #{patientId}, #{doctorId}, #{content}, #{nextFollowDate}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "VALUES (#{planId}, #{patientId}, #{doctorId}, #{content}, #{nextFollowDate}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(FollowUpRecord record);
 
     @Select("<script>" +

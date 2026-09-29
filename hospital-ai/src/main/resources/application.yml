@@ -26,6 +26,7 @@ mybatis:
   type-aliases-package: com.hospital.ai.entity
   configuration:
     map-underscore-to-camel-case: true
+    jdbc-type-for-null: NULL
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 springdoc:

@@ -27,10 +27,10 @@
             AND department_id = #{departmentId}
         </if>
         <if test="keyword != null and keyword != ''">
-            AND name LIKE CONCAT('%', #{keyword}, '%')
+            AND name LIKE '%' || #{keyword} || '%'
         </if>
         ORDER BY id ASC
-        LIMIT #{offset}, #{pageSize}
+        OFFSET #{offset} ROWS FETCH NEXT #{pageSize} ROWS ONLY
     </select>
 
     <select id="countPage" resultType="long">
@@ -41,7 +41,7 @@
             AND department_id = #{departmentId}
         </if>
         <if test="keyword != null and keyword != ''">
-            AND name LIKE CONCAT('%', #{keyword}, '%')
+            AND name LIKE '%' || #{keyword} || '%'
         </if>
     </select>
 
@@ -80,15 +80,15 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Doctor"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO doctor (user_id, name, gender, phone, department_id, title,
                             specialty, introduction, status, create_time, update_time)
         VALUES (#{userId}, #{name}, #{gender}, #{phone}, #{departmentId}, #{title},
-                #{specialty}, #{introduction}, COALESCE(#{status}, 1), NOW(), NOW())
+                #{specialty}, #{introduction}, COALESCE(#{status}, 1), SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.clinic.entity.Doctor">
-        UPDATE doctor SET update_time = NOW()
+        UPDATE doctor SET update_time = SYSDATE
         <if test="name != null">, name = #{name}</if>
         <if test="gender != null">, gender = #{gender}</if>
         <if test="phone != null">, phone = #{phone}</if>
@@ -100,7 +100,7 @@
     </update>
 
     <update id="updateStatus">
-        UPDATE doctor SET status = #{status}, update_time = NOW()
+        UPDATE doctor SET status = #{status}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

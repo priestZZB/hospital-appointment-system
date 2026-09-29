@@ -1,10 +1,10 @@
 -- ============================================================
--- V2：修正预置管理员密码
+-- V2：修正预置管理员密码（Oracle 版）
 -- 说明：V1 种子数据中的 BCrypt 哈希与文档约定密码 123456 不匹配，
 --       导致全新部署后管理员无法登录。此处将 13800000000 的密码
 --       修正为 123456 的 BCrypt 哈希（与 API 文档/回归测试一致）。
 -- ============================================================
-UPDATE `user`
+UPDATE sys_user
 SET password = '$2a$10$hmW8QM57CDTzmXO4LTvJQOSrjdGqzP7sIobHB7PDWGoAYu6Mr9sW.',
-    update_time = NOW()
+    update_time = SYSDATE
 WHERE phone = '13800000000';

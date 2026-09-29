@@ -23,11 +23,11 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.payment.entity.PaymentOrder"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO payment_order (order_no, appointment_id, related_id, patient_id, amount, item_detail, order_type,
                                    status, expire_time, version, create_time, update_time)
         VALUES (#{orderNo}, #{appointmentId}, #{relatedId}, #{patientId}, #{amount}, #{itemDetail}, #{orderType},
-                #{status}, #{expireTime}, 0, NOW(), NOW())
+                #{status}, #{expireTime}, 0, SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -53,20 +53,20 @@
         FROM payment_order
         WHERE appointment_id = #{appointmentId}
         ORDER BY create_time DESC
-        LIMIT 1
+        FETCH FIRST 1 ROWS ONLY
     </select>
 
     <update id="updateStatusWithVersion">
         UPDATE payment_order
         SET status = #{status}, version = version + 1,
-            cancel_time = NOW(), update_time = NOW()
+            cancel_time = SYSDATE, update_time = SYSDATE
         WHERE id = #{id} AND version = #{version}
     </update>
 
     <update id="markAsPaid">
         UPDATE payment_order
-        SET status = 'PAID', pay_time = NOW(), pay_method = #{payMethod},
-            version = version + 1, update_time = NOW()
+        SET status = 'PAID', pay_time = SYSDATE, pay_method = #{payMethod},
+            version = version + 1, update_time = SYSDATE
         WHERE id = #{id} AND status = 'PENDING' AND version = #{version}
     </update>
 
@@ -78,12 +78,12 @@
         WHERE status = #{status}
           AND expire_time &lt; #{now}
         ORDER BY expire_time ASC
-        LIMIT 100
+        FETCH FIRST 100 ROWS ONLY
     </select>
 
     <update id="setCashier">
         UPDATE payment_order
-        SET cashier_id = #{cashierId}, update_time = NOW()
+        SET cashier_id = #{cashierId}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 
@@ -98,7 +98,7 @@
 
     <update id="markSettled">
         UPDATE payment_order
-        SET settle_flag = 1, update_time = NOW()
+        SET settle_flag = 1, update_time = SYSDATE
         WHERE status = 'PAID'
           AND settle_flag = 0
           AND cashier_id = #{cashierId}

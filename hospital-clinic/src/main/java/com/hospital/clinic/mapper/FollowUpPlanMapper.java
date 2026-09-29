@@ -17,8 +17,8 @@ import java.util.List;
 public interface FollowUpPlanMapper {
 
     @Insert("INSERT INTO follow_up_plan (patient_id, medical_record_id, doctor_id, follow_date, follow_method, template, status, create_time, update_time) " +
-            "VALUES (#{patientId}, #{medicalRecordId}, #{doctorId}, #{followDate}, #{followMethod}, #{template}, 'PENDING', NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "VALUES (#{patientId}, #{medicalRecordId}, #{doctorId}, #{followDate}, #{followMethod}, #{template}, 'PENDING', SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(FollowUpPlan plan);
 
     @Select("SELECT id, patient_id, medical_record_id, doctor_id, follow_date, follow_method, template, status, create_time, update_time " +
@@ -39,6 +39,6 @@ public interface FollowUpPlanMapper {
                                     @Param("patientId") Long patientId,
                                     @Param("status") String status);
 
-    @Update("UPDATE follow_up_plan SET status = #{status}, update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE follow_up_plan SET status = #{status}, update_time = SYSDATE WHERE id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 }

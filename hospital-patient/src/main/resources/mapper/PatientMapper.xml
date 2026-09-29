@@ -39,7 +39,7 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.patient.entity.Patient"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO patient (user_id, name, gender, birth_date, id_card, phone,
                              emergency_contact, emergency_phone, verify_status,
                              id_card_front_url, id_card_back_url, verify_comment,
@@ -47,7 +47,7 @@
         VALUES (#{userId}, #{name}, #{gender}, #{birthDate}, #{idCard}, #{phone},
                 #{emergencyContact}, #{emergencyPhone}, #{verifyStatus},
                 #{idCardFrontUrl}, #{idCardBackUrl}, #{verifyComment},
-                #{avatarUrl}, NOW(), NOW())
+                #{avatarUrl}, SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.patient.entity.Patient">
@@ -65,7 +65,7 @@
             <if test="idCardBackUrl != null">id_card_back_url = #{idCardBackUrl},</if>
             <if test="verifyComment != null">verify_comment = #{verifyComment},</if>
             <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
-            update_time = NOW()
+            update_time = SYSDATE
         </set>
         WHERE id = #{id}
     </update>

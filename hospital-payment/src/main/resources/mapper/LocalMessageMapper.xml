@@ -21,20 +21,20 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.payment.entity.LocalMessage"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO local_message (message_id, exchange, routing_key, message_body,
                                    status, retry_count, max_retry, business_type,
                                    business_id, create_time, update_time)
         VALUES (#{messageId}, #{exchange}, #{routingKey}, #{messageBody},
                 #{status}, #{retryCount}, #{maxRetry}, #{businessType},
-                #{businessId}, NOW(), NOW())
+                #{businessId}, SYSDATE, SYSDATE)
     </insert>
 
     <update id="updateStatus">
         UPDATE local_message
         SET status = #{status},
             fail_reason = #{failReason},
-            update_time = NOW()
+            update_time = SYSDATE
         WHERE id = #{id}
     </update>
 
@@ -46,7 +46,7 @@
         WHERE status IN ('PENDING', 'FAILED')
           AND retry_count &lt; max_retry
         ORDER BY create_time ASC
-        LIMIT 100
+        FETCH FIRST 100 ROWS ONLY
     </select>
 
 </mapper>

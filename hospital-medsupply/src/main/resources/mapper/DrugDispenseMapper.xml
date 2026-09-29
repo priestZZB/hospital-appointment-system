@@ -18,13 +18,13 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.DrugDispense"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO drug_dispense (prescription_id, patient_id, status,
                                    review_operator_id, review_comment, review_time,
                                    dispense_operator_id, dispense_time, create_time)
         VALUES (#{prescriptionId}, #{patientId}, #{status},
                 #{reviewOperatorId}, #{reviewComment}, #{reviewTime},
-                #{dispenseOperatorId}, #{dispenseTime}, NOW())
+                #{dispenseOperatorId}, #{dispenseTime}, SYSDATE)
     </insert>
 
     <select id="selectByPrescriptionId" resultMap="BaseResultMap">
@@ -39,7 +39,7 @@
         SELECT * FROM drug_dispense
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByPatientId" resultType="long">
@@ -53,7 +53,7 @@
             review_comment = #{reviewComment},
             review_check = #{reviewCheck},
             review_operator_id = #{reviewOperatorId},
-            review_time = NOW()
+            review_time = SYSDATE
         WHERE id = #{id}
           AND status = 'PENDING_REVIEW'
     </update>
@@ -62,7 +62,7 @@
         UPDATE drug_dispense
         SET status = #{status},
             dispense_operator_id = #{dispenseOperatorId},
-            dispense_time = NOW()
+            dispense_time = SYSDATE
         WHERE id = #{id}
           AND status = 'REVIEW_PASSED'
     </update>
@@ -75,7 +75,7 @@
             </if>
         </where>
         ORDER BY create_time DESC
-        LIMIT #{offset}, #{limit}
+        OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
     </select>
 
     <select id="countByStatus" resultType="long">

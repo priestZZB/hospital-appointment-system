@@ -40,8 +40,8 @@ public interface AdmissionMapper {
     @Insert("INSERT INTO admission (admission_no, patient_id, department_id, attending_doctor_id, attending_doctor_name, " +
             "admission_diag, expected_days, admission_time, status, create_time, update_time) " +
             "VALUES (#{admissionNo}, #{patientId}, #{departmentId}, #{attendingDoctorId}, #{attendingDoctorName}, " +
-            "#{admissionDiag}, #{expectedDays}, NOW(), 'ADMITTED', NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{admissionDiag}, #{expectedDays}, SYSDATE, 'ADMITTED', SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(Admission admission);
 
     @ResultMap("admissionMap")
@@ -50,7 +50,7 @@ public interface AdmissionMapper {
             "<if test='patientId != null'> AND patient_id = #{patientId} </if>" +
             "<if test='doctorId != null'> AND attending_doctor_id = #{doctorId} </if>" +
             "<if test='status != null and status != &quot;&quot;'> AND status = #{status} </if>" +
-            "ORDER BY admission_time DESC LIMIT #{offset}, #{limit}</script>")
+            "ORDER BY admission_time DESC OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY</script>")
     List<Admission> selectList(@Param("departmentId") Long departmentId,
                                @Param("patientId") Long patientId,
                                @Param("doctorId") Long doctorId,
@@ -58,14 +58,14 @@ public interface AdmissionMapper {
                                @Param("offset") int offset,
                                @Param("limit") int limit);
 
-    @Update("UPDATE admission SET status = #{status}, update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE admission SET status = #{status}, update_time = SYSDATE WHERE id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
     /** 转科（E1）：更新收治科室 */
-    @Update("UPDATE admission SET department_id = #{deptId}, update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE admission SET department_id = #{deptId}, update_time = SYSDATE WHERE id = #{id}")
     int updateDepartment(@Param("id") Long id, @Param("deptId") Long deptId);
 
     @ResultMap("admissionMap")
-    @Select("SELECT " + COLS + " FROM admission WHERE patient_id = #{patientId} AND status = 'ADMITTED' LIMIT 1")
+    @Select("SELECT " + COLS + " FROM admission WHERE patient_id = #{patientId} AND status = 'ADMITTED' FETCH FIRST 1 ROWS ONLY")
     Admission selectActiveByPatient(@Param("patientId") Long patientId);
 }

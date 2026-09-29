@@ -18,8 +18,8 @@ public interface CriticalValueMapper {
     @Insert("INSERT INTO critical_value (report_id, application_id, patient_id, item_name, result_value, " +
             "reference_range, critical_level, status, reporter_id, create_time, update_time) " +
             "VALUES (#{reportId}, #{applicationId}, #{patientId}, #{itemName}, #{resultValue}, " +
-            "#{referenceRange}, #{criticalLevel}, 'PENDING', #{reporterId}, NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "#{referenceRange}, #{criticalLevel}, 'PENDING', #{reporterId}, SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(CriticalValue value);
 
     @Select("SELECT id, report_id, application_id, patient_id, item_name, result_value, reference_range, " +
@@ -39,7 +39,7 @@ public interface CriticalValueMapper {
     List<CriticalValueVO> selectList(@Param("status") String status, @Param("patientId") Long patientId);
 
     @Update("UPDATE critical_value SET status = #{status}, confirm_doctor_id = #{doctorId}, confirm_comment = #{comment}, " +
-            "confirm_time = NOW(), update_time = NOW() WHERE id = #{id} AND status = 'PENDING'")
+            "confirm_time = SYSDATE, update_time = SYSDATE WHERE id = #{id} AND status = 'PENDING'")
     int confirm(@Param("id") Long id, @Param("status") String status,
                 @Param("doctorId") Long doctorId, @Param("comment") String comment);
 }

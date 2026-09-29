@@ -207,16 +207,42 @@ public class MedicalCertificateService {
     }
 
     private PDType0Font loadChineseFont(PDDocument document) {
-        try {
-            return PDType0Font.load(document, new File("C:/Windows/Fonts/simsun.ttc"));
-        } catch (Exception e) {
+        // .ttc 字体集合必须经 TrueTypeCollection 加载（直接 PDType0Font.load(File) 会抛
+        // RandomAccessFile 异常）；TTF 单文件可直接加载。
+        String[] candidates = {
+                "C:/Windows/Fonts/msyh.ttc",
+                "C:/Windows/Fonts/simsun.ttc",
+                "C:/Windows/Fonts/simhei.ttf",
+                "C:/Windows/Fonts/simkai.ttf",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        };
+        for (String path : candidates) {
+            File f = new File(path);
+            if (!f.exists()) {
+                continue;
+            }
             try {
-                return PDType0Font.load(document, new File("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"));
-            } catch (Exception e2) {
-                log.warn("[证明] 未找到系统 CJK 字体，中文可能无法显示", e2);
-                return null;
+                if (path.endsWith(".ttc")) {
+                    // 注意：TTC 不能提前 close——PDDocument.save() 时仍需读取字体数据流；
+                    // fontbox 2.0.x 的 getFontAtIndex 为 private，用 processAllFonts 取首个字体
+                    org.apache.fontbox.ttf.TrueTypeCollection ttc =
+                            new org.apache.fontbox.ttf.TrueTypeCollection(f);
+                    final org.apache.fontbox.ttf.TrueTypeFont[] holder = new org.apache.fontbox.ttf.TrueTypeFont[1];
+                    ttc.processAllFonts(ttf -> {
+                        if (holder[0] == null) {
+                            holder[0] = ttf;
+                        }
+                    });
+                    return PDType0Font.load(document, holder[0], true);
+                }
+                return PDType0Font.load(document, f);
+            } catch (Exception e) {
+                log.warn("[证明] 字体加载失败: {}", path);
             }
         }
+        log.warn("[证明] 未找到系统 CJK 字体，中文将无法嵌入 PDF");
+        return null;
     }
 
     private String certTypeTitle(String type) {

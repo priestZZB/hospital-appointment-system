@@ -41,18 +41,18 @@ public interface BedMapper {
     List<Bed> selectList(@Param("departmentId") Long departmentId, @Param("status") String status);
 
     @Insert("INSERT INTO bed (department_id, room_no, bed_no, bed_type, daily_fee, status, create_time, update_time) " +
-            "VALUES (#{departmentId}, #{roomNo}, #{bedNo}, #{bedType}, #{dailyFee}, 'AVAILABLE', NOW(), NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
+            "VALUES (#{departmentId}, #{roomNo}, #{bedNo}, #{bedType}, #{dailyFee}, 'AVAILABLE', SYSDATE, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(Bed bed);
 
     /** 乐观占用床位：仅当床位当前空闲才能置为占用，防并发抢同一床 */
-    @Update("UPDATE bed SET status = 'OCCUPIED', update_time = NOW() WHERE id = #{id} AND status = 'AVAILABLE'")
+    @Update("UPDATE bed SET status = 'OCCUPIED', update_time = SYSDATE WHERE id = #{id} AND status = 'AVAILABLE'")
     int occupyIfAvailable(@Param("id") Long id);
 
-    @Update("UPDATE bed SET status = #{status}, update_time = NOW() WHERE id = #{id}")
+    @Update("UPDATE bed SET status = #{status}, update_time = SYSDATE WHERE id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
-    @Update("UPDATE bed SET status = 'AVAILABLE', update_time = NOW() WHERE status = 'OCCUPIED' " +
+    @Update("UPDATE bed SET status = 'AVAILABLE', update_time = SYSDATE WHERE status = 'OCCUPIED' " +
             "AND id IN (SELECT bed_id FROM bed_occupancy WHERE admission_id = #{admissionId} AND end_time IS NULL)")
     int releaseByAdmission(@Param("admissionId") Long admissionId);
 }

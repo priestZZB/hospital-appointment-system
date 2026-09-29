@@ -17,13 +17,13 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.payment.entity.RefundRecord"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO refund_record (refund_no, payment_order_id, appointment_id,
                                    refund_amount, refund_reason, refund_type, order_type,
                                    status, create_time)
         VALUES (#{refundNo}, #{paymentOrderId}, #{appointmentId},
                 #{refundAmount}, #{refundReason}, #{refundType}, #{orderType},
-                #{status}, NOW())
+                #{status}, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -39,7 +39,7 @@
         FROM refund_record
         WHERE payment_order_id = #{paymentOrderId}
         ORDER BY create_time DESC
-        LIMIT 1
+        FETCH FIRST 1 ROWS ONLY
     </select>
 
 </mapper>

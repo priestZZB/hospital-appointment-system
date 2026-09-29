@@ -19,6 +19,11 @@ public interface InpatientFeeMapper {
 
     String COLS = "id, admission_id, fee_type, item_name, amount, bill_date, create_time";
 
+    @Insert("INSERT INTO inpatient_fee (admission_id, fee_type, item_name, amount, bill_date, create_time) " +
+            "VALUES (#{admissionId}, #{feeType}, #{itemName}, #{amount}, #{billDate}, SYSDATE)")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+    int insert(InpatientFee fee);
+
     @Results(id = "feeMap", value = {
             @Result(column = "id", property = "id", id = true),
             @Result(column = "admission_id", property = "admissionId"),
@@ -28,12 +33,6 @@ public interface InpatientFeeMapper {
             @Result(column = "bill_date", property = "billDate"),
             @Result(column = "create_time", property = "createTime")
     })
-    @Insert("INSERT INTO inpatient_fee (admission_id, fee_type, item_name, amount, bill_date, create_time) " +
-            "VALUES (#{admissionId}, #{feeType}, #{itemName}, #{amount}, #{billDate}, NOW())")
-    @Options(useGeneratedKeys = true, keyProperty = "id")
-    int insert(InpatientFee fee);
-
-    @ResultMap("feeMap")
     @Select("SELECT " + COLS + " FROM inpatient_fee WHERE admission_id = #{admissionId} ORDER BY bill_date DESC, id DESC")
     List<InpatientFee> selectByAdmission(@Param("admissionId") Long admissionId);
 

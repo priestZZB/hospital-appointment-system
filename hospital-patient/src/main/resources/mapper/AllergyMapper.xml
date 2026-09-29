@@ -19,11 +19,11 @@
     </select>
 
     <insert id="insert" parameterType="com.hospital.patient.entity.Allergy"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO allergy (patient_id, allergen, reaction_type, severity,
                              source, source_doctor_id, create_time)
         VALUES (#{patientId}, #{allergen}, #{reactionType}, #{severity},
-                #{source}, #{sourceDoctorId}, NOW())
+                #{source}, #{sourceDoctorId}, SYSDATE)
     </insert>
 
     <delete id="deleteById">

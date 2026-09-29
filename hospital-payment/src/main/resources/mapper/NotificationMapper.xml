@@ -16,11 +16,11 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.payment.entity.Notification"
-            useGeneratedKeys="true" keyProperty="id">
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO notification (patient_id, title, content, notify_type,
                                   related_id, is_read, create_time)
         VALUES (#{patientId}, #{title}, #{content}, #{notifyType},
-                #{relatedId}, 0, NOW())
+                #{relatedId}, 0, SYSDATE)
     </insert>
 
     <select id="selectByPatientId" resultMap="BaseResultMap">
@@ -29,7 +29,7 @@
         FROM notification
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
-        LIMIT 100
+        FETCH FIRST 100 ROWS ONLY
     </select>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -41,7 +41,7 @@
 
     <update id="markAsRead">
         UPDATE notification
-        SET is_read = 1, read_time = NOW()
+        SET is_read = 1, read_time = SYSDATE
         WHERE id = #{id}
     </update>
 
