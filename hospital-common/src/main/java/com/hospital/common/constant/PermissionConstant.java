@@ -496,4 +496,27 @@ public final class PermissionConstant {
     public static final String CLINIC_ICD_MANAGE = "api:clinic:icd:manage";
     /** ICD-10 诊断字典查询（分诊/诊疗共用） */
     public static final String CLINIC_ICD_QUERY = "api:clinic:icd:query";
+
+    // ==================== 手术/麻醉中心（inpatient · 迭代10 F1~F5，对应 auth V17 植入） ====================
+
+    /** 手术中心看板查看（医护） */
+    public static final String INPATIENT_SURGERY_BOARD = "api:inpatient:surgery:board";
+    /** 手术中心列表查询（医护） */
+    public static final String INPATIENT_SURGERY_LIST = "api:inpatient:surgery:list";
+    /** 门诊手术创建（医生） */
+    public static final String INPATIENT_SURGERY_OUTPATIENT_CREATE = "api:inpatient:surgery:outpatient";
+    /** 手术排台（统一手术单，与 V12 既有 INPATIENT_SURGERY_SCHEDULE 申请单排台并存） */
+    public static final String INPATIENT_SURGERY_CENTER_SCHEDULE = "api:inpatient:surgery:center:schedule";
+    /** 术前评估提交（医生） */
+    public static final String INPATIENT_SURGERY_PREOP_SUBMIT = "api:inpatient:surgery:preop";
+    /** 知情同意签署（医生/护士） */
+    public static final String INPATIENT_SURGERY_CONSENT_SIGN = "api:inpatient:surgery:consent";
+    /** 手术开始（医生） */
+    public static final String INPATIENT_SURGERY_START = "api:inpatient:surgery:start";
+    /** 手术记录录入（医生） */
+    public static final String INPATIENT_SURGERY_RECORD_ENTRY = "api:inpatient:surgery:record";
+    /** 麻醉记录录入（麻醉医生） */
+    public static final String INPATIENT_SURGERY_ANESTHESIA_ENTRY = "api:inpatient:surgery:anesthesia";
+    /** 术后随访触发（医生） */
+    public static final String INPATIENT_SURGERY_POSTOP_FOLLOWUP = "api:inpatient:surgery:postop-followup";
 }

@@ -103,6 +103,34 @@
             </template>
           </w-table-column>
         </w-table>
+
+        <!-- 迭代10：手术申请记录（补显「已排台手术单」状态；后端回写 surgeryId 时可跳转手术中心） -->
+        <div class="section-title">手术申请记录</div>
+        <w-table :data="surgeries" stripe size="small" empty-text="该患者暂无手术申请记录">
+          <w-table-column prop="surgeryName" label="手术名称" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.surgeryName || '-' }}</template>
+          </w-table-column>
+          <w-table-column label="麻醉方式" width="110">
+            <template #default="{ row }">{{ row.anesthesiaType || '-' }}</template>
+          </w-table-column>
+          <w-table-column label="排台时间" width="160">
+            <template #default="{ row }">{{ row.scheduledTime || '未排台' }}</template>
+          </w-table-column>
+          <w-table-column label="手术单状态" width="150">
+            <template #default="{ row }">
+              <w-tag v-if="applyScheduled(row.status)" type="primary" effect="light">已排台手术单</w-tag>
+              <w-tag v-else :type="row.status === 'CANCELLED' ? 'info' : 'warning'" effect="light">
+                {{ applyStatusText(row.status) }}
+              </w-tag>
+            </template>
+          </w-table-column>
+          <w-table-column label="操作" width="130">
+            <template #default="{ row }">
+              <router-link v-if="row.surgeryId" to="/surgery-center" class="surgery-link">前往手术中心</router-link>
+              <span v-else class="muted">-</span>
+            </template>
+          </w-table-column>
+        </w-table>
       </template>
     </w-card>
 
@@ -340,6 +368,23 @@ function orderStatusType(s?: string): 'primary' | 'success' | 'warning' | 'dange
   return map[s ?? ''] ?? 'info'
 }
 
+/** 迭代10：手术单是否已排台（SCHEDULED 及之后的状态） */
+function applyScheduled(s?: string): boolean {
+  return s === 'SCHEDULED' || s === 'PREOP_PASSED' || s === 'IN_OPERATION' || s === 'OPERATED'
+}
+
+function applyStatusText(s?: string): string {
+  const map: Record<string, string> = {
+    APPLIED: '待排台',
+    SCHEDULED: '已排台',
+    PREOP_PASSED: '术前评估通过',
+    IN_OPERATION: '手术中',
+    OPERATED: '已完成',
+    CANCELLED: '已取消',
+  }
+  return map[s ?? ''] ?? s ?? '-'
+}
+
 async function loadOverview() {
   overviewLoading.value = true
   try {
@@ -569,4 +614,6 @@ async function loadDepartments() {
 .selected-bar { margin: 12px 0 8px; padding: 8px 12px; background: var(--w-fill-color-light, #f5f7fa); border-radius: 6px; font-size: 13px; }
 .action-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .section-title { font-weight: 600; margin: 8px 0 8px; }
+.surgery-link { color: var(--w3-color-primary, #2d5afa); text-decoration: none; font-size: 13px; }
+.surgery-link:hover { text-decoration: underline; }
 </style>

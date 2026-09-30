@@ -247,6 +247,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/inpatient/nurse/index.vue'),
         meta: { title: '住院护士站', permissions: ['menu:inpatient:nurse'] },
       },
+      {
+        // 迭代10：手术/麻醉中心（门诊建单 + 排台看板 + 全流程状态机操作）。
+        // 与 /inpatient-doctor、/inpatient-nurse 同级挂在住院组旁；管理员/医生/护士可见
+        path: 'surgery-center',
+        name: 'SurgeryCenter',
+        component: () => import('@/views/inpatient/surgery-center/index.vue'),
+        meta: { title: '手术中心' },
+      },
     ],
   },
   {

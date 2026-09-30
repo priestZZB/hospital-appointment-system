@@ -18,4 +18,6 @@ public class SurgeryApplyVO {
     private String status;
     private String remark;
     private LocalDateTime createTime;
+    /** 排台成功后生成的统一手术单 id（迭代10 F2 打通，旧调用方可忽略） */
+    private Long surgeryId;
 }

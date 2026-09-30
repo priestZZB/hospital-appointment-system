@@ -8,6 +8,7 @@ import {
   BarChart,
   CaretBottom,
   Computer,
+  Cut,
   Date as DateIcon,
   File,
   Flow,
@@ -121,6 +122,8 @@ const adminMenuGroups: MenuGroup[] = [
       { path: '/prescription-review', label: '处方点评', icon: Tool, permissions: ['api:medsupply:prescription-review:query'] },
       { path: '/inpatient-doctor', label: '住院医生站', icon: Hospital, permissions: ['menu:inpatient:doctor'] },
       { path: '/inpatient-nurse', label: '住院护士站', icon: Tool, permissions: ['menu:inpatient:nurse'] },
+      // 迭代10：手术/麻醉中心（挂住院组旁，管理员/医生/护士可见）
+      { path: '/surgery-center', label: '手术中心', icon: Cut },
     ],
   },
   {
@@ -145,6 +148,8 @@ const doctorTabs: MenuItem[] = [
   { path: '/follow-up', label: '随访', icon: DateIcon, permissions: ['menu:doctor:follow-up'] },
   { path: '/certificate', label: '证明', icon: File, permissions: ['menu:doctor:certificate'] },
   { path: '/inpatient-doctor', label: '住院医生站', permissions: ['menu:inpatient:doctor'] },
+  // 迭代10：手术/麻醉中心
+  { path: '/surgery-center', label: '手术中心' },
 ]
 
 /* ================= 患者：C 端顶部 ================= */
@@ -163,6 +168,8 @@ const staffTabs = computed<MenuItem[]>(() => {
   if (userStore.isLabTech) tabs.push({ path: '/lab-tech', label: '检验工作台', permissions: ['menu:lab-tech:workbench'] })
   if (userStore.isNurse) tabs.push({ path: '/infusion-nurse', label: '护士站输液', permissions: ['menu:nurse:workbench'] })
   if (userStore.isNurse) tabs.push({ path: '/inpatient-nurse', label: '住院护士站', permissions: ['menu:inpatient:nurse'] })
+  // 迭代10：手术/麻醉中心（护士可见）
+  if (userStore.isNurse) tabs.push({ path: '/surgery-center', label: '手术中心' })
   if (userStore.isExamTech) tabs.push({ path: '/exam-tech', label: '检查执行', permissions: ['menu:exam-tech:workbench'] })
   // 迭代8：检验 LIS + 影像中心（页面内按角色门控，无权限显示空态）
   if (userStore.isLabTech || userStore.isExamTech) tabs.push({ path: '/med-tech-center', label: '医技中心' })

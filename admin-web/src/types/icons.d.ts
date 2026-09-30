@@ -19,6 +19,8 @@ declare module '@win-design-next/icons-vue' {
   export const Close: Component
   export const Computer: Component
   export const Copy: Component
+  /** 手术中心菜单图标（迭代10；包内真实存在 dist/types/components/cut.vue） */
+  export const Cut: Component
   export const Date: Component
   export const Delete: Component
   export const Download: Component

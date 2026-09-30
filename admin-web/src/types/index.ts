@@ -889,6 +889,8 @@ export interface SurgeryApplyVO {
   operatingRoom?: string
   status?: string
   remark?: string
+  /** 迭代10 手术中心侧手术单 ID（后端排台后回写；有值时医生站可跳转手术中心，缺省不展示） */
+  surgeryId?: number
   createTime?: string
 }
 
@@ -1217,4 +1219,127 @@ export interface ScheduleCalendarVO {
   feeType?: string
   departmentId?: number
   departmentName?: string
+}
+
+/** ==================== 手术/麻醉中心（迭代10，base=/api/inpatient/surgery） ==================== */
+
+/** 手术状态（迭代10 状态机：APPLIED→SCHEDULED→PREOP_PASSED→IN_OPERATION→OPERATED，可 CANCELLED） */
+export type SurgeryStatus = 'APPLIED' | 'SCHEDULED' | 'PREOP_PASSED' | 'IN_OPERATION' | 'OPERATED' | 'CANCELLED'
+
+/** 术前评估结论 */
+export type PreopConclusion = 'PASSED' | 'CONDITIONAL' | 'REJECTED'
+
+/** 手术单 VO（字段按后端信封防御式可选，除 id 外尽量不假设必返） */
+export interface SurgeryVO {
+  id: number
+  surgeryNo?: string
+  patientId?: number
+  /** 来源：INPATIENT-住院申请转入 / OUTPATIENT-门诊直接建单 */
+  source?: string
+  surgeryName?: string
+  surgeryType?: string
+  notes?: string
+  scheduledTime?: string
+  operatingRoom?: string
+  surgeonId?: number
+  surgeonName?: string
+  anesthesiaMethod?: string
+  anesthesiologistId?: number
+  status?: SurgeryStatus | string
+  /** 术前评估结论冗余字段（看板/列表直接展示，可能缺省） */
+  preopConclusion?: string
+  /** 评估结论（后端可能用 assessmentConclusion 命名，防御式兼容） */
+  assessmentConclusion?: string
+  createTime?: string
+  updateTime?: string
+}
+
+/** 术前评估 VO */
+export interface PreopVO {
+  id?: number
+  surgeryId?: number
+  /** ASA 分级 1~5（后端以数字字符存储，防御式兼容 number/string） */
+  asaGrade?: number | string
+  riskFactors?: string
+  assessmentText?: string
+  conclusion?: PreopConclusion | string
+  assessorId?: number
+  createTime?: string
+}
+
+/** 知情同意 VO */
+export interface ConsentVO {
+  id?: number
+  surgeryId?: number
+  /** 同意书类型：SURGERY-手术知情同意书 / ANESTHESIA-麻醉知情同意书 */
+  consentType?: 'SURGERY' | 'ANESTHESIA' | string
+  patientSign?: string
+  witness?: string
+  signTime?: string
+  createTime?: string
+}
+
+/** 手术记录 VO */
+export interface SurgeryRecordVO {
+  id?: number
+  surgeryId?: number
+  incision?: string
+  procedureText?: string
+  findings?: string
+  /** 是否送病理标本（后端可能返回 boolean / 0-1 / 字符串，展示时防御式转换） */
+  specimenFlag?: boolean | number | string
+  bloodLossMl?: number
+  durationMin?: number
+  operatorId?: number
+  createTime?: string
+}
+
+/** 麻醉记录 VO */
+export interface AnesthesiaVO {
+  id?: number
+  surgeryId?: number
+  method?: string
+  /** ASA 分级 1~5（后端以数字字符存储，防御式兼容 number/string） */
+  asaGrade?: number | string
+  inductionTime?: string
+  reversalTime?: string
+  /** 生命体征 JSON 字符串：{preop:{bp,hr,spo2}, intraop:{...}, postop:{...}} */
+  vitals?: string
+  anesthesiologistId?: number
+  createTime?: string
+}
+
+/** 手术详情聚合 VO（GET /{id}：surgery/preop/consents[]/record/anesthesia） */
+export interface SurgeryDetailVO {
+  surgery?: SurgeryVO | null
+  preop?: PreopVO | null
+  consents?: ConsentVO[]
+  record?: SurgeryRecordVO | null
+  anesthesia?: AnesthesiaVO | null
+}
+
+/** 排台看板条目（GET /board?date=YYYY-MM-DD，评估结论字段名防御式兼容两种命名） */
+export interface SurgeryBoardItemVO {
+  id?: number
+  surgeryNo?: string
+  surgeryName?: string
+  patientId?: number
+  surgeonId?: number
+  anesthesiaMethod?: string
+  status?: string
+  operatingRoom?: string
+  scheduledTime?: string
+  preopConclusion?: string
+  assessmentConclusion?: string
+}
+
+/** 术后镇痛随访结果（POST /{id}/postop-followup；任务约定 created，后端实际返回 followUpCreated，防御式兼容） */
+export interface PostopFollowupVO {
+  created?: boolean
+  followUpCreated?: boolean
+  message?: string
+  surgeryId?: number
+  surgeryNo?: string
+  planId?: number | string
+  planStatus?: string
 }

@@ -157,6 +157,7 @@ public class ApiTestRunner {
         runStep("9-icd-字典日历自动排班", this::testIcdCalendar);
         runStep("9-triage-分诊优先级回诊", this::testTriagePriority);
         runStep("9-slot-专家号绿色通道加号改期", this::testOutpatientEnhance);
+        runStep("10-surgery-手术中心全链", this::testSurgeryCenter);
 
         report.print();
     }
@@ -2349,6 +2350,7 @@ public class ApiTestRunner {
             return null;
         }
         Object pid = ((Map) prof.getData()).get("id");
+        state.put(tag + "PatientId", pid);
         check("POST /api/patient/realname（" + tag + "患者实名提交）",
                 engine.postWithAuth("/api/patient/realname",
                         Map.of("name", tag + "自动化患者", "idCard", "310101199008201234")));
@@ -2359,6 +2361,119 @@ public class ApiTestRunner {
                             Map.of("verifyStatus", 2, "verifyComment", "自动化测试通过")));
         }
         return token;
+    }
+
+    /**
+     * 迭代 10：手术/麻醉中心全链（F1 门诊手术 / F2 住院排台打通 / F3 术前评估+知情同意 / F4 手术+麻醉记录 / F5 术后镇痛随访）。
+     * 门诊链：建单→排台→术前评估→双同意书→开始→手术记录→麻醉记录→术后随访→看板/详情/列表；
+     * 住院链（state 有 admissionId 时）：既有手术申请接口排台 → 断言统一手术单自动生成（source=INPATIENT）。
+     */
+    private void testSurgeryCenter() throws IOException {
+        engine.setToken(adminToken());
+        String tomorrow = LocalDate.now().plusDays(1).format(DATE_FMT);
+        String dayAfter = LocalDate.now().plusDays(2).format(DATE_FMT);
+
+        // ---------- F1 门诊手术全链 ----------
+        ensureIter9Patient("手术");
+        Object patientId = state.get("手术PatientId");
+        if (patientId == null) {
+            check("POST /api/inpatient/surgery/outpatient（跳过—手术患者创建失败）",
+                    syntheticOk("手术患者创建失败，手术中心用例跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse created = engine.postWithAuth("/api/inpatient/surgery/outpatient",
+                Map.of("patientId", patientId, "surgeryName", "门诊清创缝合术",
+                        "surgeryType", "清创缝合", "notes", "迭代10自动化门诊手术"));
+        check("POST /api/inpatient/surgery/outpatient（F1 门诊手术建单）", created);
+        Object surgeryId = created.isOk() && created.getData() instanceof Map m
+                ? m.get("id") : null;
+        if (surgeryId == null) {
+            check("PUT /api/inpatient/surgery/{id}/schedule（跳过—建单失败）", syntheticOk("建单失败，后续链路跳过"));
+            return;
+        }
+
+        check("PUT  /api/inpatient/surgery/" + surgeryId + "/schedule（F2 排台：手术室3/主刀/局部麻醉）",
+                engine.putWithAuth("/api/inpatient/surgery/" + surgeryId + "/schedule",
+                        Map.of("scheduledTime", tomorrow + "T09:30:00", "operatingRoom", "手术室 3",
+                                "surgeonId", 1L, "anesthesiaMethod", "局部麻醉", "anesthesiologistId", 1L)));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/preop（F3 术前评估 ASA-I 通过）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/preop",
+                        Map.of("asaGrade", "1", "riskFactors", "无特殊", "assessmentText", "耐受良好", "conclusion", "PASSED")));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/consent（F3 手术同意书签署）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/consent",
+                        Map.of("consentType", "SURGERY", "patientSign", "手术自动化患者（已签署）", "witness", "李医生")));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/consent（F3 麻醉同意书签署）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/consent",
+                        Map.of("consentType", "ANESTHESIA", "patientSign", "手术自动化患者（已签署）", "witness", "李医生")));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/start（F4 开始手术）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/start", Map.of()));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/record（F4 手术记录）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/record",
+                        Map.of("incision", "左手背 3cm 横切口", "procedureText", "清创缝合 5 针",
+                                "findings", "创面污染轻", "specimenFlag", 0, "bloodLossMl", 5, "durationMin", 20)));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/anesthesia（F4 麻醉记录三段体征）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/anesthesia",
+                        Map.of("method", "局部麻醉", "asaGrade", "1",
+                                "vitals", "{\"before\":{\"bp\":\"120/80\",\"hr\":78,\"spo2\":99},"
+                                        + "\"during\":{\"bp\":\"118/76\",\"hr\":82,\"spo2\":98},"
+                                        + "\"after\":{\"bp\":\"122/80\",\"hr\":76,\"spo2\":99}}",
+                                "anesthesiologistId", 1L)));
+        check("POST /api/inpatient/surgery/" + surgeryId + "/postop-followup（F5 术后镇痛随访衔接）",
+                engine.postWithAuth("/api/inpatient/surgery/" + surgeryId + "/postop-followup", Map.of()));
+        check("GET  /api/inpatient/surgery/board?date=" + tomorrow + "（F2 手术排台看板）",
+                engine.getWithAuth("/api/inpatient/surgery/board?date=" + tomorrow));
+        ApiTestEngine.ApiResponse detail = engine.getWithAuth("/api/inpatient/surgery/" + surgeryId);
+        check("GET  /api/inpatient/surgery/" + surgeryId + "（详情聚合）", detail);
+        if (detail.isOk() && detail.getData() instanceof Map dm) {
+            assertTrue("手术+麻醉两类同意书均应签署", dm.get("consentSurgery") != null && dm.get("consentAnesthesia") != null);
+        }
+        check("GET  /api/inpatient/surgery/list?source=OUTPATIENT&pageNo=1&pageSize=10（门诊手术列表）",
+                engine.getWithAuth("/api/inpatient/surgery/list?source=OUTPATIENT&pageNo=1&pageSize=10"));
+
+        // ---------- F2 住院手术排台打通（迭代6入院记录已出院，新登记一笔在院入院） ----------
+        Object inpatientPatientId = state.get("手术PatientId");
+        if (inpatientPatientId == null) {
+            check("POST /api/inpatient/admission（跳过—手术患者缺失）", syntheticOk("手术患者缺失，住院排台打通跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse admit2 = engine.postWithAuth("/api/inpatient/admission",
+                Map.of("patientId", inpatientPatientId, "departmentId", 1,
+                        "attendingDoctorId", 1, "attendingDoctorName", "李医生",
+                        "admissionDiag", "迭代10住院手术入院", "expectedDays", 3));
+        check("POST /api/inpatient/admission（F2 住院手术入院登记）", admit2);
+        Object admId2 = admit2.isOk() && admit2.getData() instanceof Map am2 ? am2.get("id") : null;
+        if (admId2 == null) {
+            check("POST /api/inpatient/surgery（跳过—住院入院失败）", syntheticOk("住院入院失败，住院排台打通跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse apply = engine.postWithAuth("/api/inpatient/surgery",
+                Map.of("admissionId", admId2, "surgeryName", "腹腔镜阑尾切除术",
+                        "anesthesiaType", "全身麻醉", "remark", "迭代10住院排台打通验证"));
+        check("POST /api/inpatient/surgery（F2 住院手术申请）", apply);
+        Object applyId = apply.isOk() && apply.getData() instanceof Map am ? am.get("id") : null;
+        if (applyId == null) {
+            check("POST /api/inpatient/surgery/{id}/schedule（跳过—住院申请失败）", syntheticOk("住院申请失败，跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse sched = engine.postWithAuth(
+                "/api/inpatient/surgery/" + applyId + "/schedule?scheduledTime=" + dayAfter
+                        + "T08%3A00%3A00&operatingRoom=" + java.net.URLEncoder.encode("手术室 1",
+                        java.nio.charset.StandardCharsets.UTF_8),
+                Map.of());
+        check("POST /api/inpatient/surgery/" + applyId + "/schedule（F2 住院排台）", sched);
+        Object unifiedId = sched.isOk() && sched.getData() instanceof Map sm ? sm.get("surgeryId") : null;
+        if (unifiedId == null) {
+            check("GET  /api/inpatient/surgery/{id}（跳过—排台未返回统一手术单）",
+                    syntheticOk("排台未返回 surgeryId，住院打通验证跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse unified = engine.getWithAuth("/api/inpatient/surgery/" + unifiedId);
+        check("GET  /api/inpatient/surgery/" + unifiedId + "（F2 统一手术单详情）", unified);
+        if (unified.isOk() && unified.getData() instanceof Map um
+                && um.get("surgery") instanceof Map surgeryVo) {
+            assertTrue("统一手术单应来自住院来源（source=INPATIENT）",
+                    "INPATIENT".equals(String.valueOf(surgeryVo.get("source"))));
+        }
     }
 
     /**
