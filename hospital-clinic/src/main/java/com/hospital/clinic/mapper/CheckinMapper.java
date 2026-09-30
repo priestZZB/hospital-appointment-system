@@ -54,4 +54,19 @@ public interface CheckinMapper {
     /** 更新排队时间（过号重排） */
     int updateRejoin(@Param("id") Long id,
                      @Param("queueStatus") String queueStatus);
+
+    // ==================== 迭代9 门诊流程补强 ====================
+
+    /** 分诊设置优先级/回诊标记（同步记录分诊护士与时间，迭代9 A1） */
+    int updateTriage(@Param("id") Long id,
+                     @Param("priority") Integer priority,
+                     @Param("returnFlag") Integer returnFlag,
+                     @Param("triageNurseId") Long triageNurseId);
+
+    /** 回诊重新排队（rejoin_time=now + return_flag=1，迭代9 A6） */
+    int updateRejoinWithFlag(@Param("id") Long id,
+                             @Param("queueStatus") String queueStatus);
+
+    /** 按科室查询 WAITING 签到（含分诊字段，供分诊台按 score 排序视图，迭代9 A1） */
+    List<com.hospital.clinic.vo.TriageQueueVO> selectWaitingWithTriage(@Param("departmentId") Long departmentId);
 }

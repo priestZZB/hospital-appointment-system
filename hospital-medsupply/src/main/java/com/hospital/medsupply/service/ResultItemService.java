@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 public class ResultItemService {
 
     /** 从 ref_range 提取数字段的正则：3.5-9.5 / 3.5-9.5×10⁹/L 均取前两段数字为下限-上限 */
-    private static final Pattern NUMBER_PATTERN = Pattern.compile("-?\\d+(?:\\.\\d+)?");
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+(?:\\.\\d+)?");
 
     /** 摘要拼接的行数上限（超出部分折叠为「等 N 项」） */
     private static final int SUMMARY_MAX_ROWS = 3;

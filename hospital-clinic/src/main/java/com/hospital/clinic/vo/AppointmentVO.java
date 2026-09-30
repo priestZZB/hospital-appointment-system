@@ -36,6 +36,10 @@ public class AppointmentVO {
     private BigDecimal registerFee;
     private String orderStatus;
     private String visitStatus;
+
+    /** 加号预约标记：0-正常预约 / 1-医生加号（迭代9 A2） */
+    private Integer overbookFlag;
+
     private Long paymentOrderId;
     private String paymentOrderNo;
     private LocalDateTime createTime;

@@ -91,4 +91,17 @@ public interface AppointmentMapper {
     /** 统计某患者从指定日期起（含）已完成就诊次数（用于复诊识别） */
     long countCompletedSince(@Param("patientId") Long patientId,
                              @Param("date") LocalDate date);
+
+    // ==================== 迭代9 门诊流程补强 ====================
+
+    /**
+     * 退号改期：更新预约的号源与排班引用（含冗余的日期/时段/号序，迭代9 A3）。
+     * register_fee 与支付订单保持不变（不重复收费），由服务层校验号源状态。
+     */
+    int updateReschedule(@Param("id") Long id,
+                         @Param("newSlotId") Long newSlotId,
+                         @Param("newScheduleId") Long newScheduleId,
+                         @Param("appointmentDate") LocalDate appointmentDate,
+                         @Param("period") String period,
+                         @Param("slotSeq") Integer slotSeq);
 }

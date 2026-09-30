@@ -18,47 +18,46 @@
         <result column="order_status" property="orderStatus"/>
         <result column="visit_status" property="visitStatus"/>
         <result column="is_revisit" property="isRevisit"/>
+        <result column="overbook_flag" property="overbookFlag"/>
         <result column="cancel_time" property="cancelTime"/>
         <result column="cancel_reason" property="cancelReason"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
+    <sql id="BaseColumns">
+        id, appointment_no, patient_id, slot_id, schedule_id,
+        doctor_id, department_id, appointment_date, period, slot_seq,
+        register_fee, order_status, visit_status, is_revisit, overbook_flag,
+        cancel_time, cancel_reason, create_time, update_time
+    </sql>
+
     <insert id="insert" parameterType="com.hospital.clinic.entity.Appointment"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO appointment (appointment_no, patient_id, slot_id, schedule_id,
                                  doctor_id, department_id, appointment_date, period,
                                  slot_seq, register_fee, order_status, visit_status,
-                                 is_revisit, create_time, update_time)
+                                 is_revisit, overbook_flag, create_time, update_time)
         VALUES (#{appointmentNo}, #{patientId}, #{slotId}, #{scheduleId},
                 #{doctorId}, #{departmentId}, #{appointmentDate}, #{period},
                 #{slotSeq}, #{registerFee}, #{orderStatus}, #{visitStatus},
-                COALESCE(#{isRevisit}, 0), SYSDATE, SYSDATE)
+                COALESCE(#{isRevisit}, 0), COALESCE(#{overbookFlag}, 0), SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
-               doctor_id, department_id, appointment_date, period, slot_seq,
-               register_fee, order_status, visit_status, is_revisit,
-               cancel_time, cancel_reason, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM appointment
         WHERE id = #{id}
     </select>
 
     <select id="selectByAppointmentNo" resultMap="BaseResultMap">
-        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
-               doctor_id, department_id, appointment_date, period, slot_seq,
-               register_fee, order_status, visit_status, is_revisit,
-               cancel_time, cancel_reason, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM appointment
         WHERE appointment_no = #{appointmentNo}
     </select>
 
     <select id="selectBySlotId" resultMap="BaseResultMap">
-        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
-               doctor_id, department_id, appointment_date, period, slot_seq,
-               register_fee, order_status, visit_status, is_revisit,
-               cancel_time, cancel_reason, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM appointment
         WHERE slot_id = #{slotId}
         ORDER BY create_time DESC
@@ -66,10 +65,7 @@
     </select>
 
     <select id="selectByPatientId" resultMap="BaseResultMap">
-        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
-               doctor_id, department_id, appointment_date, period, slot_seq,
-               register_fee, order_status, visit_status, is_revisit,
-               cancel_time, cancel_reason, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM appointment
         WHERE patient_id = #{patientId}
         ORDER BY create_time DESC
@@ -95,6 +91,7 @@
         <result column="register_fee" property="registerFee"/>
         <result column="order_status" property="orderStatus"/>
         <result column="visit_status" property="visitStatus"/>
+        <result column="overbook_flag" property="overbookFlag"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
@@ -105,7 +102,7 @@
                a.department_id, dep.dept_name AS department_name,
                a.appointment_date, a.period, a.slot_seq,
                s.slot_start, s.slot_end,
-               a.register_fee, a.order_status, a.visit_status,
+               a.register_fee, a.order_status, a.visit_status, a.overbook_flag,
                a.create_time, a.update_time
         FROM appointment a
         LEFT JOIN doctor d ON a.doctor_id = d.id
@@ -121,7 +118,7 @@
                a.department_id, dep.dept_name AS department_name,
                a.appointment_date, a.period, a.slot_seq,
                s.slot_start, s.slot_end,
-               a.register_fee, a.order_status, a.visit_status,
+               a.register_fee, a.order_status, a.visit_status, a.overbook_flag,
                a.create_time, a.update_time
         FROM appointment a
         LEFT JOIN doctor d ON a.doctor_id = d.id
@@ -136,7 +133,7 @@
                a.department_id, dep.dept_name AS department_name,
                a.appointment_date, a.period, a.slot_seq,
                s.slot_start, s.slot_end,
-               a.register_fee, a.order_status, a.visit_status,
+               a.register_fee, a.order_status, a.visit_status, a.overbook_flag,
                a.create_time, a.update_time
         FROM appointment a
         LEFT JOIN doctor d ON a.doctor_id = d.id
@@ -210,10 +207,7 @@
     </update>
 
     <select id="selectByScheduleId" resultMap="BaseResultMap">
-        SELECT id, appointment_no, patient_id, slot_id, schedule_id,
-               doctor_id, department_id, appointment_date, period, slot_seq,
-               register_fee, order_status, visit_status, is_revisit,
-               cancel_time, cancel_reason, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM appointment
         WHERE schedule_id = #{scheduleId}
     </select>
@@ -231,6 +225,20 @@
         <if test="expectedStatus != null">
           AND visit_status = #{expectedStatus}
         </if>
+    </update>
+
+    <!-- ==================== 迭代9 门诊流程补强 ==================== -->
+
+    <!-- 退号改期：换号源/排班并同步冗余字段（费用与支付订单不变，迭代9 A3） -->
+    <update id="updateReschedule">
+        UPDATE appointment
+        SET slot_id = #{newSlotId},
+            schedule_id = #{newScheduleId},
+            appointment_date = #{appointmentDate},
+            period = #{period},
+            slot_seq = #{slotSeq},
+            update_time = SYSDATE
+        WHERE id = #{id}
     </update>
 
     <!-- ==================== BI 统计 ==================== -->

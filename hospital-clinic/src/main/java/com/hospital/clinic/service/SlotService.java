@@ -117,6 +117,56 @@ public class SlotService {
         return slotMapper.countAvailableBySchedule(scheduleId);
     }
 
+    // ==================== 迭代9 门诊流程补强 ====================
+
+    /**
+     * 设置单个号源的通道类型（管理端，绿色通道 A4）
+     *
+     * @param channelType NORMAL-普通 / GREEN-绿色通道（老年/军人/急诊优先）
+     */
+    public SlotVO setChannelType(Long slotId, String channelType) {
+        if (!"NORMAL".equals(channelType) && !"GREEN".equals(channelType)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "channelType 仅支持 NORMAL/GREEN");
+        }
+        Slot slot = slotMapper.selectById(slotId);
+        if (slot == null) {
+            throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "号源不存在");
+        }
+        slotMapper.updateChannelType(slotId, channelType);
+        slot.setChannelType(channelType);
+        Schedule schedule = scheduleMapper.selectById(slot.getScheduleId());
+        Doctor doctor = schedule != null ? doctorMapper.selectById(schedule.getDoctorId()) : null;
+        Department dept = schedule != null ? departmentMapper.selectById(schedule.getDepartmentId()) : null;
+        return toVO(slot, schedule, doctor, dept);
+    }
+
+    /**
+     * 批量设置排班号源通道（管理端，绿色通道 A4）
+     * <p>
+     * 将某排班下按号序最靠前的 N 个可用号源设为目标通道类型，
+     * 返回实际改动的号源数。
+     *
+     * @param scheduleId  排班 ID
+     * @param channelType NORMAL-普通 / GREEN-绿色通道
+     * @param count       批量数量（≥1）
+     */
+    public int setChannelTypeFirstN(Long scheduleId, String channelType, int count) {
+        if (!"NORMAL".equals(channelType) && !"GREEN".equals(channelType)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "channelType 仅支持 NORMAL/GREEN");
+        }
+        if (count < 1 || count > 100) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "count 取值范围为 1~100");
+        }
+        Schedule schedule = scheduleMapper.selectById(scheduleId);
+        if (schedule == null) {
+            throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
+        }
+        int rows = slotMapper.updateChannelTypeFirstN(scheduleId, channelType, count);
+        log.info("[绿色通道] 批量设置: scheduleId={}, channelType={}, count={}, 实际改动={}",
+                scheduleId, channelType, count, rows);
+        return rows;
+    }
+
     // ==================== 内部方法 ====================
 
     /**
@@ -157,6 +207,7 @@ public class SlotService {
                 .slotEnd(s.getSlotEnd())
                 .status(s.getStatus())
                 .registerFee(schedule != null ? schedule.getRegisterFee() : null)
+                .channelType(s.getChannelType())
                 .build();
     }
 }

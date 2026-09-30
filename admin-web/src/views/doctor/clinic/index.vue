@@ -31,9 +31,10 @@ import {
   startConsultationApi,
 } from '@/api/clinic'
 import { getExamItemsApi, searchDrugsApi } from '@/api/medsupply'
+import { getIcdOptionsApi } from '@/api/icd'
 import { triageApi } from '@/api/ai'
 import { useUserStore } from '@/stores/user'
-import type { DepartmentVO, Drug, ExamItem, MedicalRecordVO, QueuePatientVO } from '@/types'
+import type { DepartmentVO, Drug, ExamItem, IcdOptionVO, MedicalRecordVO, QueuePatientVO } from '@/types'
 
 const userStore = useUserStore()
 const canOperate = computed(() => userStore.isDoctor || userStore.isAdmin)
@@ -82,6 +83,11 @@ type PrescriptionDraft = {
 const prescriptionItems = ref<PrescriptionDraft[]>([])
 const drugOptions = ref<Drug[]>([])
 const drugKeyword = ref('')
+
+/** ICD-10 选择器（迭代9 J3）：远程搜索字典，选中回填诊断编码+描述，搜不到时允许手输编码直接提交 */
+const icdOptions = ref<IcdOptionVO[]>([])
+const icdLoading = ref(false)
+const icdSelected = ref('')
 
 /** 处方笺类型：WESTERN-西药笺（默认） / HERBAL-中药饮片笺（V9） */
 const prescriptionType = ref<'WESTERN' | 'HERBAL'>('WESTERN')
@@ -204,6 +210,7 @@ function resetForm() {
     treatmentOpinion: '',
     action: 'DRAFT',
   })
+  icdSelected.value = ''
   prescriptionItems.value = []
   prescriptionType.value = 'WESTERN'
   herbalDoses.value = undefined
@@ -224,6 +231,7 @@ function fillForm(r: MedicalRecordVO) {
   recordForm.bloodPressure = r.bloodPressure || ''
   recordForm.diagnosisCode = r.diagnosisCode || ''
   recordForm.diagnosisDesc = r.diagnosisDesc || ''
+  icdSelected.value = r.diagnosisCode || ''
   recordForm.treatmentOpinion = r.treatmentOpinion || ''
 }
 
@@ -249,6 +257,34 @@ async function searchDrugs() {
     drugOptions.value = page.records || []
   } catch (e) {
     WMessage.error((e as Error).message || '药品查询失败')
+  }
+}
+
+/** 远程搜索 ICD 字典（J3 GET /api/clinic/icd/options?keyword=） */
+async function searchIcdOptions(keyword: string) {
+  icdLoading.value = true
+  try {
+    const res = await getIcdOptionsApi(keyword || undefined)
+    icdOptions.value = Array.isArray(res) ? res : []
+  } catch {
+    icdOptions.value = []
+  } finally {
+    icdLoading.value = false
+  }
+}
+
+function onIcdSelectVisible(visible: boolean) {
+  if (visible && !icdOptions.value.length) void searchIcdOptions('')
+}
+
+/** 选中 ICD 条目：回填诊断编码 + 描述；无匹配（手输）时仅回填编码，不破坏既有提交 */
+function onIcdChange(val: string) {
+  const opt = icdOptions.value.find((o) => o.icdCode === val)
+  if (opt) {
+    recordForm.diagnosisCode = opt.icdCode || ''
+    recordForm.diagnosisDesc = opt.icdName || ''
+  } else {
+    recordForm.diagnosisCode = val || ''
   }
 }
 
@@ -479,8 +515,31 @@ onMounted(async () => {
                 <w-col :span="24"><w-form-item label="主诉"><w-input v-model="recordForm.chiefComplaint" type="textarea" :rows="2" placeholder="请输入主诉" /></w-form-item></w-col>
                 <w-col :span="24"><w-form-item label="现病史"><w-input v-model="recordForm.presentIllness" type="textarea" :rows="2" placeholder="请输入现病史" /></w-form-item></w-col>
                 <w-col :span="24"><w-form-item label="既往史"><w-input v-model="recordForm.pastHistory" type="textarea" :rows="2" placeholder="请输入既往史" /></w-form-item></w-col>
-                <w-col :span="12"><w-form-item label="诊断（ICD-10）"><w-input v-model="recordForm.diagnosisCode" placeholder="如 J00" /></w-form-item></w-col>
-                <w-col :span="12"><w-form-item label="诊断描述"><w-input v-model="recordForm.diagnosisDesc" placeholder="提交时必填" /></w-form-item></w-col>
+                <w-col :span="12">
+                  <w-form-item label="诊断（ICD-10）">
+                    <w-select
+                      v-model="icdSelected"
+                      filterable
+                      remote
+                      clearable
+                      allow-create
+                      default-first-option
+                      :remote-method="searchIcdOptions"
+                      :loading="icdLoading"
+                      placeholder="搜索 ICD 字典，搜不到可直接输入编码"
+                      @change="onIcdChange"
+                      @visible-change="onIcdSelectVisible"
+                    >
+                      <w-option
+                        v-for="(opt, idx) in icdOptions"
+                        :key="`${opt.icdCode || 'x'}-${idx}`"
+                        :label="`${opt.icdCode || ''} ${opt.icdName || ''}`.trim()"
+                        :value="opt.icdCode || ''"
+                      />
+                    </w-select>
+                  </w-form-item>
+                </w-col>
+                <w-col :span="12"><w-form-item label="诊断描述"><w-input v-model="recordForm.diagnosisDesc" placeholder="提交时必填，可手输修正" /></w-form-item></w-col>
                 <w-col :span="24"><w-form-item label="处理意见"><w-input v-model="recordForm.treatmentOpinion" type="textarea" :rows="2" placeholder="请输入处理意见" /></w-form-item></w-col>
               </w-row>
             </w-form>

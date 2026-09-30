@@ -28,4 +28,7 @@ public class SlotVO {
     private LocalTime slotEnd;
     private String status;
     private BigDecimal registerFee;
+
+    /** 号源通道：NORMAL-普通 / GREEN-绿色通道（老年/军人/急诊优先，迭代9 A4） */
+    private String channelType;
 }

@@ -469,4 +469,31 @@ public final class PermissionConstant {
     public static final String MEDSUPPLY_CLOUDLINK_CREATE = "api:medsupply:cloudlink:create";
     /** 云影像查看 */
     public static final String MEDSUPPLY_CLOUDLINK_VIEW = "api:medsupply:cloudlink:view";
+
+    // ==================== 迭代9 门诊流程补强（对应 auth V16 植入） ====================
+
+    /** 分诊设置优先级（分诊护士：checkin.priority + Redis 队列 score 调整） */
+    public static final String CLINIC_TRIAGE_SET_PRIORITY = "api:clinic:triage:set-priority";
+    /** 分诊台队列查看（按分诊优先级排序的 WAITING 队列） */
+    public static final String CLINIC_TRIAGE_QUEUE = "api:clinic:triage:queue";
+    /** 回诊标记（检查/检验完成后重新排队，同档插队） */
+    public static final String CLINIC_REVISIT_MARK = "api:clinic:revisit:mark";
+    /** 医生加号（号源约满后超挂） */
+    public static final String CLINIC_OVERBOOK_CREATE = "api:clinic:overbook:create";
+    /** 加号开关管理（排班维度 schedule.overbook 设置） */
+    public static final String CLINIC_OVERBOOK_MANAGE = "api:clinic:overbook:manage";
+    /** 退号改期（未就诊预约更换号源） */
+    public static final String CLINIC_RESCHEDULE_APPLY = "api:clinic:reschedule:apply";
+    /** 绿色通道管理（号源 channel_type 设置与批量划绿） */
+    public static final String CLINIC_GREENCHANNEL_MANAGE = "api:clinic:greenchannel:manage";
+    /** 分层定价设置（排班 fee_type 普通/专家号） */
+    public static final String CLINIC_PRICEDETAIL_MANAGE = "api:clinic:pricedetail:manage";
+    /** 排班日历查看（日期×医生出诊矩阵） */
+    public static final String CLINIC_SCHEDULE_CALENDAR = "api:clinic:schedule:calendar";
+    /** 自动排班 Job 手动触发（指定日期生成排班+号源） */
+    public static final String CLINIC_SCHEDULE_GENERATE = "api:clinic:schedule:generate";
+    /** ICD-10 诊断字典管理（管理端 CRUD） */
+    public static final String CLINIC_ICD_MANAGE = "api:clinic:icd:manage";
+    /** ICD-10 诊断字典查询（分诊/诊疗共用） */
+    public static final String CLINIC_ICD_QUERY = "api:clinic:icd:query";
 }

@@ -80,10 +80,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '排班管理', permissions: ['menu:admin:schedule'] },
       },
       {
+        // 迭代9 A8：排班周视图日历（医生 × 日期），复用排班管理权限码
+        path: 'schedule-calendar',
+        name: 'ScheduleCalendar',
+        component: () => import('@/views/admin/schedule-calendar/index.vue'),
+        meta: { title: '排班日历', permissions: ['menu:admin:schedule'] },
+      },
+      {
         path: 'slots',
         name: 'Slots',
         component: () => import('@/views/admin/slots/index.vue'),
         meta: { title: '号源查询', permissions: ['menu:admin:slot'] },
+      },
+      {
+        // 迭代9 J3：ICD-10 字典管理（门诊诊断选择器数据源），复用基础数据权限码
+        path: 'icd-dict',
+        name: 'IcdDict',
+        component: () => import('@/views/admin/icd/index.vue'),
+        meta: { title: 'ICD 字典管理', permissions: ['menu:admin:department'] },
       },
       {
         path: 'appointments',
@@ -147,6 +161,13 @@ const routes: RouteRecordRaw[] = [
         name: 'Triage',
         component: () => import('@/views/triage/index.vue'),
         meta: { title: '分诊台', permissions: ['menu:triage:workbench'] },
+      },
+      {
+        // 迭代9 A1/A6：分诊台工作台（优先级调整 + 回诊标记），复用分诊台权限码
+        path: 'triage-desk',
+        name: 'TriageDesk',
+        component: () => import('@/views/clinic/triage/index.vue'),
+        meta: { title: '分诊台工作台', permissions: ['menu:triage:workbench'] },
       },
       {
         path: 'lab-tech',

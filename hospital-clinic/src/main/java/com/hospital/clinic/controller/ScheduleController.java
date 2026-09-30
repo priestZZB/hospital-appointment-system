@@ -77,6 +77,23 @@ public class ScheduleController {
         return Result.ok(scheduleService.calendar(departmentId, startDate, endDate));
     }
 
+    /**
+     * 排班日历（扁平列表，迭代9 A8）
+     * <p>
+     * 按科室 + 起始日期 + 天数（默认 7 天）返回出诊计划扁平条目：
+     * date/doctorId/doctorName/period/periodStart/periodEnd/confirmed/slotTotal/slotAvailable，
+     * 前端可自行装配日期×医生矩阵。Spring 对字面量 /calendar 的匹配优先于 /{id}。
+     */
+    @RequiresPermission(PermissionConstant.CLINIC_SCHEDULE_CALENDAR)
+    @GetMapping("/calendar")
+    public Result<List<com.hospital.clinic.vo.ScheduleCalendarVO>> calendarFlat(
+            @RequestParam("departmentId") Long departmentId,
+            @RequestParam("startDate") @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(value = "days", defaultValue = "7") int days) {
+        requireDoctorOrAdmin();
+        return Result.ok(scheduleService.calendarFlat(departmentId, startDate, days));
+    }
+
     /** 排班详情 */
     @GetMapping("/{id}")
     public Result<ScheduleVO> getById(@PathVariable Long id) {

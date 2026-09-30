@@ -2,6 +2,7 @@ package com.hospital.clinic.controller;
 
 import com.hospital.clinic.dto.AppointmentSubmitDTO;
 import com.hospital.clinic.dto.AppointmentPageQueryDTO;
+import com.hospital.clinic.dto.RescheduleDTO;
 import com.hospital.clinic.service.AppointmentService;
 import com.hospital.clinic.vo.AppointmentVO;
 import com.hospital.common.annotation.RequiresPermission;
@@ -71,6 +72,38 @@ public class AppointmentController {
     public Result<Void> cancel(@PathVariable Long id, @RequestParam(value = "reason", required = false) String reason) {
         appointmentService.cancel(id, reason != null ? reason : "患者取消预约");
         return Result.ok();
+    }
+
+    /**
+     * 医生加号（迭代9 A2）
+     * <p>
+     * 号源已约满（BOOKED）且排班开启加号（schedule.overbook=1）时，
+     * 在同名源上追加挂号，生成 overbook_flag=1 的预约与支付订单。
+     * 请求体与既有挂号接口一致（slotId + scheduleId）。
+     */
+    @AuditLog(value = "医生加号", operationType = "INSERT")
+    @RequiresPermission(PermissionConstant.CLINIC_OVERBOOK_CREATE)
+    @PostMapping("/overbook")
+    public Result<AppointmentVO> overbook(@Valid @RequestBody AppointmentSubmitDTO dto) {
+        Long userId = UserContext.getUserId();
+        log.info("[加号] 加号请求: userId={}, slotId={}", userId, dto.getSlotId());
+        return Result.ok(appointmentService.overbook(userId, dto));
+    }
+
+    /**
+     * 退号改期（迭代9 A3）
+     * <p>
+     * 未就诊/未取消的预约改期到同科室另一号源：新号源扣减、旧号源释放、
+     * 预约号源信息更新；原支付状态不变（不重复收费）。
+     * 患者仅可改本人预约，管理员/医生可代办。
+     */
+    @AuditLog(value = "退号改期", operationType = "UPDATE")
+    @RequiresPermission(PermissionConstant.CLINIC_RESCHEDULE_APPLY)
+    @PostMapping("/{id}/reschedule")
+    public Result<AppointmentVO> reschedule(@PathVariable Long id, @Valid @RequestBody RescheduleDTO dto) {
+        Long userId = UserContext.getUserId();
+        log.info("[改期] 改期请求: userId={}, appointmentId={}, newSlotId={}", userId, id, dto.getNewSlotId());
+        return Result.ok(appointmentService.reschedule(id, userId, dto));
     }
 
     private void checkAdmin() {

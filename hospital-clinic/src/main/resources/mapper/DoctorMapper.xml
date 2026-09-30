@@ -104,4 +104,13 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 按状态查询所有医生（自动排班 Job A8） -->
+    <select id="selectByStatus" resultMap="BaseResultMap">
+        SELECT id, user_id, name, gender, phone, department_id, title,
+               specialty, introduction, status, create_time, update_time
+        FROM doctor
+        WHERE status = #{status}
+        ORDER BY id ASC
+    </select>
+
 </mapper>

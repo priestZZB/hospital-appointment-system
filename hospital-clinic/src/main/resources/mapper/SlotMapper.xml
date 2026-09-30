@@ -11,6 +11,8 @@
         <result column="slot_end" property="slotEnd"/>
         <result column="status" property="status"/>
         <result column="version" property="version"/>
+        <result column="channel_type" property="channelType"/>
+        <result column="overbook" property="overbook"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
@@ -26,7 +28,7 @@
     </insert>
 
     <select id="selectAvailableBySchedule" resultMap="BaseResultMap">
-        SELECT id, schedule_id, slot_seq, slot_start, slot_end, status, version, create_time, update_time
+        SELECT id, schedule_id, slot_seq, slot_start, slot_end, status, version, channel_type, overbook, create_time, update_time
         FROM slot
         WHERE schedule_id = #{scheduleId}
           AND status = 'AVAILABLE'
@@ -34,13 +36,13 @@
     </select>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT id, schedule_id, slot_seq, slot_start, slot_end, status, version, create_time, update_time
+        SELECT id, schedule_id, slot_seq, slot_start, slot_end, status, version, channel_type, overbook, create_time, update_time
         FROM slot
         WHERE id = #{id}
     </select>
 
     <select id="selectAvailableByDeptAndDate" resultMap="BaseResultMap">
-        SELECT s.id, s.schedule_id, s.slot_seq, s.slot_start, s.slot_end, s.status, s.version, s.create_time, s.update_time
+        SELECT s.id, s.schedule_id, s.slot_seq, s.slot_start, s.slot_end, s.status, s.version, s.channel_type, s.overbook, s.create_time, s.update_time
         FROM slot s
         INNER JOIN schedule sc ON s.schedule_id = sc.id
         WHERE sc.department_id = #{departmentId}
@@ -81,6 +83,28 @@
         UPDATE slot SET status = #{status}, version = version + 1, update_time = SYSDATE
         WHERE schedule_id = #{scheduleId}
           AND status = 'AVAILABLE'
+    </update>
+
+    <!-- ==================== 迭代9 门诊流程补强 ==================== -->
+
+    <!-- 单号源通道设置（绿色通道 A4） -->
+    <update id="updateChannelType">
+        UPDATE slot SET channel_type = #{channelType}, update_time = SYSDATE
+        WHERE id = #{id}
+    </update>
+
+    <!-- 批量把某排班按号序最靠前的 N 个可用号源设为目标通道（绿色通道 A4） -->
+    <update id="updateChannelTypeFirstN">
+        UPDATE slot SET channel_type = #{channelType}, update_time = SYSDATE
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id FROM slot
+                WHERE schedule_id = #{scheduleId}
+                  AND status = 'AVAILABLE'
+                  AND channel_type &lt;&gt; #{channelType}
+                ORDER BY slot_seq ASC
+            ) WHERE ROWNUM &lt;= #{count}
+        )
     </update>
 
 </mapper>

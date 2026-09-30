@@ -15,6 +15,10 @@
         <result column="call_count" property="callCount"/>
         <result column="rejoin_time" property="rejoinTime"/>
         <result column="consult_room" property="consultRoom"/>
+        <result column="priority" property="priority"/>
+        <result column="return_flag" property="returnFlag"/>
+        <result column="triage_nurse_id" property="triageNurseId"/>
+        <result column="triage_time" property="triageTime"/>
         <result column="create_time" property="createTime"/>
     </resultMap>
 
@@ -140,5 +144,48 @@
             rejoin_time = SYSDATE
         WHERE id = #{id}
     </update>
+
+    <!-- ==================== 迭代9 门诊流程补强 ==================== -->
+
+    <!-- 分诊设置优先级/回诊标记（迭代9 A1） -->
+    <update id="updateTriage">
+        UPDATE checkin
+        SET priority = #{priority},
+            return_flag = COALESCE(#{returnFlag}, 0),
+            triage_nurse_id = #{triageNurseId},
+            triage_time = SYSDATE
+        WHERE id = #{id}
+    </update>
+
+    <!-- 回诊重新排队：置回 WAITING 并打回诊标记（迭代9 A6） -->
+    <update id="updateRejoinWithFlag">
+        UPDATE checkin
+        SET queue_status = #{queueStatus},
+            rejoin_time = SYSDATE,
+            return_flag = 1
+        WHERE id = #{id}
+    </update>
+
+    <!-- 分诊台队列视图：科室 WAITING 患者（含分诊字段；排序由服务层按 score 计算，迭代9 A1） -->
+    <resultMap id="TriageQueueResultMap" type="com.hospital.clinic.vo.TriageQueueVO">
+        <id column="checkin_id" property="checkinId"/>
+        <result column="appointment_id" property="appointmentId"/>
+        <result column="patient_id" property="patientId"/>
+        <result column="department_id" property="departmentId"/>
+        <result column="doctor_id" property="doctorId"/>
+        <result column="queue_status" property="queueStatus"/>
+        <result column="priority" property="priority"/>
+        <result column="return_flag" property="returnFlag"/>
+        <result column="checkin_time" property="checkinTime"/>
+        <result column="triage_time" property="triageTime"/>
+    </resultMap>
+
+    <select id="selectWaitingWithTriage" resultMap="TriageQueueResultMap">
+        SELECT id AS checkin_id, appointment_id, patient_id, department_id, doctor_id,
+               queue_status, priority, return_flag, checkin_time, triage_time
+        FROM checkin
+        WHERE department_id = #{departmentId}
+          AND queue_status = 'WAITING'
+    </select>
 
 </mapper>

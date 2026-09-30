@@ -59,6 +59,9 @@ public class Appointment implements Serializable {
     /** 是否复诊：0-初诊 1-复诊 */
     private Integer isRevisit;
 
+    /** 加号预约标记：0-正常预约 / 1-医生加号（就诊顺序排后，迭代9 A2） */
+    private Integer overbookFlag;
+
     /** 取消时间 */
     private LocalDateTime cancelTime;
 

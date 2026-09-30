@@ -55,6 +55,7 @@ public class ConsultationService {
     private final PrescriptionMapper prescriptionMapper;
     private final PrescriptionItemMapper prescriptionItemMapper;
     private final DoctorMapper doctorMapper;
+    private final IcdDictService icdDictService;
     private final PatientFeignClient patientFeignClient;
     private final PharmacyFeignClient pharmacyFeignClient;
     private final RestTemplate restTemplate;
@@ -148,6 +149,11 @@ public class ConsultationService {
         if ("SUBMIT".equals(action)) {
             if (record.getDiagnosisDesc() == null || record.getDiagnosisDesc().isBlank()) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "提交病历时诊断描述不能为空");
+            }
+            // ICD-10 诊断编码校验（迭代9 J3）：diagnosisCode 非空时必须在 icd_dict 中存在；
+            // 字典查询异常时 fail-open 放行（见 IcdDictService.validateCode），不阻塞诊疗流程
+            if (record.getDiagnosisCode() != null && !record.getDiagnosisCode().isBlank()) {
+                icdDictService.validateCode(record.getDiagnosisCode());
             }
             record.setStatus("SUBMITTED");
         } else {

@@ -251,8 +251,35 @@ public class LabReportPdfService {
         cs.beginText();
         setFont(cs, font, 10);
         cs.newLineAtOffset(x, y);
-        cs.showText(text);
+        cs.showText(sanitizeGlyphs(text));
         cs.endText();
+    }
+
+    /**
+     * 字形兜底：微软雅黑等中文字体缺少 Unicode 上标数字（U+2070~U+2079，如 ⁹）与上标负号（U+207B）字形，
+     * 直接渲染会抛 "No glyph for U+2079" 导致整张化验单 500。统一替换为 ASCII 兼容写法（⁹ → ^9）。
+     * ↑/↓ 等箭头在雅黑中存在字形，保持原样。
+     */
+    private static String sanitizeGlyphs(String text) {
+        StringBuilder sb = null;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            String rep = null;
+            if (c >= '\u2070' && c <= '\u2079') {
+                rep = "^" + (c - '\u2070');
+            } else if (c == '\u207B') {
+                rep = "^-";
+            }
+            if (rep != null) {
+                if (sb == null) {
+                    sb = new StringBuilder(text.length() + 4).append(text, 0, i);
+                }
+                sb.append(rep);
+            } else if (sb != null) {
+                sb.append(c);
+            }
+        }
+        return sb == null ? text : sb.toString();
     }
 
     private void setFont(PDPageContentStream cs, PDType0Font font, float size) throws IOException {

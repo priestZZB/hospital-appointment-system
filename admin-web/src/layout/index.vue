@@ -90,7 +90,11 @@ const adminMenuGroups: MenuGroup[] = [
       { path: '/departments', label: '科室管理', icon: Server, permissions: ['menu:admin:department'] },
       { path: '/doctors', label: '医生管理', icon: Verify, permissions: ['menu:admin:doctor'] },
       { path: '/schedules', label: '排班管理', icon: DateIcon, permissions: ['menu:admin:schedule'] },
+      // 迭代9 A8：排班周视图日历
+      { path: '/schedule-calendar', label: '排班日历', icon: DateIcon, permissions: ['menu:admin:schedule'] },
       { path: '/slots', label: '号源查询', icon: Qrcode, permissions: ['menu:admin:slot'] },
+      // 迭代9 J3：ICD-10 字典（门诊诊断选择器数据源）
+      { path: '/icd-dict', label: 'ICD 字典', icon: File, permissions: ['menu:admin:department'] },
     ],
   },
   {
@@ -106,6 +110,8 @@ const adminMenuGroups: MenuGroup[] = [
       { path: '/infusion-nurse', label: '护士站输液', icon: Tool, permissions: ['menu:nurse:workbench'] },
       { path: '/cashier', label: '收费工作台', icon: Send, permissions: ['menu:cashier:workbench'] },
       { path: '/triage', label: '分诊台', icon: Computer, permissions: ['menu:triage:workbench'] },
+      // 迭代9 A1/A6：分诊台工作台（优先级/回诊）
+      { path: '/triage-desk', label: '分诊台工作台', icon: UserGroup, permissions: ['menu:triage:workbench'] },
       { path: '/stop', label: '停诊审批', icon: Stop, permissions: ['menu:admin:stop'] },
       { path: '/consult-request', label: '会诊管理', icon: Flow, permissions: ['menu:doctor:consult-request'] },
       { path: '/referral', label: '转诊管理', icon: Flow, permissions: ['menu:doctor:referral'] },
@@ -152,6 +158,8 @@ const staffTabs = computed<MenuItem[]>(() => {
   const tabs: MenuItem[] = []
   if (userStore.isCashier) tabs.push({ path: '/cashier', label: '收费工作台', permissions: ['menu:cashier:workbench'] })
   if (userStore.isTriageNurse) tabs.push({ path: '/triage', label: '分诊台', permissions: ['menu:triage:workbench'] })
+  // 迭代9：分诊台工作台（优先级调整 / 回诊标记）
+  if (userStore.isTriageNurse) tabs.push({ path: '/triage-desk', label: '分诊工作台', permissions: ['menu:triage:workbench'] })
   if (userStore.isLabTech) tabs.push({ path: '/lab-tech', label: '检验工作台', permissions: ['menu:lab-tech:workbench'] })
   if (userStore.isNurse) tabs.push({ path: '/infusion-nurse', label: '护士站输液', permissions: ['menu:nurse:workbench'] })
   if (userStore.isNurse) tabs.push({ path: '/inpatient-nurse', label: '住院护士站', permissions: ['menu:inpatient:nurse'] })

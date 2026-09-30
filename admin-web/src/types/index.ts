@@ -118,6 +118,8 @@ export interface ScheduleVO {
   availableSlots?: number
   slotDuration: number
   registerFee?: number
+  /** 号别（迭代9 A5 分层定价）：NORMAL-普通号 / EXPERT-专家号 */
+  feeType?: string
   status?: string
   auditStatus?: string
   createTime?: string
@@ -139,6 +141,8 @@ export interface SlotVO {
   slotEnd: string
   status: string
   registerFee?: number
+  /** 通道类型（迭代9 A4 绿色通道）：NORMAL-普通 / GREEN-绿色通道 */
+  channelType?: string
 }
 
 /** 预约 AppointmentVO（依据：API接口文档.md §3.3） */
@@ -163,6 +167,8 @@ export interface AppointmentVO {
   visitStatus?: string
   paymentOrderId?: number
   paymentOrderNo?: string
+  /** 通道类型（迭代9 A4）：NORMAL-普通 / GREEN-绿色通道（加号/绿色通道预约） */
+  channelType?: string
   createTime?: string
   updateTime?: string
 }
@@ -1140,4 +1146,75 @@ export interface CloudViewVO {
 export interface TemplateApplyVO {
   findings?: string
   conclusion?: string
+}
+
+/** ==================== 门诊流程补强 + ICD（迭代9） ==================== */
+
+/** 通道类型（A4 绿色通道）：NORMAL-普通号源 / GREEN-绿色通道号源 */
+export type ChannelType = 'NORMAL' | 'GREEN'
+
+/** 号别（A5 分层定价）：NORMAL-普通号 / EXPERT-专家号 */
+export type FeeType = 'NORMAL' | 'EXPERT'
+
+/** 分诊优先级（A1）：0-急诊 1-优先 2-普通 */
+export type TriagePriority = 0 | 1 | 2
+
+/** ICD-10 字典条目（J3 GET /api/admin/icd 分页 record，字段按后端信封防御式可选） */
+export interface IcdVO {
+  id: number
+  icdCode?: string
+  icdName?: string
+  /** 分类（如 ICD 章节分类） */
+  category?: string
+  /** 1-常用 0-非常用 */
+  isCommon?: number
+  /** 1-启用 0-停用 */
+  status?: number
+  createTime?: string
+  updateTime?: string
+}
+
+/** ICD 选择器选项（J3 GET /api/clinic/icd/options，返回 [{icdCode, icdName}]） */
+export interface IcdOptionVO {
+  icdCode?: string
+  icdName?: string
+}
+
+/** 分诊台队列条目（A1 GET /api/clinic/triage/queue） */
+export interface TriageQueueItemVO {
+  checkinId: number
+  patientId?: number
+  patientName?: string
+  queueStatus?: string
+  /** 0-急诊 1-优先 2-普通 */
+  priority?: number
+  /** true-回诊标记（患者返回队列重新排队） */
+  returnFlag?: boolean
+  checkinTime?: string
+  callCount?: number
+  appointmentId?: number
+  departmentId?: number
+  departmentName?: string
+  slotSeq?: number
+}
+
+/** 排班日历条目（A8 GET /api/clinic/schedules/calendar，扁平列表 {date, doctorId, ...}） */
+export interface ScheduleCalendarVO {
+  date?: string
+  scheduleId?: number
+  doctorId?: number
+  doctorName?: string
+  period?: string
+  periodStart?: string
+  periodEnd?: string
+  /** 该排班是否已确认（已生成号源） */
+  confirmed?: boolean
+  slotTotal?: number
+  slotAvailable?: number
+  /** 是否含绿色通道号源（A4）：GREEN-含绿色通道 */
+  channelType?: string
+  /** 号别（A5）：NORMAL-普通号 / EXPERT-专家号 */
+  feeType?: string
+  departmentId?: number
+  departmentName?: string
 }

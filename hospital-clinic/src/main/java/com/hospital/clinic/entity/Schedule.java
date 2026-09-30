@@ -54,6 +54,12 @@ public class Schedule implements Serializable {
     /** 排班审批状态：PENDING-待门诊部确认 / CONFIRMED-已确认（可挂号）/ REJECTED-已驳回 */
     private String auditStatus;
 
+    /** 号别：NORMAL-普通号 / EXPERT-专家号（按医生职称档位价收费，迭代9 A5） */
+    private String feeType;
+
+    /** 排班维度加号开关：0-禁止加号 / 1-允许加号超挂（迭代9 A2） */
+    private Integer overbook;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

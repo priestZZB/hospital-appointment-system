@@ -42,4 +42,12 @@ public interface ScheduleMapper {
     List<Schedule> selectByAuditStatus(@Param("auditStatus") String auditStatus,
                                        @Param("offset") int offset,
                                        @Param("limit") int limit);
+
+    // ==================== 迭代9 门诊流程补强 ====================
+
+    /** 设置排班加号开关（0-禁止 / 1-允许加号超挂，迭代9 A2） */
+    int updateOverbook(@Param("id") Long id, @Param("overbook") Integer overbook);
+
+    /** 设置排班号别（NORMAL-普通 / EXPERT-专家号，迭代9 A5） */
+    int updateFeeType(@Param("id") Long id, @Param("feeType") String feeType);
 }

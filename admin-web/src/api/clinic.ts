@@ -13,9 +13,11 @@ import type {
   QueuePatientVO,
   QueueSnapshotVO,
   ReferralOrderVO,
+  ScheduleCalendarVO,
   ScheduleVO,
   SlotVO,
   StopApplicationVO,
+  TriageQueueItemVO,
 } from '@/types'
 
 /** BI 当日概览 + 近7日趋势 + 科室占比（依据：API接口文档.md §3.7 #53 GET /api/clinic/bi/overview） */
@@ -349,4 +351,61 @@ export function downloadCertificateApi(id: number): Promise<unknown> {
 /** 作废证明 */
 export function cancelCertificateApi(id: number): Promise<unknown> {
   return request({ url: `/clinic/certificate/${id}/cancel`, method: 'put' })
+}
+
+// ==================== 迭代9：门诊流程补强（分诊优先级 / 回诊 / 加号 / 改期 / 绿色通道 / 排班日历） ====================
+
+/** 分诊队列（A1 GET /api/clinic/triage/queue?departmentId=） */
+export function getTriageQueueApi(departmentId?: number): Promise<TriageQueueItemVO[]> {
+  return request({ url: '/clinic/triage/queue', method: 'get', params: { departmentId } })
+}
+
+/** 设置分诊优先级（A1 POST /api/clinic/triage/set-priority，priority：0-急诊 1-优先 2-普通） */
+export function setTriagePriorityApi(data: {
+  checkinId: number
+  priority: number
+  returnFlag?: boolean
+}): Promise<unknown> {
+  return request({ url: '/clinic/triage/set-priority', method: 'post', data })
+}
+
+/** 回诊（A6 POST /api/clinic/checkin/{checkinId}/rejoin） */
+export function rejoinQueueApi(checkinId: number): Promise<unknown> {
+  return request({ url: `/clinic/checkin/${checkinId}/rejoin`, method: 'post' })
+}
+
+/** 加号（A2 POST /api/clinic/appointments/overbook，请求体与挂号一致） */
+export function overbookAppointmentApi(data: {
+  slotId: number
+  scheduleId: number
+  patientId?: number
+}): Promise<AppointmentVO> {
+  return request({ url: '/clinic/appointments/overbook', method: 'post', data })
+}
+
+/** 预约改期（A3 POST /api/clinic/appointments/{id}/reschedule） */
+export function rescheduleAppointmentApi(
+  id: number,
+  data: { newSlotId: number; newScheduleId: number },
+): Promise<AppointmentVO> {
+  return request({ url: `/clinic/appointments/${id}/reschedule`, method: 'post', data })
+}
+
+/** 号源设为绿色通道（A4 管理端 POST /api/admin/schedule/{id}/green-slots，前 N 个号设绿色） */
+export function createGreenSlotsApi(scheduleId: number, count: number): Promise<unknown> {
+  return request({ url: `/admin/schedule/${scheduleId}/green-slots`, method: 'post', params: { channelType: 'GREEN', count } })
+}
+
+/** 排班日历（A8 GET /api/clinic/schedules/calendar?departmentId=&startDate=&days=7，扁平列表） */
+export function getScheduleCalendarApi(params: {
+  departmentId: number
+  startDate: string
+  days?: number
+}): Promise<ScheduleCalendarVO[]> {
+  return request({ url: '/clinic/schedules/calendar', method: 'get', params })
+}
+
+/** 手动生成排班（A8 管理端 POST /api/admin/schedule/generate?date=YYYY-MM-DD） */
+export function generateScheduleApi(date: string): Promise<unknown> {
+  return request({ url: '/admin/schedule/generate', method: 'post', params: { date } })
 }

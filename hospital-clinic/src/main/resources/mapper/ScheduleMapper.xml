@@ -16,33 +16,41 @@
         <result column="register_fee" property="registerFee"/>
         <result column="status" property="status"/>
         <result column="audit_status" property="auditStatus"/>
+        <result column="fee_type" property="feeType"/>
+        <result column="overbook" property="overbook"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
+
+    <sql id="BaseColumns">
+        id, doctor_id, department_id, schedule_date, period,
+        period_start, period_end, total_slots, slot_duration,
+        register_fee, status, audit_status, fee_type, overbook,
+        create_time, update_time
+    </sql>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Schedule"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO schedule (doctor_id, department_id, schedule_date, period,
                               period_start, period_end, total_slots, slot_duration,
-                              register_fee, status, audit_status, create_time, update_time)
+                              register_fee, status, audit_status, fee_type, overbook,
+                              create_time, update_time)
         VALUES (#{doctorId}, #{departmentId}, #{scheduleDate}, #{period},
                 #{periodStart}, #{periodEnd}, #{totalSlots}, #{slotDuration},
                 #{registerFee}, COALESCE(#{status}, 1),
-                COALESCE(#{auditStatus}, 'PENDING'), SYSDATE, SYSDATE)
+                COALESCE(#{auditStatus}, 'PENDING'),
+                COALESCE(#{feeType}, 'NORMAL'), COALESCE(#{overbook}, 0),
+                SYSDATE, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT id, doctor_id, department_id, schedule_date, period,
-               period_start, period_end, total_slots, slot_duration,
-               register_fee, status, audit_status, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM schedule
         WHERE id = #{id}
     </select>
 
     <select id="selectByDeptAndDateRange" resultMap="BaseResultMap">
-        SELECT id, doctor_id, department_id, schedule_date, period,
-               period_start, period_end, total_slots, slot_duration,
-               register_fee, status, audit_status, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM schedule
         WHERE department_id = #{departmentId}
           AND schedule_date BETWEEN #{startDate} AND #{endDate}
@@ -51,9 +59,7 @@
     </select>
 
     <select id="selectByDoctorDatePeriod" resultMap="BaseResultMap">
-        SELECT id, doctor_id, department_id, schedule_date, period,
-               period_start, period_end, total_slots, slot_duration,
-               register_fee, status, audit_status, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM schedule
         WHERE doctor_id = #{doctorId}
           AND schedule_date = #{scheduleDate}
@@ -61,9 +67,7 @@
     </select>
 
     <select id="selectByIds" resultMap="BaseResultMap">
-        SELECT id, doctor_id, department_id, schedule_date, period,
-               period_start, period_end, total_slots, slot_duration,
-               register_fee, status, audit_status, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM schedule
         WHERE id IN
         <foreach collection="ids" item="item" open="(" separator="," close=")">
@@ -73,9 +77,7 @@
     </select>
 
     <select id="selectByAuditStatus" resultMap="BaseResultMap">
-        SELECT id, doctor_id, department_id, schedule_date, period,
-               period_start, period_end, total_slots, slot_duration,
-               register_fee, status, audit_status, create_time, update_time
+        SELECT <include refid="BaseColumns"/>
         FROM schedule
         WHERE audit_status = #{auditStatus}
         ORDER BY schedule_date ASC, period ASC
@@ -89,6 +91,20 @@
 
     <update id="updateAuditStatus">
         UPDATE schedule SET audit_status = #{auditStatus}, update_time = SYSDATE
+        WHERE id = #{id}
+    </update>
+
+    <!-- ==================== 迭代9 门诊流程补强 ==================== -->
+
+    <!-- 排班加号开关（迭代9 A2） -->
+    <update id="updateOverbook">
+        UPDATE schedule SET overbook = #{overbook}, update_time = SYSDATE
+        WHERE id = #{id}
+    </update>
+
+    <!-- 排班号别：NORMAL-普通 / EXPERT-专家号（迭代9 A5） -->
+    <update id="updateFeeType">
+        UPDATE schedule SET fee_type = #{feeType}, update_time = SYSDATE
         WHERE id = #{id}
     </update>
 

@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { WMessage } from 'win-design-next'
-import { Refresh, RefreshLeft, Search } from '@win-design-next/icons-vue'
+import { Refresh, RefreshLeft, Search, Time } from '@win-design-next/icons-vue'
 import {
   cancelAppointmentApi,
   getAppointmentApi,
   getAppointmentPageApi,
   getDepartmentsApi,
   getDoctorsApi,
+  getSlotsApi,
+  rescheduleAppointmentApi,
 } from '@/api/clinic'
 import { useUserStore } from '@/stores/user'
-import type { AppointmentVO, DepartmentVO, DoctorVO } from '@/types'
+import type { AppointmentVO, DepartmentVO, DoctorVO, SlotVO } from '@/types'
 
 const userStore = useUserStore()
 
@@ -34,6 +36,76 @@ const query = reactive({
 
 const detailVisible = ref(false)
 const detail = ref<AppointmentVO | null>(null)
+
+/** 改期（迭代9 A3 POST /api/clinic/appointments/{id}/reschedule） */
+const rescheduleVisible = ref(false)
+const rescheduleLoading = ref(false)
+const rescheduleTarget = ref<AppointmentVO | null>(null)
+const rescheduleSlots = ref<SlotVO[]>([])
+const slotsLoading = ref(false)
+const rescheduleForm = reactive<{ departmentId?: number; date: string; slotId?: number }>({
+  departmentId: undefined,
+  date: '',
+  slotId: undefined,
+})
+
+function todayStr(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function openReschedule(row: AppointmentVO) {
+  rescheduleTarget.value = row
+  rescheduleForm.departmentId = row.departmentId
+  rescheduleForm.date = row.appointmentDate || todayStr()
+  rescheduleForm.slotId = undefined
+  rescheduleSlots.value = []
+  rescheduleVisible.value = true
+  loadRescheduleSlots()
+}
+
+async function loadRescheduleSlots() {
+  if (!rescheduleForm.departmentId || !rescheduleForm.date) {
+    rescheduleSlots.value = []
+    return
+  }
+  slotsLoading.value = true
+  try {
+    const slots = await getSlotsApi(rescheduleForm.departmentId, rescheduleForm.date)
+    // 仅可改期到仍可预约的号源；防御式过滤后端可能下发的非 AVAILABLE 记录
+    rescheduleSlots.value = (Array.isArray(slots) ? slots : []).filter((s) => s.status === 'AVAILABLE')
+  } catch (e) {
+    rescheduleSlots.value = []
+    WMessage.error((e as Error).message || '号源查询失败')
+  } finally {
+    slotsLoading.value = false
+  }
+}
+
+function slotLabel(s: SlotVO): string {
+  return `${s.slotStart}–${s.slotEnd}（${s.doctorName || '医生待定'}）`
+}
+
+async function confirmReschedule() {
+  const target = rescheduleTarget.value
+  if (!target) return
+  const slot = rescheduleSlots.value.find((s) => s.id === rescheduleForm.slotId)
+  if (!slot) {
+    WMessage.warning('请选择新的号源时段')
+    return
+  }
+  rescheduleLoading.value = true
+  try {
+    await rescheduleAppointmentApi(target.id, { newSlotId: slot.id, newScheduleId: slot.scheduleId })
+    WMessage.success('预约改期成功')
+    rescheduleVisible.value = false
+    fetchList()
+  } catch (e) {
+    WMessage.error((e as Error).message || '改期失败')
+  } finally {
+    rescheduleLoading.value = false
+  }
+}
 
 type TagType = 'primary' | 'success' | 'info' | 'warning' | 'danger'
 
@@ -250,9 +322,12 @@ onMounted(() => {
             <span v-else class="text-muted">-</span>
           </template>
         </w-table-column>
-        <w-table-column label="操作" width="140" fixed="right">
+        <w-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <w-button size="small" text type="primary" @click="openDetail(row)">详情</w-button>
+            <w-button v-if="userStore.isAdmin" size="small" text type="warning" :icon="Time" @click="openReschedule(row)">
+              改期
+            </w-button>
             <w-popconfirm
               v-if="userStore.isAdmin"
               title="确定取消该预约吗？取消后号源将释放。"
@@ -314,6 +389,59 @@ onMounted(() => {
         <w-button @click="detailVisible = false">关闭</w-button>
       </template>
     </w-dialog>
+
+    <!-- 改期弹窗（迭代9 A3） -->
+    <w-dialog v-model="rescheduleVisible" title="预约改期" width="520px">
+      <div v-if="rescheduleTarget" class="reschedule-body">
+        <w-descriptions :column="2" border label-width="90px" class="reschedule-desc">
+          <w-descriptions-item label="预约号">{{ rescheduleTarget.appointmentNo || '-' }}</w-descriptions-item>
+          <w-descriptions-item label="患者ID">{{ rescheduleTarget.patientId }}</w-descriptions-item>
+          <w-descriptions-item label="当前时段">{{ slotText(rescheduleTarget) }}</w-descriptions-item>
+          <w-descriptions-item label="医生">{{ rescheduleTarget.doctorName || '-' }}</w-descriptions-item>
+        </w-descriptions>
+        <w-form label-width="90px">
+          <w-form-item label="科室" required>
+            <w-select
+              v-model="rescheduleForm.departmentId"
+              placeholder="请选择科室"
+              clearable
+              filterable
+              style="width: 100%"
+              @change="rescheduleForm.slotId = undefined; loadRescheduleSlots()"
+            >
+              <w-option v-for="d in departments" :key="d.id" :label="d.deptName" :value="d.id" />
+            </w-select>
+          </w-form-item>
+          <w-form-item label="新日期" required>
+            <w-date-picker-pro
+              v-model="rescheduleForm.date"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="请选择日期"
+              style="width: 100%"
+              @change="rescheduleForm.slotId = undefined; loadRescheduleSlots()"
+            />
+          </w-form-item>
+          <w-form-item label="新号源" required>
+            <w-select
+              v-model="rescheduleForm.slotId"
+              placeholder="选择可预约号源"
+              filterable
+              :loading="slotsLoading"
+              :disabled="!rescheduleSlots.length"
+              style="width: 100%"
+            >
+              <w-option v-for="s in rescheduleSlots" :key="s.id" :label="slotLabel(s)" :value="s.id" />
+            </w-select>
+            <div class="reschedule-hint">仅展示该科室当日的可预约号源</div>
+          </w-form-item>
+        </w-form>
+      </div>
+      <template #footer>
+        <w-button @click="rescheduleVisible = false">取消</w-button>
+        <w-button type="primary" :loading="rescheduleLoading" @click="confirmReschedule">确认改期</w-button>
+      </template>
+    </w-dialog>
   </div>
 </template>
 
@@ -332,5 +460,13 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+.reschedule-desc {
+  margin-bottom: 16px;
+}
+.reschedule-hint {
+  font-size: 12px;
+  color: var(--hospital-text-third);
+  line-height: 1.4;
 }
 </style>

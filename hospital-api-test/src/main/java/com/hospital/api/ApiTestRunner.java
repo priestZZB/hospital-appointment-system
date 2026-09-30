@@ -152,6 +152,12 @@ public class ApiTestRunner {
         runStep("8-lis-标本结果化验单", this::testLisFlow);
         runStep("8-pacs-预约影像模板云链接", this::testImagingFlow);
 
+        // ════════════ 迭代 9 ════════════
+        section("迭代 9 — 门诊流程补强 + ICD");
+        runStep("9-icd-字典日历自动排班", this::testIcdCalendar);
+        runStep("9-triage-分诊优先级回诊", this::testTriagePriority);
+        runStep("9-slot-专家号绿色通道加号改期", this::testOutpatientEnhance);
+
         report.print();
     }
 
@@ -2302,6 +2308,345 @@ public class ApiTestRunner {
                                 && viewData.get("report") instanceof Map
                                 && ((Map) viewData.get("report")).get("conclusion") != null);
             }
+        }
+    }
+
+    // ════════════ 迭代 9：门诊流程补强 + ICD（J3/A1/A2/A3/A4/A5/A6/A8） ════════════
+
+    /** 迭代 9：为指定医生创建今日独立排班（now+20min 起 80 分钟，可指定号别 EXPERT/NORMAL）并确认生成号源 */
+    private void ensureIter9Schedule(Object doctorId, String today, String feeType) throws IOException {
+        engine.setToken(adminToken()); // 建排班需管理员权限
+        LocalTime start = LocalTime.now().plusMinutes(20);
+        LocalTime end = start.plusMinutes(80);
+        String period = LocalTime.now().isBefore(LocalTime.NOON) ? "AM" : "PM";
+        ApiTestEngine.ApiResponse r = engine.postWithAuth("/api/clinic/schedules",
+                Map.of("doctorId", doctorId, "departmentId", DEPT_ID, "scheduleDate", today,
+                        "period", period, "periodStart", start.format(TIME_FMT),
+                        "periodEnd", end.format(TIME_FMT), "slotDuration", 10,
+                        "registerFee", 20.0, "feeType", feeType));
+        check("POST /api/clinic/schedules（迭代9医生独立排班 " + feeType + "）", r);
+        if (r.isOk() && r.getData() instanceof Map) {
+            long sid = ((Number) ((Map) r.getData()).get("id")).longValue();
+            state.put("iter9ScheduleId", sid);
+            check("PUT  /api/clinic/schedules/" + sid + "/confirm（确认迭代9排班生成号源）",
+                    engine.putWithAuth("/api/clinic/schedules/" + sid + "/confirm", Map.of()));
+        }
+    }
+
+    /** 迭代 9：注册+建档+实名+审核一个测试患者（管理端审核），返回其患者 token；失败返回 null */
+    private String ensureIter9Patient(String tag) throws IOException {
+        String phone = "135" + randomDigits(8);
+        check("POST /api/auth/register（" + tag + "患者注册）",
+                engine.register(Map.of("phone", phone, "password", "Test12345",
+                        "realName", tag + "自动化患者", "gender", 1)));
+        String token = engine.login(phone, "Test12345");
+        if (token.isEmpty()) {
+            return null;
+        }
+        engine.setToken(token);
+        ApiTestEngine.ApiResponse prof = engine.getWithAuth("/api/patient/profile");
+        if (!prof.isOk() || !(prof.getData() instanceof Map)) {
+            return null;
+        }
+        Object pid = ((Map) prof.getData()).get("id");
+        check("POST /api/patient/realname（" + tag + "患者实名提交）",
+                engine.postWithAuth("/api/patient/realname",
+                        Map.of("name", tag + "自动化患者", "idCard", "310101199008201234")));
+        if (pid != null) {
+            engine.setToken(adminToken());
+            check("PUT  /api/patient/realname/" + pid + "/review（" + tag + "患者实名审核）",
+                    engine.putWithAuth("/api/patient/realname/" + pid + "/review",
+                            Map.of("verifyStatus", 2, "verifyComment", "自动化测试通过")));
+        }
+        return token;
+    }
+
+    /**
+     * 迭代 9：患者挂号→缴费→（可选）签到三连。
+     * channelType 非 null 时按该通道过滤号源并在挂号体携带；doCheckin 为 false 时不签到（改期用例要求未签到）。
+     * 返回 checkinId（未签到/失败返回 null）。
+     */
+    private Long iter9RegisterPayCheckin(String token, Long doctorId, String today, String tag,
+                                         String channelType, boolean doCheckin) throws IOException {
+        engine.setToken(token);
+        final String ct = channelType;
+        List<Map> slots = fetchAvailableSlots(DEPT_ID, today).stream()
+                .filter(s -> "AVAILABLE".equals(s.get("status")))
+                .filter(s -> String.valueOf(s.get("doctorId")).equals(String.valueOf(doctorId)))
+                .filter(s -> ct == null || ct.equals(s.get("channelType")) || ct.equals(s.get("channel_type")))
+                .filter(this::inCheckinWindow)
+                .collect(Collectors.toList());
+        if (slots.isEmpty()) {
+            check("POST /api/clinic/appointments（跳过—" + tag + "无可用号源）",
+                    syntheticOk("无可用号源，" + tag + "相关用例跳过"));
+            return null;
+        }
+        Map slot = slots.get(0);
+        long slotId = ((Number) slot.get("id")).longValue();
+        long schedId = ((Number) slot.get("scheduleId")).longValue();
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("slotId", slotId);
+        body.put("scheduleId", schedId);
+        if (ct != null) {
+            body.put("channelType", ct);
+        }
+        ApiTestEngine.ApiResponse appt = engine.postWithAuth("/api/clinic/appointments", body);
+        check("POST /api/clinic/appointments（" + tag + "挂号"
+                + (ct != null ? "·" + ct + "通道" : "") + "）", appt);
+        if (!appt.isOk() || !(appt.getData() instanceof Map)) {
+            return null;
+        }
+        Map vo = (Map) appt.getData();
+        state.put(tag + "AppointmentId", vo.get("id"));
+        state.put(tag + "SlotId", slotId);
+        state.put(tag + "SchedId", schedId);
+        state.put(tag + "RegisterFee", vo.get("registerFee"));
+
+        Object payOrderId = vo.get("paymentOrderId");
+        if (payOrderId != null) {
+            check("POST /api/payment/pay?orderId=" + payOrderId + "（" + tag + "缴挂号费）",
+                    engine.postWithAuth("/api/payment/pay?orderId=" + payOrderId, Map.of()));
+        }
+        if (!doCheckin) {
+            return null;
+        }
+        ApiTestEngine.ApiResponse ci = engine.postWithAuth("/api/clinic/checkin",
+                Map.of("appointmentId", vo.get("id")));
+        check("POST /api/clinic/checkin（" + tag + "签到）", ci);
+        return ci.isOk() && ci.getData() instanceof Map && ((Map) ci.getData()).get("id") != null
+                ? ((Number) ((Map) ci.getData()).get("id")).longValue() : null;
+    }
+
+    /** A1+A6：分诊优先级设置、队列视图相对序、回诊插队（独立医生 + 两名独立患者真实链路） */
+    private void testTriagePriority() throws IOException {
+        String today = LocalDate.now().format(DATE_FMT);
+        Long drId = ensurePharmacyDoctor();
+        if (drId == null) {
+            check("POST /api/clinic/triage/queue（跳过—迭代9医生创建失败）",
+                    syntheticOk("迭代9医生创建失败，分诊用例跳过"));
+            return;
+        }
+        ensureIter9Schedule(drId, today, "NORMAL");
+        String tokenA = ensureIter9Patient("分诊A");
+        String tokenB = ensureIter9Patient("分诊B");
+        if (tokenA == null || tokenB == null) {
+            check("POST /api/clinic/triage/queue（跳过—分诊患者创建失败）",
+                    syntheticOk("分诊患者创建失败，分诊用例跳过"));
+            return;
+        }
+
+        // 两名患者同科挂号→缴费→签到（A 普通档、B 普通档，随后 B 被分诊提升）
+        Long cidA = iter9RegisterPayCheckin(tokenA, drId, today, "分诊A", null, true);
+        Long cidB = iter9RegisterPayCheckin(tokenB, drId, today, "分诊B", null, true);
+        if (cidA == null || cidB == null) {
+            check("POST /api/clinic/triage/queue（跳过—分诊签到未完成）",
+                    syntheticOk("分诊签到未完成，分诊用例跳过"));
+            return;
+        }
+        state.put("iter9CheckinA", cidA);
+        state.put("iter9CheckinB", cidB);
+
+        // A1：分诊台将 B 设为优先级 1（优先）
+        engine.setToken(adminToken());
+        check("POST /api/clinic/triage/set-priority（分诊B设为优先级1）",
+                engine.postWithAuth("/api/clinic/triage/set-priority",
+                        Map.of("checkinId", cidB, "priority", 1, "returnFlag", 0)));
+
+        // 队列视图：WAITING 按score升序，B（优先）应排在 A（普通）之前
+        ApiTestEngine.ApiResponse queue = engine.getWithAuth(
+                "/api/clinic/triage/queue?departmentId=" + DEPT_ID);
+        check("GET  /api/clinic/triage/queue（分诊台队列视图）", queue);
+        if (queue.isOk() && queue.getData() instanceof List) {
+            List rows = (List) queue.getData();
+            java.util.function.Function<Object, Long> cid = r -> {
+                Map m = (Map) r;
+                Object v = m.get("checkinId") != null ? m.get("checkinId") : m.get("id");
+                return v instanceof Number ? ((Number) v).longValue() : null;
+            };
+            int posA = -1;
+            int posB = -1;
+            for (int i = 0; i < rows.size(); i++) {
+                Long id = cid.apply(rows.get(i));
+                if (id != null && id == cidA.longValue()) { posA = i; }
+                if (id != null && id == cidB.longValue()) { posB = i; }
+            }
+            assertTrue("分诊队列应包含两名患者（A=" + posA + ", B=" + posB + "）", posA >= 0 && posB >= 0);
+            assertTrue("优先级患者应排在普通患者之前（B@" + posB + " < A@" + posA + "）", posB < posA);
+        }
+
+        // 叫号验证（弹出者受同科残留队列影响，此处仅断言两次叫号可正常执行）
+        check("POST /api/clinic/call/next（优先级队列第1次叫号）",
+                engine.postWithAuth("/api/clinic/call/next",
+                        Map.of("departmentId", DEPT_ID, "consultRoom", "9诊室")));
+        check("POST /api/clinic/call/next（优先级队列第2次叫号）",
+                engine.postWithAuth("/api/clinic/call/next",
+                        Map.of("departmentId", DEPT_ID, "consultRoom", "9诊室")));
+
+        // A6：A 被叫号后处于 CALLED，检查完成回诊 → 重新排队（returnFlag=1 同档插队）
+        check("POST /api/clinic/checkin/" + cidA + "/rejoin（检查完成回诊重新排队）",
+                engine.postWithAuth("/api/clinic/checkin/" + cidA + "/rejoin", Map.of()));
+        ApiTestEngine.ApiResponse queue2 = engine.getWithAuth(
+                "/api/clinic/triage/queue?departmentId=" + DEPT_ID);
+        check("GET  /api/clinic/triage/queue（回诊后队列复查）", queue2);
+        if (queue2.isOk() && queue2.getData() instanceof List) {
+            boolean aBack = false;
+            boolean bGone = true;
+            for (Object r : (List) queue2.getData()) {
+                Map m = (Map) r;
+                Object v = m.get("checkinId") != null ? m.get("checkinId") : m.get("id");
+                Long id = v instanceof Number ? ((Number) v).longValue() : null;
+                if (id != null && id == cidA.longValue()) { aBack = true; }
+                if (id != null && id == cidB.longValue()) { bGone = false; }
+            }
+            assertTrue("回诊患者应重新出现在队列", aBack);
+            assertTrue("已叫号患者不应再出现在等待队列", bGone);
+        }
+        check("POST /api/clinic/call/next（回诊患者第3次叫号）",
+                engine.postWithAuth("/api/clinic/call/next",
+                        Map.of("departmentId", DEPT_ID, "consultRoom", "9诊室")));
+    }
+
+    /** A2+A3+A4+A5：专家号分层定价、绿色通道号源、医生加号、退号改期（独立医生 + 两名患者） */
+    private void testOutpatientEnhance() throws IOException {
+        String today = LocalDate.now().format(DATE_FMT);
+        Long drId = ensurePharmacyDoctor();
+        if (drId == null) {
+            check("POST /api/clinic/appointments/overbook（跳过—迭代9医生创建失败）",
+                    syntheticOk("迭代9医生创建失败，门诊增强用例跳过"));
+            return;
+        }
+        // 专家号排班：feeType=EXPERT（医生职称为 ATTENDING → 档位价 30）
+        ensureIter9Schedule(drId, today, "EXPERT");
+        Object schedObj = state.get("iter9ScheduleId");
+        if (schedObj == null) {
+            check("POST /api/clinic/appointments（跳过—迭代9排班创建失败）",
+                    syntheticOk("迭代9排班创建失败，门诊增强用例跳过"));
+            return;
+        }
+        long schedId = ((Number) schedObj).longValue();
+
+        // A4：管理端把前 1 个号源划为绿色通道
+        engine.setToken(adminToken());
+        check("POST /api/admin/schedule/" + schedId + "/green-slots（前1个号源划绿色通道）",
+                engine.postWithAuth("/api/admin/schedule/" + schedId
+                        + "/green-slots?channelType=GREEN&count=1", Map.of()));
+
+        String tokenP1 = ensureIter9Patient("增强P1");
+        String tokenP2 = ensureIter9Patient("增强P2");
+        if (tokenP1 == null || tokenP2 == null) {
+            check("POST /api/clinic/appointments/overbook（跳过—增强患者创建失败）",
+                    syntheticOk("增强患者创建失败，门诊增强用例跳过"));
+            return;
+        }
+
+        // P1：绿色通道挂号（channelType=GREEN，不签到——改期要求未签到）→ 校验专家号定价
+        iter9RegisterPayCheckin(tokenP1, drId, today, "增强P1", "GREEN", false);
+        if (state.get("增强P1AppointmentId") == null) {
+            check("POST /api/clinic/appointments（跳过—增强P1挂号未完成）",
+                    syntheticOk("增强P1挂号未完成，门诊增强用例跳过"));
+            return;
+        }
+        Object fee = state.get("增强P1RegisterFee");
+        assertTrue("专家号（ATTENDING）挂号费应为 30，实际=" + fee,
+                fee instanceof Number && Math.abs(((Number) fee).doubleValue() - 30.0) < 0.001);
+
+        // A2：管理端打开排班加号开关 → P2（患者自助）对 P1 已占用的号源加号（overbook）
+        engine.setToken(adminToken());
+        check("PUT  /api/admin/schedule/" + schedId + "/overbook（开启排班加号开关）",
+                engine.putWithAuth("/api/admin/schedule/" + schedId + "/overbook?overbook=1", Map.of()));
+        engine.setToken(tokenP2);
+        Object p1SlotId = state.get("增强P1SlotId");
+        ApiTestEngine.ApiResponse ob = engine.postWithAuth("/api/clinic/appointments/overbook",
+                Map.of("slotId", p1SlotId, "scheduleId", schedId));
+        check("POST /api/clinic/appointments/overbook（P2对已占用号源加号）", ob);
+        if (ob.isOk() && ob.getData() instanceof Map) {
+            Object flag = ((Map) ob.getData()).get("overbookFlag");
+            assertTrue("加号预约 overbookFlag 应为 1，实际=" + flag,
+                    flag instanceof Number && ((Number) flag).intValue() == 1);
+        }
+
+        // A3：P1 未签到，同科室改期到同排班另一号源（费用/支付订单不变）
+        engine.setToken(tokenP1);
+        List<Map> slots = fetchAvailableSlots(DEPT_ID, today).stream()
+                .filter(s -> "AVAILABLE".equals(s.get("status")))
+                .filter(s -> String.valueOf(s.get("doctorId")).equals(String.valueOf(drId)))
+                .filter(this::inCheckinWindow)
+                .collect(Collectors.toList());
+        if (slots.isEmpty()) {
+            check("POST /api/clinic/appointments/{id}/reschedule（跳过—无可用改期号源）",
+                    syntheticOk("无可用改期号源，改期用例跳过"));
+        } else {
+            Map newSlot = slots.get(0);
+            long newSlotId = ((Number) newSlot.get("id")).longValue();
+            long newSchedId = ((Number) newSlot.get("scheduleId")).longValue();
+            Object apptId = state.get("增强P1AppointmentId");
+            ApiTestEngine.ApiResponse rs = engine.postWithAuth(
+                    "/api/clinic/appointments/" + apptId + "/reschedule",
+                    Map.of("newSlotId", newSlotId, "newScheduleId", newSchedId));
+            check("POST /api/clinic/appointments/" + apptId + "/reschedule（P1同科室改期）", rs);
+            if (rs.isOk() && rs.getData() instanceof Map) {
+                Object nsid = ((Map) rs.getData()).get("slotId");
+                assertTrue("改期后 slotId 应为新号源，实际=" + nsid,
+                        nsid instanceof Number && ((Number) nsid).longValue() == newSlotId);
+            }
+        }
+    }
+
+    /** J3+A8：ICD-10 字典查询/CRUD、排班日历、未来第 7 天号源自动生成 Job（手动触发） */
+    private void testIcdCalendar() throws IOException {
+        engine.setToken(adminToken());
+
+        // J3：ICD 分页查询（关键字命中 + 全量种子规模 + 分类接口）
+        ApiTestEngine.ApiResponse hit = engine.getWithAuth(
+                "/api/clinic/icd/page?keyword=%E9%AB%98%E8%A1%80%E5%8E%8B&pageNo=1&pageSize=5");
+        check("GET  /api/clinic/icd/page?keyword=高血压（ICD关键字查询）", hit);
+        if (hit.isOk() && hit.getData() instanceof Map) {
+            Object total = ((Map) hit.getData()).get("total");
+            assertTrue("关键字'高血压'应至少命中 1 条，实际=" + total,
+                    total instanceof Number && ((Number) total).intValue() >= 1);
+        }
+        ApiTestEngine.ApiResponse all = engine.getWithAuth("/api/clinic/icd/page?pageNo=1&pageSize=30");
+        check("GET  /api/clinic/icd/page（ICD全量分页）", all);
+        if (all.isOk() && all.getData() instanceof Map) {
+            Object total = ((Map) all.getData()).get("total");
+            assertTrue("ICD 种子应不少于 30 条，实际=" + total,
+                    total instanceof Number && ((Number) total).intValue() >= 30);
+        }
+        check("GET  /api/clinic/icd/categories（ICD章节分类）",
+                engine.getWithAuth("/api/clinic/icd/categories"));
+
+        // J3：管理端 CRUD（新增 → 停用 → 删除）
+        String tmpCode = "T" + randomDigits(4);
+        ApiTestEngine.ApiResponse created = engine.postWithAuth("/api/clinic/icd",
+                Map.of("icdCode", tmpCode, "icdName", "自动化测试诊断" + tmpCode,
+                        "category", "自动化测试", "isCommon", 0, "status", 1));
+        check("POST /api/clinic/icd（新增测试 ICD 条目）", created);
+        if (created.isOk() && created.getData() instanceof Map
+                && ((Map) created.getData()).get("id") != null) {
+            long icdId = ((Number) ((Map) created.getData()).get("id")).longValue();
+            check("PUT  /api/clinic/icd/" + icdId + "（停用测试 ICD 条目）",
+                    engine.putWithAuth("/api/clinic/icd/" + icdId,
+                            Map.of("icdCode", tmpCode, "icdName", "自动化测试诊断" + tmpCode,
+                                    "category", "自动化测试", "isCommon", 0, "status", 0)));
+            check("DELETE /api/clinic/icd/" + icdId + "（删除测试 ICD 条目）",
+                    engine.deleteWithAuth("/api/clinic/icd/" + icdId));
+        }
+
+        // A8：手动触发未来第 7 天号源自动生成（幂等：重复执行跳过已存在排班）
+        String target = LocalDate.now().plusDays(7).format(DATE_FMT);
+        ApiTestEngine.ApiResponse gen = engine.postWithAuth(
+                "/api/admin/schedule/generate?date=" + target, Map.of());
+        check("POST /api/admin/schedule/generate?date=" + target + "（自动排班Job手动触发）", gen);
+
+        // A8：排班日历（未来第 7 天应有生成结果）
+        ApiTestEngine.ApiResponse cal = engine.getWithAuth(
+                "/api/clinic/schedules/calendar?departmentId=" + DEPT_ID
+                        + "&startDate=" + target + "&days=1");
+        check("GET  /api/clinic/schedules/calendar（排班日历视图）", cal);
+        if (cal.isOk() && cal.getData() instanceof List) {
+            assertTrue("自动生成后日历应有排班记录，实际="
+                            + ((List) cal.getData()).size(),
+                    !((List) cal.getData()).isEmpty());
         }
     }
 

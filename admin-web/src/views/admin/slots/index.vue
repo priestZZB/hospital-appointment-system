@@ -7,12 +7,13 @@ import {
   Date as DateIcon,
   Hospital,
   List,
+  Plus,
   Refresh,
   Search,
   User,
   UserGroup,
 } from '@win-design-next/icons-vue'
-import { getDepartmentsApi, getScheduleSlotsApi, getSlotsApi } from '@/api/clinic'
+import { getDepartmentsApi, getScheduleSlotsApi, getSlotsApi, overbookAppointmentApi } from '@/api/clinic'
 import { useUserStore } from '@/stores/user'
 import type { DepartmentVO, SlotVO } from '@/types'
 
@@ -21,6 +22,17 @@ const departments = ref<DepartmentVO[]>([])
 const loading = ref(false)
 const queried = ref(false)
 const list = ref<SlotVO[]>([])
+
+/** 加号（迭代9 A2）：管理端 / 分诊护士 / 收费员可对号源加号 */
+const canOverbook = computed(() => userStore.isAdmin || userStore.isTriageNurse || userStore.isCashier)
+const overbookVisible = ref(false)
+const overbookLoading = ref(false)
+const overbookSlot = ref<SlotVO | null>(null)
+const overbookPatientId = ref<number | undefined>(undefined)
+
+function isGreen(slot: SlotVO): boolean {
+  return (slot.channelType || '').toUpperCase() === 'GREEN'
+}
 
 const query = reactive({
   departmentId: undefined as number | undefined,
@@ -96,6 +108,37 @@ function resetQuery() {
   query.scheduleId = undefined
   list.value = []
   queried.value = false
+}
+
+/** 打开加号弹窗（A2 POST /api/clinic/appointments/overbook，与挂号同体） */
+function openOverbook(slot: SlotVO) {
+  overbookSlot.value = slot
+  overbookPatientId.value = undefined
+  overbookVisible.value = true
+}
+
+async function confirmOverbook() {
+  const slot = overbookSlot.value
+  if (!slot) return
+  if (!overbookPatientId.value) {
+    WMessage.warning('请输入患者 ID')
+    return
+  }
+  overbookLoading.value = true
+  try {
+    await overbookAppointmentApi({
+      slotId: slot.id,
+      scheduleId: slot.scheduleId,
+      patientId: overbookPatientId.value,
+    })
+    WMessage.success('加号成功')
+    overbookVisible.value = false
+    fetchList()
+  } catch (e) {
+    WMessage.error((e as Error).message || '加号失败')
+  } finally {
+    overbookLoading.value = false
+  }
 }
 
 onMounted(async () => {
@@ -210,9 +253,19 @@ onMounted(async () => {
             >
               <div class="slot-card__head">
                 <span class="slot-card__range">{{ row.slotStart }} – {{ row.slotEnd }}</span>
-                <w-tag :type="statusType(row.status)" size="small" effect="light">
-                  {{ statusText(row.status) }}
-                </w-tag>
+                <div class="slot-card__tags">
+                  <w-tag
+                    v-if="row.channelType"
+                    :type="isGreen(row) ? 'success' : 'info'"
+                    size="small"
+                    :effect="isGreen(row) ? 'dark' : 'light'"
+                  >
+                    {{ isGreen(row) ? '绿色通道' : '普通' }}
+                  </w-tag>
+                  <w-tag :type="statusType(row.status)" size="small" effect="light">
+                    {{ statusText(row.status) }}
+                  </w-tag>
+                </div>
               </div>
 
               <div class="slot-card__doctor">
@@ -249,6 +302,10 @@ onMounted(async () => {
                   挂号费 <span class="slot-card__fee-value">¥{{ row.registerFee ?? '—' }}</span>
                 </div>
               </div>
+
+              <div v-if="canOverbook" class="slot-card__ops">
+                <w-button size="small" type="primary" plain :icon="Plus" @click="openOverbook(row)">加号</w-button>
+              </div>
             </div>
           </div>
 
@@ -268,6 +325,35 @@ onMounted(async () => {
         />
       </div>
     </w-card>
+
+    <!-- 加号弹窗（迭代9 A2） -->
+    <w-dialog v-model="overbookVisible" title="门诊加号" width="460px">
+      <template v-if="overbookSlot">
+        <w-descriptions :column="1" border label-width="90px" class="overbook-desc">
+          <w-descriptions-item label="时段">{{ overbookSlot.slotStart }} – {{ overbookSlot.slotEnd }}</w-descriptions-item>
+          <w-descriptions-item label="医生">
+            {{ overbookSlot.doctorName || '未分配医生' }}
+            <template v-if="overbookSlot.scheduleDate">（{{ overbookSlot.scheduleDate }} {{ overbookSlot.period || '' }}）</template>
+          </w-descriptions-item>
+        </w-descriptions>
+        <p class="overbook-tip">加号将在号源之外额外安排一位患者就诊，请与医生确认后操作。</p>
+        <w-form label-width="90px">
+          <w-form-item label="患者 ID" required>
+            <w-input-number
+              v-model="overbookPatientId"
+              :min="1"
+              :controls="false"
+              placeholder="请输入患者 ID"
+              style="width: 100%"
+            />
+          </w-form-item>
+        </w-form>
+      </template>
+      <template #footer>
+        <w-button @click="overbookVisible = false">取消</w-button>
+        <w-button type="primary" :loading="overbookLoading" @click="confirmOverbook">确认加号</w-button>
+      </template>
+    </w-dialog>
   </div>
 </template>
 
@@ -409,6 +495,26 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+.slot-card__tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.slot-card__ops {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px dashed var(--hospital-border-lighter);
+  padding-top: 10px;
+}
+.overbook-desc {
+  margin-bottom: 12px;
+}
+.overbook-tip {
+  font-size: 12.5px;
+  color: var(--hospital-warning, #ed7b2f);
+  margin: 0 0 12px;
 }
 .slot-card__range {
   font-size: 16px;

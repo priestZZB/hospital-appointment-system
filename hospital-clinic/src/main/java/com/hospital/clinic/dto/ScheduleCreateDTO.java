@@ -39,4 +39,10 @@ public class ScheduleCreateDTO {
 
     /** 挂号费 */
     private BigDecimal registerFee;
+
+    /** 号别（可选，迭代9 A5）：NORMAL-普通号（默认）/ EXPERT-专家号（按医生职称档位价收费） */
+    private String feeType;
+
+    /** 加号开关（可选，迭代9 A2）：0-禁止（默认）/ 1-允许加号超挂 */
+    private Integer overbook;
 }

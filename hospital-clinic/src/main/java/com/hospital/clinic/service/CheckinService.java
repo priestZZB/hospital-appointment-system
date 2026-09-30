@@ -134,10 +134,12 @@ public class CheckinService {
         log.info("[签到] 签到成功: checkinId={}, patientId={}, deptId={}",
                 checkin.getId(), patientId, appointment.getDepartmentId());
 
-        // 5. 加入 Redis 排队队列（score = 签到时间戳毫秒）
+        // 5. 加入 Redis 排队队列（score = 分诊优先级档位×1e13 + 签到时间戳毫秒，
+        //    与 TriageService.queueScore 同一公式：签到即普通档 priority=2，ZPOPMIN 按
+        //    "急诊/优先/普通、回诊插队"顺序自然出队，避免新旧公式混跑排序错乱）
         String queueKey = QUEUE_KEY_PREFIX + appointment.getDepartmentId();
         stringRedisTemplate.opsForZSet().add(queueKey, String.valueOf(checkin.getId()),
-                (double) System.currentTimeMillis());
+                TriageService.queueScore(2, 0, System.currentTimeMillis()));
 
         // 6. 更新 appointment.visit_status（仅当 visit_status 仍为 null 时更新，防止已叫号/已就诊被覆盖）
         int rows = appointmentMapper.updateVisitStatus(appointment.getId(), "CHECKED_IN", null);
@@ -241,6 +243,8 @@ public class CheckinService {
                 .callTime(c.getCallTime())
                 .callCount(c.getCallCount())
                 .consultRoom(c.getConsultRoom())
+                .priority(c.getPriority())
+                .returnFlag(c.getReturnFlag())
                 .createTime(c.getCreateTime())
                 .build();
     }

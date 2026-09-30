@@ -37,6 +37,12 @@ public class Slot implements Serializable {
     /** 乐观锁版本号 */
     private Integer version;
 
+    /** 号源通道：NORMAL-普通 / GREEN-绿色通道（老年/军人/急诊优先，迭代9 A4） */
+    private String channelType;
+
+    /** 号源维度加号开关：0-禁止 / 1-允许（迭代9 A2） */
+    private Integer overbook;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

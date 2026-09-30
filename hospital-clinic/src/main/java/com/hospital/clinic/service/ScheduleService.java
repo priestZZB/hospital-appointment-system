@@ -84,6 +84,9 @@ public class ScheduleService {
         schedule.setTotalSlots(totalSlots);
         schedule.setSlotDuration(slotDuration);
         schedule.setRegisterFee(dto.getRegisterFee() != null ? dto.getRegisterFee() : BigDecimal.ZERO);
+        schedule.setFeeType(dto.getFeeType() != null && !dto.getFeeType().isBlank()
+                ? dto.getFeeType() : "NORMAL");
+        schedule.setOverbook(dto.getOverbook() != null ? dto.getOverbook() : 0);
         schedule.setStatus(1);
         schedule.setAuditStatus("PENDING");
         scheduleMapper.insert(schedule);
@@ -188,6 +191,90 @@ public class ScheduleService {
         return toVO(s, doctor, dept, availableSlots);
     }
 
+    // ==================== 迭代9 门诊流程补强 ====================
+
+    /**
+     * 排班日历（扁平列表，迭代9 A8）
+     * <p>
+     * 按科室 + 起始日期 + 天数查询出诊计划，返回 date × 医生 扁平条目
+     * （含确认状态与号源余量），前端可自行装配日期×医生矩阵。
+     */
+    public List<com.hospital.clinic.vo.ScheduleCalendarVO> calendarFlat(Long departmentId,
+                                                                        LocalDate startDate,
+                                                                        int days) {
+        if (days <= 0 || days > 31) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "days 取值范围为 1~31");
+        }
+        LocalDate endDate = startDate.plusDays(days - 1L);
+        List<Schedule> schedules = scheduleMapper.selectByDeptAndDateRange(departmentId, startDate, endDate);
+        if (schedules.isEmpty()) {
+            return List.of();
+        }
+        List<Doctor> deptDoctors = doctorMapper.selectByDepartmentId(departmentId);
+        Map<Long, Doctor> doctorMap = deptDoctors.stream()
+                .collect(Collectors.toMap(Doctor::getId, d -> d));
+
+        return schedules.stream().map(s -> {
+            Doctor doctor = doctorMap.get(s.getDoctorId());
+            int availableSlots = slotService.countAvailableSlots(s.getId());
+            return com.hospital.clinic.vo.ScheduleCalendarVO.builder()
+                    .scheduleId(s.getId())
+                    .date(s.getScheduleDate())
+                    .doctorId(s.getDoctorId())
+                    .doctorName(doctor != null ? doctor.getName() : null)
+                    .departmentId(s.getDepartmentId())
+                    .period(s.getPeriod())
+                    .periodStart(s.getPeriodStart())
+                    .periodEnd(s.getPeriodEnd())
+                    .confirmed("CONFIRMED".equals(s.getAuditStatus()))
+                    .slotTotal(s.getTotalSlots())
+                    .slotAvailable(availableSlots)
+                    .feeType(s.getFeeType())
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 设置排班加号开关（管理端，迭代9 A2）
+     *
+     * @param overbook 0-禁止 / 1-允许加号超挂
+     */
+    public ScheduleVO setOverbook(Long id, Integer overbook) {
+        if (overbook == null || (overbook != 0 && overbook != 1)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "overbook 仅支持 0/1");
+        }
+        Schedule s = scheduleMapper.selectById(id);
+        if (s == null) {
+            throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
+        }
+        scheduleMapper.updateOverbook(id, overbook);
+        s.setOverbook(overbook);
+        Doctor doctor = doctorMapper.selectById(s.getDoctorId());
+        Department dept = departmentMapper.selectById(s.getDepartmentId());
+        return toVO(s, doctor, dept, slotService.countAvailableSlots(id));
+    }
+
+    /**
+     * 设置排班号别（管理端，迭代9 A5）
+     *
+     * @param feeType NORMAL-普通号 / EXPERT-专家号（按医生职称档位价收费）
+     */
+    public ScheduleVO setFeeType(Long id, String feeType) {
+        if (feeType == null || feeType.isBlank()
+                || (!"NORMAL".equals(feeType) && !"EXPERT".equals(feeType))) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "feeType 仅支持 NORMAL/EXPERT");
+        }
+        Schedule s = scheduleMapper.selectById(id);
+        if (s == null) {
+            throw new BusinessException(ErrorCodeEnum.SCHEDULE_NOT_FOUND);
+        }
+        scheduleMapper.updateFeeType(id, feeType);
+        s.setFeeType(feeType);
+        Doctor doctor = doctorMapper.selectById(s.getDoctorId());
+        Department dept = departmentMapper.selectById(s.getDepartmentId());
+        return toVO(s, doctor, dept, slotService.countAvailableSlots(id));
+    }
+
     /**
      * 取消排班（级联取消关联号源和待支付预约）
      */
@@ -238,6 +325,8 @@ public class ScheduleService {
                 .registerFee(s.getRegisterFee())
                 .status(s.getStatus())
                 .auditStatus(s.getAuditStatus())
+                .feeType(s.getFeeType())
+                .overbook(s.getOverbook())
                 .createTime(s.getCreateTime())
                 .build();
     }

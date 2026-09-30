@@ -42,4 +42,17 @@ public interface SlotMapper {
 
     /** 仅取消仍可用的号源（保留 BOOKED，由取消预约流程释放） */
     int updateAvailableStatusByScheduleId(@Param("scheduleId") Long scheduleId, @Param("status") String status);
+
+    // ==================== 迭代9 门诊流程补强 ====================
+
+    /** 设置单个号源的通道类型（NORMAL/GREEN，绿色通道管理 A4） */
+    int updateChannelType(@Param("id") Long id, @Param("channelType") String channelType);
+
+    /**
+     * 批量将某排班下按号序最靠前的 N 个可用号源设为目标通道类型
+     * （绿色通道批量划绿 A4；只处理 AVAILABLE 且通道不同的号源）
+     */
+    int updateChannelTypeFirstN(@Param("scheduleId") Long scheduleId,
+                                @Param("channelType") String channelType,
+                                @Param("count") int count);
 }

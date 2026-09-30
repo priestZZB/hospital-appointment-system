@@ -31,5 +31,12 @@ public class ScheduleVO {
     private BigDecimal registerFee;
     private Integer status;
     private String auditStatus;
+
+    /** 号别：NORMAL-普通号 / EXPERT-专家号（迭代9 A5） */
+    private String feeType;
+
+    /** 排班维度加号开关：0-禁止 / 1-允许加号超挂（迭代9 A2） */
+    private Integer overbook;
+
     private LocalDateTime createTime;
 }

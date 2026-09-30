@@ -18,6 +18,7 @@ import {
   cancelScheduleApi,
   confirmScheduleApi,
   createScheduleApi,
+  createGreenSlotsApi,
   rejectScheduleApi,
   getDepartmentsApi,
   getDoctorsApi,
@@ -149,6 +150,8 @@ interface ScheduleForm {
   periodEnd: string
   slotDuration: number
   registerFee: number
+  /** 号别（迭代9 A5 分层定价）：NORMAL-普通号 / EXPERT-专家号 */
+  feeType: string
 }
 
 const dialogVisible = ref(false)
@@ -163,6 +166,7 @@ const form = reactive<ScheduleForm>({
   periodEnd: '12:00',
   slotDuration: 10,
   registerFee: 20,
+  feeType: 'NORMAL',
 })
 
 async function loadDoctors() {
@@ -189,6 +193,7 @@ function openCreate() {
     periodEnd: '12:00',
     slotDuration: 10,
     registerFee: 20,
+    feeType: 'NORMAL',
   })
   doctors.value = []
   dialogVisible.value = true
@@ -236,6 +241,38 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref<ScheduleVO | null>(null)
 const slots = ref<SlotVO[]>([])
+
+/* ---------------- 绿色通道（迭代9 A4：前 N 个号设绿色） ---------------- */
+const greenVisible = ref(false)
+const greenLoading = ref(false)
+const greenTarget = ref<ScheduleVO | null>(null)
+const greenCount = ref(1)
+
+function openGreen(row: ScheduleVO) {
+  greenTarget.value = row
+  greenCount.value = 1
+  greenVisible.value = true
+}
+
+async function confirmGreen() {
+  const target = greenTarget.value
+  if (!target) return
+  if (!greenCount.value || greenCount.value <= 0) {
+    WMessage.warning('请输入绿色通道号数量')
+    return
+  }
+  greenLoading.value = true
+  try {
+    await createGreenSlotsApi(target.id, greenCount.value)
+    WMessage.success(`已将前 ${greenCount.value} 个号设为绿色通道`)
+    greenVisible.value = false
+    fetchList()
+  } catch (e) {
+    WMessage.error((e as Error).message || '绿色通道设置失败')
+  } finally {
+    greenLoading.value = false
+  }
+}
 
 async function openDetail(row: ScheduleVO) {
   detail.value = row
@@ -309,6 +346,16 @@ function slotPercent(row: ScheduleVO): number {
   const total = row.totalSlots || 0
   if (!total) return 0
   return Math.round(((row.availableSlots ?? 0) / total) * 100)
+}
+
+/** 号别（迭代9 A5）：EXPERT-专家号，其余按普通号展示（防御式大小写） */
+function isExpertSchedule(row: ScheduleVO): boolean {
+  return (row.feeType || '').toUpperCase() === 'EXPERT'
+}
+
+/** 号源通道（迭代9 A4）：GREEN-绿色通道 */
+function isGreenSlot(slot: SlotVO): boolean {
+  return (slot.channelType || '').toUpperCase() === 'GREEN'
 }
 
 onMounted(async () => {
@@ -412,6 +459,13 @@ onMounted(async () => {
               <w-table-column label="挂号费" width="90" align="right">
                 <template #default="{ row }">¥{{ (row.registerFee ?? 0).toFixed(2) }}</template>
               </w-table-column>
+              <w-table-column label="号别" width="76" align="center">
+                <template #default="{ row }">
+                  <w-tag :type="isExpertSchedule(row) ? 'warning' : 'info'" effect="light" size="small">
+                    {{ isExpertSchedule(row) ? '专家' : '普通' }}
+                  </w-tag>
+                </template>
+              </w-table-column>
               <w-table-column label="状态" width="90" align="center">
                 <template #default="{ row }">
                   <w-tag :type="scheduleTagType(row)" effect="light" size="small">
@@ -419,13 +473,20 @@ onMounted(async () => {
                   </w-tag>
                 </template>
               </w-table-column>
-              <w-table-column label="操作" width="220" fixed="right" align="center">
+              <w-table-column label="操作" width="280" fixed="right" align="center">
                 <template #default="{ row }">
                   <w-button size="small" text type="primary" @click="openDetail(row)">详情</w-button>
                   <template v-if="row.auditStatus === 'PENDING' && userStore.isAdmin">
                     <w-button size="small" text type="success" @click="handleConfirm(row)">确认</w-button>
                     <w-button size="small" text type="warning" @click="handleReject(row)">驳回</w-button>
                   </template>
+                  <w-button
+                    v-if="userStore.isAdmin && row.status !== 'CANCELLED'"
+                    size="small"
+                    text
+                    type="success"
+                    @click="openGreen(row)"
+                  >绿色通道</w-button>
                   <w-popconfirm
                     v-if="userStore.isAdmin && row.status !== 'CANCELLED' && row.auditStatus !== 'PENDING'"
                     title="取消该排班将级联取消预约并退款，确定继续？"
@@ -489,6 +550,7 @@ onMounted(async () => {
                 <w-tag :type="scheduleTagType(s)" effect="light" size="small">
                   {{ scheduleStatusText(s) }}
                 </w-tag>
+                <w-tag v-if="isExpertSchedule(s)" type="warning" effect="light" size="small">专家号</w-tag>
               </div>
 
               <div class="schedule-card__meta">
@@ -544,6 +606,11 @@ onMounted(async () => {
         <w-descriptions-item label="出诊时间">{{ detail.periodStart }} – {{ detail.periodEnd }}</w-descriptions-item>
         <w-descriptions-item label="号源">{{ detail.availableSlots ?? 0 }} / {{ detail.totalSlots }}</w-descriptions-item>
         <w-descriptions-item label="挂号费">¥{{ (detail.registerFee ?? 0).toFixed(2) }}</w-descriptions-item>
+        <w-descriptions-item label="号别">
+          <w-tag :type="isExpertSchedule(detail) ? 'warning' : 'info'" effect="light" size="small">
+            {{ isExpertSchedule(detail) ? '专家号' : '普通号' }}
+          </w-tag>
+        </w-descriptions-item>
         <w-descriptions-item label="状态">
           <w-tag :type="scheduleTagType(detail)" effect="light" size="small">
             {{ scheduleStatusText(detail) }}
@@ -557,6 +624,13 @@ onMounted(async () => {
           <w-table-column prop="slotSeq" label="序号" width="70" align="center" />
           <w-table-column label="时间段" min-width="140">
             <template #default="{ row }">{{ row.slotStart }} – {{ row.slotEnd }}</template>
+          </w-table-column>
+          <w-table-column label="通道" width="96" align="center">
+            <template #default="{ row }">
+              <w-tag :type="isGreenSlot(row) ? 'success' : 'info'" effect="light" size="small">
+                {{ isGreenSlot(row) ? '绿色通道' : '普通' }}
+              </w-tag>
+            </template>
           </w-table-column>
           <w-table-column label="挂号费" width="100" align="right">
             <template #default="{ row }">¥{{ (row.registerFee ?? 0).toFixed(2) }}</template>
@@ -633,12 +707,43 @@ onMounted(async () => {
               <span class="form-unit">元</span>
             </w-form-item>
           </w-col>
+          <w-col :span="12">
+            <w-form-item label="号别">
+              <w-radio-group v-model="form.feeType">
+                <w-radio value="NORMAL">普通号</w-radio>
+                <w-radio value="EXPERT">专家号</w-radio>
+              </w-radio-group>
+            </w-form-item>
+          </w-col>
         </w-row>
       </w-form>
 
       <template #footer>
         <w-button @click="dialogVisible = false">取消</w-button>
         <w-button type="primary" :loading="saving" @click="handleSave">创建</w-button>
+      </template>
+    </w-dialog>
+
+    <!-- 绿色通道设置（迭代9 A4） -->
+    <w-dialog v-model="greenVisible" title="设置绿色通道号源" width="440px">
+      <template v-if="greenTarget">
+        <w-descriptions :column="1" border label-width="100px" class="green-desc">
+          <w-descriptions-item label="医生">{{ greenTarget.doctorName || '-' }}</w-descriptions-item>
+          <w-descriptions-item label="时段">
+            {{ greenTarget.scheduleDate }} {{ periodText(greenTarget.period) }} {{ greenTarget.periodStart }} – {{ greenTarget.periodEnd }}
+          </w-descriptions-item>
+          <w-descriptions-item label="号源总数">{{ greenTarget.totalSlots }}（剩余 {{ greenTarget.availableSlots ?? 0 }}）</w-descriptions-item>
+        </w-descriptions>
+        <w-form label-width="100px">
+          <w-form-item label="绿色号数量" required>
+            <w-input-number v-model="greenCount" :min="1" :max="greenTarget.totalSlots || 99" style="width: 100%" />
+          </w-form-item>
+        </w-form>
+        <p class="green-tip">将把该排班的前 N 个号源设为绿色通道（GREEN），供急诊/特殊患者优先使用。</p>
+      </template>
+      <template #footer>
+        <w-button @click="greenVisible = false">取消</w-button>
+        <w-button type="primary" :loading="greenLoading" @click="confirmGreen">确认设置</w-button>
       </template>
     </w-dialog>
   </div>
@@ -862,5 +967,15 @@ onMounted(async () => {
   font-size: 13px;
   color: var(--hospital-text-third);
   white-space: nowrap;
+}
+
+/* 绿色通道弹窗 */
+.green-desc {
+  margin-bottom: 14px;
+}
+.green-tip {
+  font-size: 12.5px;
+  color: var(--hospital-success, #2ba471);
+  margin: 0;
 }
 </style>

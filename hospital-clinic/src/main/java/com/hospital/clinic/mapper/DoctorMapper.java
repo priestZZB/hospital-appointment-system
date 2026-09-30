@@ -42,4 +42,7 @@ public interface DoctorMapper {
 
     /** 更新状态 */
     int updateStatus(@Param("id") Long id, @Param("status") Integer status);
+
+    /** 按状态查询所有医生（自动排班 Job：取全部在职医生，迭代9 A8） */
+    List<Doctor> selectByStatus(@Param("status") Integer status);
 }
