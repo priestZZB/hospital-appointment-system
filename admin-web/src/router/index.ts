@@ -255,6 +255,28 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/inpatient/surgery-center/index.vue'),
         meta: { title: '手术中心' },
       },
+      {
+        // 迭代11：医保结算（H2/H3 模拟结算 + 结算单列表/详情/票据/冲正）。
+        // 跨角色页面（管理员 + 收费员），菜单层控制可见性，与 surgery-center 同款不加 permissions
+        path: 'insurance-settle',
+        name: 'InsuranceSettle',
+        component: () => import('@/views/payment/insurance-settle/index.vue'),
+        meta: { title: '医保结算' },
+      },
+      {
+        // 迭代11：收费项目字典（H4 CRUD + 调价 + 启停）
+        path: 'charge-items',
+        name: 'ChargeItems',
+        component: () => import('@/views/payment/charge-items/index.vue'),
+        meta: { title: '收费项目字典' },
+      },
+      {
+        // 迭代11：医保目录管理（H1 目录映射 + 甲乙类/比例维护）
+        path: 'insurance-catalog',
+        name: 'InsuranceCatalog',
+        component: () => import('@/views/payment/insurance-catalog/index.vue'),
+        meta: { title: '医保目录管理' },
+      },
     ],
   },
   {

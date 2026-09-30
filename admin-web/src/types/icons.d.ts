@@ -9,6 +9,8 @@ declare module '@win-design-next/icons-vue' {
 
   export const ArrowLeft: Component
   export const ArrowRight: Component
+  /** 医保结算菜单/票据图标（迭代11；包内真实存在 dist/types/components/barcode.vue.d.ts） */
+  export const Barcode: Component
   export const BarChart: Component
   export const CaretBottom: Component
   export const Check: Component
@@ -33,6 +35,8 @@ declare module '@win-design-next/icons-vue' {
   export const Guide: Component
   export const Hospital: Component
   export const Key: Component
+  /** 结算票据 PDF 按钮（迭代11；包内真实存在 dist/types/components/pdf.vue.d.ts） */
+  export const Pdf: Component
   export const Link: Component
   export const LineChart: Component
   export const List: Component

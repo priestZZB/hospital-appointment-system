@@ -1343,3 +1343,161 @@ export interface PostopFollowupVO {
   planId?: number | string
   planStatus?: string
 }
+
+/** ==================== 医保与财务（迭代11） ====================
+ *  H4 收费项目字典 base=/api/admin/charge-item
+ *  H1 医保目录映射 base=/api/admin/insurance-catalog
+ *  H2/H3 医保结算 base=/api/payment/insurance
+ *  字段按后端信封防御式可选；结算相关字段做驼峰/下划线双命名兼容。
+ */
+
+/** 收费项目类别（与医保目录 itemType 同族，缺省 CHARGED_ITEM 不出现） */
+export type ChargeItemCategory = 'REGISTER' | 'DRUG' | 'EXAM' | 'LAB' | 'TREATMENT' | 'MATERIAL' | string
+
+/** 收费项目状态：ACTIVE-启用 / DEPRECATED-停用 */
+export type ChargeItemStatus = 'ACTIVE' | 'DEPRECATED' | string
+
+/** 收费项目（H4 GET /api/admin/charge-item/list record） */
+export interface ChargeItem {
+  id: number
+  itemCode?: string
+  item_code?: string
+  itemName?: string
+  item_name?: string
+  category?: ChargeItemCategory
+  unit?: string
+  /** 现行单价 */
+  unitPrice?: number
+  unit_price?: number
+  /** 价格状态：ACTIVE-正常 / ADJUSTED-已调价 / DEPRECATED-已停用（后端可能复用 status 字段，防御式兼容） */
+  priceStatus?: ChargeItemStatus
+  price_status?: ChargeItemStatus
+  status?: ChargeItemStatus
+  /** 最近一次调价信息（可能缺省） */
+  lastAdjustPrice?: number
+  last_adjust_price?: number
+  lastAdjustReason?: string
+  last_adjust_reason?: string
+  lastAdjustTime?: string
+  last_adjust_time?: string
+  createTime?: string
+  create_time?: string
+  updateTime?: string
+  update_time?: string
+}
+
+/** 医保目录项目类型（H1）：CHARGED_ITEM 引用收费项目 id */
+export type InsuranceItemType =
+  | 'REGISTER'
+  | 'DRUG'
+  | 'EXAM'
+  | 'LAB'
+  | 'TREATMENT'
+  | 'MATERIAL'
+  | 'CHARGED_ITEM'
+  | string
+
+/** 医保目录类别：A-甲类 / B-乙类 / C-自费 */
+export type InsuranceCatalogClass = 'A' | 'B' | 'C' | string
+
+/** 医保目录映射（H1 GET /api/admin/insurance-catalog/list record） */
+export interface InsuranceCatalog {
+  id: number
+  itemType?: InsuranceItemType
+  item_type?: InsuranceItemType
+  itemRefId?: number | string
+  item_ref_id?: number | string
+  itemName?: string
+  item_name?: string
+  catalogClass?: InsuranceCatalogClass
+  catalog_class?: InsuranceCatalogClass
+  /** 乙类=先行自付比例（如 15 表示 15%）；甲类/自费可能缺省或 0 */
+  reimburseRatio?: number
+  reimburse_ratio?: number
+  /** 状态（后端可能为 1/0 或 ACTIVE/DEPRECATED，展示时防御式转换） */
+  status?: number | string
+  createTime?: string
+  create_time?: string
+  updateTime?: string
+  update_time?: string
+}
+
+/** 医保结算明细行（字段驼峰/下划线双命名兼容） */
+export interface SettleDetailItem {
+  itemName?: string
+  item_name?: string
+  itemType?: string
+  item_type?: string
+  catalogClass?: string
+  catalog_class?: string
+  amount?: number
+  insurancePay?: number
+  insurance_pay?: number
+  personalPay?: number
+  personal_pay?: number
+  personalAccountPay?: number
+  personal_account_pay?: number
+}
+
+/** 医保结算单 VO（H2/H3，驼峰/下划线双命名兼容，除 id 外均可缺省） */
+export interface InsuranceSettle {
+  id?: number
+  settleNo?: string
+  settle_no?: string
+  patientId?: number
+  patient_id?: number
+  insuranceNo?: string
+  insurance_no?: string
+  /** 业务类型：REGISTER-挂号 / OUTPATIENT-门诊 / INPATIENT-住院 */
+  bizType?: string
+  biz_type?: string
+  bizRefId?: number | string
+  biz_ref_id?: number | string
+  totalAmount?: number
+  total_amount?: number
+  /** 甲类费用小计 */
+  catalogAAmount?: number
+  catalog_a_amount?: number
+  /** 乙类费用小计 */
+  catalogBAmount?: number
+  catalog_b_amount?: number
+  /** 自费（丙类/C 类）小计 */
+  selfAmount?: number
+  self_amount?: number
+  /** 统筹（医保基金）支付 */
+  insurancePay?: number
+  insurance_pay?: number
+  /** 个人账户支付 */
+  personalAccountPay?: number
+  personal_account_pay?: number
+  /** 现金支付 */
+  cashAmount?: number
+  cash_amount?: number
+  detail?: SettleDetailItem[]
+  /** 状态：SETTLED-已结算 / REVERSED-已冲正 */
+  status?: string
+  operatorId?: number
+  operator_id?: number
+  settleTime?: string
+  settle_time?: string
+  createTime?: string
+  create_time?: string
+}
+
+/** 医保结算提交明细项（POST /api/payment/insurance/settle items[]） */
+export interface InsuranceSettleItemParam {
+  itemType: string
+  refId?: number | string
+  itemName: string
+  amount: number
+}
+
+/** 医保结算提交参数（POST /api/payment/insurance/settle） */
+export interface InsuranceSettleParam {
+  patientId: number
+  insuranceNo?: string
+  bizType: string
+  bizRefId?: number | string
+  operatorId?: number
+  items: InsuranceSettleItemParam[]
+}

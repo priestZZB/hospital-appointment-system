@@ -519,4 +519,23 @@ public final class PermissionConstant {
     public static final String INPATIENT_SURGERY_ANESTHESIA_ENTRY = "api:inpatient:surgery:anesthesia";
     /** 术后随访触发（医生） */
     public static final String INPATIENT_SURGERY_POSTOP_FOLLOWUP = "api:inpatient:surgery:postop-followup";
+
+    // ==================== 医保与财务（payment · 迭代11 H1~H4，对应 auth V18 植入） ====================
+
+    /** 医保目录映射管理（管理员） */
+    public static final String PAYMENT_INSURANCE_CATALOG_MANAGE = "api:payment:insurance:catalog:manage";
+    /** 医保目录映射查询（管理员/医生） */
+    public static final String PAYMENT_INSURANCE_CATALOG_QUERY = "api:payment:insurance:catalog:query";
+    /** 医保费用结算 */
+    public static final String PAYMENT_INSURANCE_SETTLE = "api:payment:insurance:settle";
+    /** 医保结算单查询（管理员/医生） */
+    public static final String PAYMENT_INSURANCE_SETTLE_QUERY = "api:payment:insurance:settle:query";
+    /** 医保票据打印（H3 医疗收费票据 PDF） */
+    public static final String PAYMENT_INSURANCE_VOUCHER = "api:payment:insurance:voucher";
+    /** 医保结算冲正 */
+    public static final String PAYMENT_INSURANCE_REVERSE = "api:payment:insurance:reverse";
+    /** 收费项目管理（H4 统一收费目录，管理员） */
+    public static final String PAYMENT_CHARGE_ITEM_MANAGE = "api:payment:charge-item:manage";
+    /** 收费项目查询（管理员/医生） */
+    public static final String PAYMENT_CHARGE_ITEM_QUERY = "api:payment:charge-item:query";
 }

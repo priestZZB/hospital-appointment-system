@@ -57,11 +57,11 @@ spring:
           uri: lb://inpatient-service
           predicates:
             - Path=/api/inpatient/**,/api/admin/inpatient/**
-        # payment-service: 支付、退款、通知、凭证
+        # payment-service: 支付、退款、通知、凭证、医保结算、收费项目字典
         - id: payment-service
           uri: lb://payment-service
           predicates:
-            - Path=/api/payment/**,/api/notification/**
+            - Path=/api/payment/**,/api/notification/**,/api/admin/charge-item/**,/api/admin/insurance-catalog/**
         # ai-service: AI 分诊
         - id: ai-service
           uri: lb://ai-service

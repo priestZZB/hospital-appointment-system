@@ -158,6 +158,7 @@ public class ApiTestRunner {
         runStep("9-triage-分诊优先级回诊", this::testTriagePriority);
         runStep("9-slot-专家号绿色通道加号改期", this::testOutpatientEnhance);
         runStep("10-surgery-手术中心全链", this::testSurgeryCenter);
+        runStep("11-insurance-医保结算财务", this::testInsuranceFinance);
 
         report.print();
     }
@@ -2766,4 +2767,135 @@ public class ApiTestRunner {
     }
 
     @FunctionalInterface interface ThrowingRunnable { void run() throws IOException; }
+    /**
+     * 迭代 11：医保与财务（H1 目录映射 / H2 结算模拟三色拆分 / H3 电子票据 PDF / H4 收费项目字典+调价）。
+     * 结算算法（服务端）：甲类统筹 80%；乙类先自付 15% 入个人、剩余统筹 80%；自费全入个人。
+     * 用例构造 甲100/乙100/自费100 → 统筹 80+68=148、个人 15+100=152（容差断言）。
+     */
+    private void testInsuranceFinance() throws IOException {
+        engine.setToken(adminToken());
+        String suf = randomDigits(4);
+
+        // ---------- H4 收费项目字典 + 调价 ----------
+        String treatCode = "T11" + suf;
+        String matCode = "M11" + suf;
+        check("POST /api/admin/charge-item（H4 新增收费项目-诊疗）",
+                engine.postWithAuth("/api/admin/charge-item",
+                        Map.of("itemCode", treatCode, "itemName", "换药费" + suf, "category", "DIAGNOSIS",
+                                "unit", "次", "unitPrice", 25.00)));
+        ApiTestEngine.ApiResponse matCreated = engine.postWithAuth("/api/admin/charge-item",
+                Map.of("itemCode", matCode, "itemName", "无菌敷料包" + suf, "category", "MATERIAL",
+                        "unit", "个", "unitPrice", 12.50));
+        check("POST /api/admin/charge-item（H4 新增收费项目-耗材）", matCreated);
+        Object treatId = null;
+        ApiTestEngine.ApiResponse treatList = engine.getWithAuth(
+                "/api/admin/charge-item/list?keyword=" + java.net.URLEncoder.encode("换药费" + suf,
+                        java.nio.charset.StandardCharsets.UTF_8) + "&pageNo=1&pageSize=10");
+        check("GET  /api/admin/charge-item/list（H4 收费项目检索）", treatList);
+        if (treatList.isOk() && treatList.getData() instanceof Map tl && tl.get("records") instanceof List<?> trs && !trs.isEmpty()
+                && trs.get(0) instanceof Map t0) {
+            treatId = t0.get("id");
+        }
+        Object matId = matCreated.isOk() && matCreated.getData() instanceof Map mm ? mm.get("id") : null;
+        if (treatId == null || matId == null) {
+            check("POST /api/payment/insurance/settle（跳过—收费项目ID缺失）", syntheticOk("收费项目ID缺失，医保结算用例跳过"));
+            return;
+        }
+        check("PUT  /api/admin/charge-item/" + treatId + "/adjust-price（H4 调价 25→20）",
+                engine.putWithAuth("/api/admin/charge-item/" + treatId + "/adjust-price?newPrice=20.00&reason=迭代11自动化调价",
+                        Map.of()));
+        ApiTestEngine.ApiResponse priceCheck = engine.getWithAuth(
+                "/api/admin/charge-item/list?keyword=" + java.net.URLEncoder.encode("换药费" + suf,
+                        java.nio.charset.StandardCharsets.UTF_8) + "&pageNo=1&pageSize=10");
+        if (priceCheck.isOk() && priceCheck.getData() instanceof Map pc && pc.get("records") instanceof List<?> prs && !prs.isEmpty()
+                && prs.get(0) instanceof Map p0) {
+            Object price = p0.get("unitPrice");
+            if (price == null) {
+                price = p0.get("unit_price");
+            }
+            assertTrue("调价后收费项目单价应为 20.00", price != null
+                    && Math.abs(Double.parseDouble(String.valueOf(price)) - 20.0) < 0.01);
+        }
+
+        // ---------- H1 医保目录映射（甲/乙/自费） ----------
+        check("POST /api/admin/insurance-catalog（H1 挂号费→甲类）",
+                engine.postWithAuth("/api/admin/insurance-catalog",
+                        Map.of("itemType", "REGISTER", "itemRefId", 999901, "itemName", "普通挂号费",
+                                "catalogClass", "A", "reimburseRatio", 100)));
+        check("POST /api/admin/insurance-catalog（H1 敷料包→乙类先行自付15%）",
+                engine.postWithAuth("/api/admin/insurance-catalog",
+                        Map.of("itemType", "CHARGED_ITEM", "itemRefId", matId, "itemName", "无菌敷料包" + suf,
+                                "catalogClass", "B", "reimburseRatio", 15)));
+        check("POST /api/admin/insurance-catalog（H1 换药费→自费）",
+                engine.postWithAuth("/api/admin/insurance-catalog",
+                        Map.of("itemType", "CHARGED_ITEM", "itemRefId", treatId, "itemName", "换药费" + suf,
+                                "catalogClass", "C", "reimburseRatio", 0)));
+        check("GET  /api/admin/insurance-catalog/list?catalogClass=A（H1 甲类目录检索）",
+                engine.getWithAuth("/api/admin/insurance-catalog/list?catalogClass=A&pageNo=1&pageSize=10"));
+
+        // ---------- H2 结算模拟（甲100/乙100/自费100 → 统筹148/个人152） ----------
+        Object patientId = state.get("patientId");
+        if (patientId == null) {
+            check("POST /api/payment/insurance/settle（跳过—无患者）", syntheticOk("无患者，医保结算用例跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse settle = engine.postWithAuth("/api/payment/insurance/settle",
+                Map.of("patientId", patientId, "insuranceNo", "JS" + suf + "320115", "bizType", "OUTPATIENT",
+                        "operatorId", 1,
+                        "items", List.<Object>of(
+                                Map.<String, Object>of("itemType", "REGISTER", "refId", 999901, "itemName", "普通挂号费", "amount", 100.00),
+                                Map.<String, Object>of("itemType", "CHARGED_ITEM", "refId", matId, "itemName", "无菌敷料包" + suf, "amount", 100.00),
+                                Map.<String, Object>of("itemType", "CHARGED_ITEM", "refId", treatId, "itemName", "换药费" + suf, "amount", 100.00))));
+        check("POST /api/payment/insurance/settle（H2 医保结算三色拆分）", settle);
+        Object settleId = null;
+        if (settle.isOk() && settle.getData() instanceof Map sm) {
+            settleId = sm.get("id");
+            Object insurancePay = sm.get("insurancePay");
+            if (insurancePay == null) {
+                insurancePay = sm.get("insurance_pay");
+            }
+            Object personalPay = sm.get("personalAccountPay");
+            if (personalPay == null) {
+                personalPay = sm.get("personal_account_pay");
+            }
+            Object detail = sm.get("detail");
+            assertTrue("统筹支付应为 148.00（甲80+乙68），实际=" + insurancePay, insurancePay != null
+                    && Math.abs(Double.parseDouble(String.valueOf(insurancePay)) - 148.0) < 0.01);
+            assertTrue("个人支付应为 152.00（乙先自付15+自费100），实际=" + personalPay, personalPay != null
+                    && Math.abs(Double.parseDouble(String.valueOf(personalPay)) - 152.0) < 0.01);
+            assertTrue("结算明细应有 3 行", detail instanceof List<?> && ((List<?>) detail).size() == 3);
+        }
+        if (settleId == null) {
+            check("GET  /api/payment/insurance/settle/{id}（跳过—结算失败）", syntheticOk("结算失败，回读跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse settleView = engine.getWithAuth("/api/payment/insurance/settle/" + settleId);
+        check("GET  /api/payment/insurance/settle/" + settleId + "（H2 结算单回读）", settleView);
+        if (settleView.isOk() && settleView.getData() instanceof Map svm) {
+            Object no = svm.get("settleNo");
+            if (no == null) {
+                no = svm.get("settle_no");
+            }
+            assertTrue("结算单号应非空", no != null && !String.valueOf(no).isBlank());
+        }
+        check("GET  /api/payment/insurance/settle/list?patientId=" + patientId + "（H2 结算单列表）",
+                engine.getWithAuth("/api/payment/insurance/settle/list?patientId=" + patientId + "&pageNo=1&pageSize=10"));
+
+        // ---------- H3 电子票据 PDF ----------
+        final Object sid = settleId;
+        checkReachable("GET  /api/payment/insurance/" + sid + "/voucher-pdf（H3 医疗收费票据 PDF）",
+                () -> engine.getWithAuth("/api/payment/insurance/" + sid + "/voucher-pdf"));
+
+        // ---------- 冲正 ----------
+        check("POST /api/payment/insurance/settle/" + sid + "/reverse（H2 结算冲正）",
+                engine.postWithAuth("/api/payment/insurance/settle/" + sid + "/reverse", Map.of()));
+        ApiTestEngine.ApiResponse reversed = engine.getWithAuth("/api/payment/insurance/settle/" + sid);
+        if (reversed.isOk() && reversed.getData() instanceof Map rvm) {
+            Object st = rvm.get("status");
+            if (st == null) {
+                st = rvm.get("Status");
+            }
+            assertTrue("冲正后结算单状态应为 REVERSED", "REVERSED".equals(String.valueOf(st)));
+        }
+    }
 }

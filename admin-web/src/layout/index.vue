@@ -6,6 +6,7 @@ import { usePermissionStore } from '@/stores/permission'
 import { WMessageBox } from 'win-design-next'
 import {
   BarChart,
+  Barcode,
   CaretBottom,
   Computer,
   Cut,
@@ -22,6 +23,7 @@ import {
   Send,
   Server,
   Setting,
+  Stamp,
   Stop,
   Tool,
   TurnOff,
@@ -127,6 +129,15 @@ const adminMenuGroups: MenuGroup[] = [
     ],
   },
   {
+    // 迭代11：财务收费（医保与财务，管理员 + 收费员可见）
+    title: '财务收费',
+    items: [
+      { path: '/insurance-settle', label: '医保结算', icon: Barcode },
+      { path: '/charge-items', label: '收费项目字典', icon: List },
+      { path: '/insurance-catalog', label: '医保目录管理', icon: Stamp },
+    ],
+  },
+  {
     title: '系统管理',
     items: [
       { path: '/users', label: '用户管理', icon: UserGroup, permissions: ['menu:admin:user'] },
@@ -162,6 +173,8 @@ const patientTabs: MenuItem[] = [
 const staffTabs = computed<MenuItem[]>(() => {
   const tabs: MenuItem[] = []
   if (userStore.isCashier) tabs.push({ path: '/cashier', label: '收费工作台', permissions: ['menu:cashier:workbench'] })
+  // 迭代11：医保结算（收银员可见；管理员走侧栏「财务收费」组）
+  if (userStore.isCashier) tabs.push({ path: '/insurance-settle', label: '医保结算' })
   if (userStore.isTriageNurse) tabs.push({ path: '/triage', label: '分诊台', permissions: ['menu:triage:workbench'] })
   // 迭代9：分诊台工作台（优先级调整 / 回诊标记）
   if (userStore.isTriageNurse) tabs.push({ path: '/triage-desk', label: '分诊工作台', permissions: ['menu:triage:workbench'] })
