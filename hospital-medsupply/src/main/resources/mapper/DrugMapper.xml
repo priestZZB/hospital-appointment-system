@@ -14,6 +14,9 @@
         <result column="reference_price" property="referencePrice"/>
         <result column="unit" property="unit"/>
         <result column="description" property="description"/>
+        <result column="drug_type" property="drugType"/>
+        <result column="control_level" property="controlLevel"/>
+        <result column="antibiotic_level" property="antibioticLevel"/>
         <result column="status" property="status"/>
         <result column="create_time" property="createTime"/>
         <result column="update_time" property="updateTime"/>
@@ -51,14 +54,33 @@
         SELECT * FROM drug WHERE drug_code = #{drugCode}
     </select>
 
+    <select id="selectByDrugType" resultMap="BaseResultMap">
+        SELECT * FROM drug WHERE drug_type = #{drugType} AND status = 1
+        ORDER BY create_time DESC
+    </select>
+
+    <update id="updateDrugType">
+        UPDATE drug
+        <set>
+            drug_type = #{drugType},
+            <if test="controlLevel != null">control_level = #{controlLevel},</if>
+            <if test="antibioticLevel != null">antibiotic_level = #{antibioticLevel},</if>
+            update_time = SYSDATE
+        </set>
+        WHERE id = #{id}
+    </update>
+
     <insert id="insert" parameterType="com.hospital.medsupply.entity.Drug"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO drug (drug_code, drug_name, generic_name, specification,
                           dosage_form, manufacturer, reference_price, unit,
-                          description, status, create_time, update_time)
+                          description, drug_type, control_level, antibiotic_level,
+                          status, create_time, update_time)
         VALUES (#{drugCode}, #{drugName}, #{genericName}, #{specification},
                 #{dosageForm}, #{manufacturer}, #{referencePrice}, #{unit},
-                #{description}, #{status}, SYSDATE, SYSDATE)
+                #{description},
+                NVL(#{drugType}, 'WESTERN'), NVL(#{controlLevel}, 'NORMAL'), #{antibioticLevel},
+                #{status}, SYSDATE, SYSDATE)
     </insert>
 
     <update id="update" parameterType="com.hospital.medsupply.entity.Drug">
@@ -72,6 +94,9 @@
             <if test="referencePrice != null">reference_price = #{referencePrice},</if>
             <if test="unit != null">unit = #{unit},</if>
             <if test="description != null">description = #{description},</if>
+            <if test="drugType != null">drug_type = #{drugType},</if>
+            <if test="controlLevel != null">control_level = #{controlLevel},</if>
+            <if test="antibioticLevel != null">antibiotic_level = #{antibioticLevel},</if>
             update_time = SYSDATE
         </set>
         WHERE id = #{id}

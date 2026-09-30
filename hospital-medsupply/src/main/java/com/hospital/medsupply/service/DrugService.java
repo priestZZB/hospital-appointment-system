@@ -53,4 +53,17 @@ public class DrugService {
             throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "药品不存在");
         drugMapper.update(drug);
     }
+
+    /**
+     * 药品三分类/管控级别/抗菌分级管理（V8 B1/B8/B10）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateType(Long id, String drugType, String controlLevel, String antibioticLevel) {
+        if (drugMapper.selectById(id) == null)
+            throw new BusinessException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "药品不存在");
+        if (drugType == null || drugType.isBlank()) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "drugType 不能为空");
+        }
+        drugMapper.updateDrugType(id, drugType, controlLevel, antibioticLevel);
+    }
 }

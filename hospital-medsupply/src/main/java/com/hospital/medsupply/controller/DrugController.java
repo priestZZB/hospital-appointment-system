@@ -55,6 +55,16 @@ public class DrugController {
         return Result.ok();
     }
 
+    /** 药品三分类/管控级别/抗菌分级管理（V8 B1/B8/B10，body{drugType, controlLevel, antibioticLevel}） */
+    @RequiresPermission(PermissionConstant.MEDSUPPLY_DRUG_TYPE_MANAGE)
+    @PutMapping("/{id}/type")
+    @AuditLog(value = "药品分类管理", operationType = "UPDATE")
+    public Result<Void> updateType(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        requireAdmin();
+        drugService.updateType(id, body.get("drugType"), body.get("controlLevel"), body.get("antibioticLevel"));
+        return Result.ok();
+    }
+
     private void requireAdmin() {
         if (!UserContext.isAdminOrSuperAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅管理员可执行此操作");

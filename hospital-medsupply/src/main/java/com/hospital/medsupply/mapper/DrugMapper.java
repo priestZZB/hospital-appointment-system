@@ -26,6 +26,15 @@ public interface DrugMapper {
     /** 根据药品编码查询 */
     Drug selectByCode(@Param("drugCode") String drugCode);
 
+    /** 按药品分类查询（启用状态，V8 B1 三分类） */
+    List<Drug> selectByDrugType(@Param("drugType") String drugType);
+
+    /** 更新药品三分类/管控级别/抗菌分级（V8 B1/B8/B10） */
+    int updateDrugType(@Param("id") Long id,
+                       @Param("drugType") String drugType,
+                       @Param("controlLevel") String controlLevel,
+                       @Param("antibioticLevel") String antibioticLevel);
+
     /** 插入药品，自动回填主键 */
     int insert(Drug drug);
 

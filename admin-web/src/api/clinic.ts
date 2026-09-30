@@ -188,8 +188,39 @@ export function saveMedicalRecordApi(recordId: number, data: Record<string, unkn
   return request({ url: `/clinic/consultation/${recordId}`, method: 'put', data })
 }
 
+/** 处方明细提交体（V9：HERBAL 明细携带煎法/脚注） */
+export interface PrescriptionItemPayload {
+  drugId?: number
+  drugName: string
+  specification?: string
+  dosage?: string
+  usageMethod?: string
+  frequency?: string
+  days?: number
+  quantity?: number
+  price?: number
+  unit?: string
+  remark?: string
+  /** 中药煎法：先煎/后下/包煎/烊化等（HERBAL 明细使用） */
+  decoctionMethod?: string
+  /** 中药脚注：特殊处理说明（HERBAL 明细使用） */
+  footnote?: string
+}
+
+/** 处方开具提交体（V9：prescriptionType=HERBAL 时 herbalDoses 必填，并携带煎服法） */
+export interface PrescriptionCreatePayload {
+  medicalRecordId: number
+  /** 处方类型：WESTERN-西药笺（默认） / HERBAL-中药饮片笺 */
+  prescriptionType?: string
+  /** 中药剂数（HERBAL 处方必填，如 7 剂） */
+  herbalDoses?: number
+  /** 煎服法（如：每日一剂，水煎400ml，分早晚两次温服） */
+  herbalUsage?: string
+  items: PrescriptionItemPayload[]
+}
+
 /** 开具处方（依据：§3.5 #44 POST /api/clinic/prescription） */
-export function createPrescriptionApi(data: { medicalRecordId: number; items: Record<string, unknown>[] }): Promise<PrescriptionVO> {
+export function createPrescriptionApi(data: PrescriptionCreatePayload): Promise<PrescriptionVO> {
   return request({ url: '/clinic/prescription', method: 'post', data })
 }
 

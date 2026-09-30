@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
  * 处方主表实体
  *
  * @see V1__init.sql — prescription 表 DDL
+ * @see V9__prescription_type_herbal.sql — 处方类型（B4）与中药饮片处方头扩展（B2）
  */
 @Data
 public class Prescription implements Serializable {
@@ -42,6 +43,15 @@ public class Prescription implements Serializable {
 
     /** 缴费状态：UNPAID-待缴费 / PAID-已缴费 / REFUNDED-已退费 */
     private String payStatus;
+
+    /** 处方类型：WESTERN-西药/中成药处方笺 / HERBAL-中药饮片处方笺（V9） */
+    private String prescriptionType;
+
+    /** 中药剂数（HERBAL 处方必填，如 7 剂）（V9） */
+    private Integer herbalDoses;
+
+    /** 煎服法（如：每日一剂，水煎400ml，分早晚两次温服）（V9） */
+    private String herbalUsage;
 
     /** 创建时间 */
     private LocalDateTime createTime;

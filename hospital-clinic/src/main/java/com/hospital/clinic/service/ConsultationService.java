@@ -20,6 +20,9 @@ import com.hospital.clinic.vo.PrescriptionVO;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.PatientFeignClient;
+import com.hospital.common.feign.PharmacyFeignClient;
+import com.hospital.common.feign.dto.PharmacyCheckDTO;
+import com.hospital.common.feign.dto.PharmacyCheckResult;
 import com.hospital.common.interceptor.UserContext;
 import com.hospital.common.util.DataScopeUtil;
 import com.hospital.common.util.DataScopeUtil.ScopeType;
@@ -53,6 +56,7 @@ public class ConsultationService {
     private final PrescriptionItemMapper prescriptionItemMapper;
     private final DoctorMapper doctorMapper;
     private final PatientFeignClient patientFeignClient;
+    private final PharmacyFeignClient pharmacyFeignClient;
     private final RestTemplate restTemplate;
 
     /**
@@ -168,10 +172,13 @@ public class ConsultationService {
     /**
      * 处方开具
      * <p>
-     * 创建 prescription + prescription_item
+     * 创建 prescription + prescription_item。
+     * 开方安全校验链（迭代7 B9/B10）：
+     * ① HERBAL 处方必须指定剂数；② CDSS 安全审查（BLOCK 拦截 / WARN 放行）；
+     * ③ 抗菌药物处方授权校验；④ medsupply 不可用时 fail-open 放行，不阻塞开方。
      *
-     * @param doctorId 医生 ID
-     * @param dto      处方信息
+     * @param userId 登录用户 ID（映射医生档案）
+     * @param dto    处方信息
      * @return 处方 VO
      */
     @Transactional(rollbackFor = Exception.class)
@@ -187,6 +194,32 @@ public class ConsultationService {
         }
         if (!Objects.equals(record.getDoctorId(), doctor.getId())) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "无权为此病历开具处方");
+        }
+
+        // ==================== 开方安全校验链（迭代7 B9/B10）====================
+        // 处方类型归一化：缺省为西药/中成药处方笺
+        String prescriptionType = dto.getPrescriptionType() == null || dto.getPrescriptionType().isBlank()
+                ? "WESTERN" : dto.getPrescriptionType();
+        if (!"WESTERN".equals(prescriptionType) && !"HERBAL".equals(prescriptionType)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "无效的处方类型: " + prescriptionType);
+        }
+        // ① 中药饮片处方必须指定剂数（明细药品是否均为 drug_type=HERBAL 由 medsupply 侧把关）
+        if ("HERBAL".equals(prescriptionType) && dto.getHerbalDoses() == null) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "中药处方必须指定剂数");
+        }
+        // ② CDSS 处方安全审查（BLOCK 拦截 / WARN 放行）
+        // ③ 抗菌药物处方授权校验（passed=false 拦截）
+        // ④ medsupply 不可用或响应不可解析时 fail-open 放行，不阻塞开方
+        if (dto.getItems() != null && !dto.getItems().isEmpty()) {
+            PharmacyCheckDTO checkDTO = new PharmacyCheckDTO();
+            checkDTO.setPatientId(record.getPatientId());
+            checkDTO.setDoctorId(doctor.getId());
+            checkDTO.setItems(dto.getItems().stream()
+                    .map(i -> new PharmacyCheckDTO.Item(i.getDrugId(), i.getDrugName(),
+                            i.getDosage(), i.getQuantity(), i.getDays()))
+                    .collect(Collectors.toList()));
+            checkCdss(checkDTO);
+            checkAntibioticAuthorization(checkDTO);
         }
 
         // 划价：按明细 Σ(单价 × 数量) 计算处方总金额
@@ -209,6 +242,9 @@ public class ConsultationService {
         prescription.setStatus("PENDING_REVIEW");
         prescription.setPayStatus("UNPAID");
         prescription.setTotalAmount(totalAmount);
+        prescription.setPrescriptionType(prescriptionType);
+        prescription.setHerbalDoses(dto.getHerbalDoses());
+        prescription.setHerbalUsage(dto.getHerbalUsage());
         prescriptionMapper.insert(prescription);
 
         // 批量插入处方明细
@@ -228,6 +264,8 @@ public class ConsultationService {
                 item.setUnitPrice(itemDTO.getPrice() == null ? java.math.BigDecimal.ZERO : itemDTO.getPrice());
                 item.setUnit(itemDTO.getUnit());
                 item.setRemark(itemDTO.getRemark());
+                item.setDecoctionMethod(itemDTO.getDecoctionMethod());
+                item.setFootnote(itemDTO.getFootnote());
                 items.add(item);
             }
             prescriptionItemMapper.insertBatch(items);
@@ -395,6 +433,79 @@ public class ConsultationService {
         }
     }
 
+    /**
+     * CDSS 处方安全审查（medsupply-service，迭代7 B9）
+     * <p>
+     * 存在 severity=BLOCK 的违规（或远端明确 passed=false）→ 拦截开方；
+     * 仅 WARN → 放行并记录日志；远端不可用或响应不可解析 → fail-open 放行，不阻塞开方。
+     */
+    private void checkCdss(PharmacyCheckDTO checkDTO) {
+        try {
+            Map<String, Object> resp = pharmacyFeignClient.cdssCheck(checkDTO);
+            PharmacyCheckResult result = PharmacyCheckResult.fromMap(resp);
+            if (result == null) {
+                log.warn("[处方] CDSS 响应不可解析，fail-open 放行: patientId={}", checkDTO.getPatientId());
+                return;
+            }
+            List<PharmacyCheckResult.Violation> blocks = result.getBlockViolations();
+            if (!blocks.isEmpty()) {
+                String detail = blocks.stream()
+                        .map(v -> {
+                            String text = v.getDescription() == null || v.getDescription().isBlank()
+                                    ? (v.getRuleType() == null || v.getRuleType().isBlank()
+                                    ? "用药安全违规" : v.getRuleType())
+                                    : v.getDescription();
+                            return v.getDrugName() == null || v.getDrugName().isBlank()
+                                    ? text : v.getDrugName() + "：" + text;
+                        })
+                        .collect(Collectors.joining("；"));
+                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "CDSS拦截：" + detail);
+            }
+            if (Boolean.FALSE.equals(result.getPassed())) {
+                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "CDSS拦截："
+                        + (result.getMessage() == null || result.getMessage().isBlank()
+                        ? "处方未通过用药安全审查" : result.getMessage()));
+            }
+            List<PharmacyCheckResult.Violation> warns = result.getWarnViolations();
+            if (!warns.isEmpty()) {
+                log.info("[处方] CDSS 警告（放行）: patientId={}, warnings={}", checkDTO.getPatientId(),
+                        warns.stream()
+                                .map(v -> (v.getRuleType() == null ? "" : v.getRuleType() + ":")
+                                        + (v.getDescription() == null ? "" : v.getDescription()))
+                                .collect(Collectors.joining("；")));
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[处方] CDSS 校验服务不可用，fail-open 放行: patientId={}", checkDTO.getPatientId(), e);
+        }
+    }
+
+    /**
+     * 抗菌药物处方授权校验（medsupply-service，迭代7 B10）
+     * <p>
+     * passed=false → 拦截开方；远端不可用或响应不可解析 → fail-open 放行，不阻塞开方。
+     */
+    private void checkAntibioticAuthorization(PharmacyCheckDTO checkDTO) {
+        try {
+            Map<String, Object> resp = pharmacyFeignClient.antibioticCheck(checkDTO);
+            PharmacyCheckResult result = PharmacyCheckResult.fromMap(resp);
+            if (result == null) {
+                log.warn("[处方] 抗菌药物授权校验响应不可解析，fail-open 放行: doctorId={}", checkDTO.getDoctorId());
+                return;
+            }
+            if (Boolean.FALSE.equals(result.getPassed())) {
+                throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "抗菌药物授权不足："
+                        + (result.getMessage() == null || result.getMessage().isBlank()
+                        ? "当前医生无抗菌药物处方权限" : result.getMessage()));
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[处方] 抗菌药物授权校验服务不可用，fail-open 放行: doctorId={}", checkDTO.getDoctorId(), e);
+        }
+    }
+
     // ==================== 实体 → VO ====================
 
     private MedicalRecordVO toVO(MedicalRecord r, List<PrescriptionVO> prescriptions) {
@@ -434,6 +545,7 @@ public class ConsultationService {
                         .days(i.getDays()).quantity(i.getQuantity())
                         .unitPrice(i.getUnitPrice())
                         .unit(i.getUnit()).remark(i.getRemark())
+                        .decoctionMethod(i.getDecoctionMethod()).footnote(i.getFootnote())
                         .build())
                 .collect(Collectors.toList());
 
@@ -443,6 +555,8 @@ public class ConsultationService {
                 .doctorId(p.getDoctorId()).status(p.getStatus())
                 .reviewComment(p.getReviewComment())
                 .totalAmount(p.getTotalAmount()).payStatus(p.getPayStatus())
+                .prescriptionType(p.getPrescriptionType())
+                .herbalDoses(p.getHerbalDoses()).herbalUsage(p.getHerbalUsage())
                 .items(itemVOs)
                 .createTime(p.getCreateTime()).build();
     }

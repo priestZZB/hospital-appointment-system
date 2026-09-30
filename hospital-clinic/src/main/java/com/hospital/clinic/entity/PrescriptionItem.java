@@ -8,6 +8,7 @@ import java.io.Serializable;
  * 处方明细表实体
  *
  * @see V1__init.sql — prescription_item 表 DDL
+ * @see V9__prescription_type_herbal.sql — 中药饮片组方明细扩展：煎法与脚注（B2）
  */
 @Data
 public class PrescriptionItem implements Serializable {
@@ -52,4 +53,10 @@ public class PrescriptionItem implements Serializable {
 
     /** 备注 */
     private String remark;
+
+    /** 中药煎法：先煎/后下/包煎/烊化等（HERBAL 明细使用，V9） */
+    private String decoctionMethod;
+
+    /** 中药脚注：特殊处理说明（HERBAL 明细使用，V9） */
+    private String footnote;
 }

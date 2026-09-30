@@ -252,6 +252,12 @@ export interface PrescriptionVO {
   totalAmount?: number
   /** 缴费状态：UNPAID / PAID / REFUNDED */
   payStatus?: string
+  /** 处方类型：WESTERN-西药笺（默认） / HERBAL-中药饮片笺（V9） */
+  prescriptionType?: string
+  /** 中药剂数（HERBAL 处方） */
+  herbalDoses?: number
+  /** 煎服法（HERBAL 处方） */
+  herbalUsage?: string
   items?: PrescriptionItemVO[]
   createTime?: string
 }
@@ -269,6 +275,10 @@ export interface PrescriptionItemVO {
   quantity?: number
   unit?: string
   remark?: string
+  /** 中药煎法：先煎/后下/包煎/烊化等（HERBAL 明细） */
+  decoctionMethod?: string
+  /** 中药脚注：特殊处理说明（HERBAL 明细） */
+  footnote?: string
 }
 
 /** 停诊申请 StopApplicationVO（依据：API接口文档.md §3.6） */
@@ -342,7 +352,7 @@ export interface AllergyVO {
   createTime?: string
 }
 
-/** 药品 Drug（依据：API接口文档.md §5） */
+/** 药品 Drug（依据：API接口文档.md §5 / V8 B1/B8/B10 分类扩展） */
 export interface Drug {
   id?: number
   drugCode: string
@@ -354,6 +364,12 @@ export interface Drug {
   referencePrice?: number
   unit?: string
   description?: string
+  /** 药品分类: WESTERN-西药 / CHINESE_PATENT-中成药 / HERBAL-中药饮片 */
+  drugType?: string
+  /** 管控级别: NORMAL-普通 / NARCOTIC-麻醉药品 / PSYCHIATRIC_1-第一类精神 / PSYCHIATRIC_2-第二类精神 */
+  controlLevel?: string
+  /** 抗菌分级: NON_RESTRICTED-非限制使用 / RESTRICTED-限制使用 / SPECIAL-特殊使用（空为非抗菌） */
+  antibioticLevel?: string
   status?: number
   createTime?: string
   updateTime?: string
@@ -890,4 +906,136 @@ export interface MedicalRecordHomeVO {
   feeOther?: number
   feeTotal?: number
   settlementAmount?: number
+}
+
+/** ==================== 药事管理（迭代7） ==================== */
+
+/** 药品批次 DrugBatch（药库维度，依据 DrugBatchController / drug_batch 表） */
+export interface DrugBatch {
+  id: number
+  drugId?: number
+  /** 批号 */
+  batchNo?: string
+  /** 供货商 */
+  supplier?: string
+  /** 批次数量 */
+  quantity?: number
+  /** 生产日期（yyyy-MM-dd） */
+  productionDate?: string
+  /** 失效日期（yyyy-MM-dd） */
+  expiryDate?: string
+  /** 入库类型: PURCHASE-采购 / RETURN-退药回冲 / TRANSFER-调拨入 */
+  inboundType?: string
+  /** 状态: ACTIVE-在库 / EXHAUSTED-耗尽 / SCRAPPED-报损 */
+  status?: string
+  operatorId?: number
+  createTime?: string
+  updateTime?: string
+}
+
+/** 退药单 DrugReturn（依据 DrugReturnController / drug_return 表） */
+export interface DrugReturn {
+  id: number
+  /** 退药单号 */
+  returnNo?: string
+  prescriptionId?: number
+  patientId?: number
+  drugId?: number
+  /** 退药数量 */
+  quantity?: number
+  /** 退款金额 */
+  refundAmount?: number
+  reason?: string
+  operatorId?: number
+  /** 状态: COMPLETED-已完成 */
+  status?: string
+  createTime?: string
+}
+
+/** 调拨单 DrugTransfer（依据 DrugTransferController / drug_transfer 表） */
+export interface DrugTransfer {
+  id: number
+  /** 调拨单号 */
+  transferNo?: string
+  drugId?: number
+  quantity?: number
+  /** 调出位置: WAREHOUSE-药库 / PHARMACY-药房 / DEPT-临床科室 */
+  fromLocation?: string
+  /** 调入位置: WAREHOUSE-药库 / PHARMACY-药房 / DEPT-临床科室 */
+  toLocation?: string
+  /** 关联批号（可空） */
+  batchNo?: string
+  operatorId?: number
+  status?: string
+  createTime?: string
+}
+
+/** 麻精药品五专登记 NarcoticRegister（依据 NarcoticRegisterController / narcotic_register 表） */
+export interface NarcoticRegister {
+  id: number
+  drugId?: number
+  prescriptionId?: number
+  patientId?: number
+  /** 动作: INBOUND-入库 / OUTBOUND-发药 / RETURN-退药 / SCRAP-报损 */
+  action?: string
+  quantity?: number
+  /** 登记后结存 */
+  balance?: number
+  operatorId?: number
+  remark?: string
+  createTime?: string
+}
+
+/** CDSS 合理用药规则 DrugRule（依据 DrugRuleController / drug_rule 表） */
+export interface DrugRule {
+  id: number
+  /** 规则类型: MAX_DOSE-剂量上限 / DRUG_DUPLICATE-重复用药 / DRUG_CONFLICT-配伍禁忌 / PREGNANCY-妊娠禁忌 */
+  ruleType?: string
+  drugId?: number
+  /** 配对药品 drug.id（DRUG_DUPLICATE/DRUG_CONFLICT 使用） */
+  pairedDrugId?: number
+  /** 单次剂量上限（mg） */
+  maxSingleDose?: number
+  /** 日剂量上限（mg，预留） */
+  maxDailyDose?: number
+  /** 严重级别: BLOCK-拦截 / WARN-警告 */
+  severity?: string
+  description?: string
+  /** 1-启用 0-停用 */
+  status?: number
+  createTime?: string
+}
+
+/** 医生抗菌药物分级授权 DoctorAntibioticAuth（依据 AntibioticAuthController） */
+export interface DoctorAntibioticAuth {
+  id: number
+  doctorId?: number
+  /** 授权上限分级: NON_RESTRICTED-非限制使用 / RESTRICTED-限制使用 / SPECIAL-特殊使用 */
+  maxLevel?: string
+  approverId?: number
+  /** 1-有效 0-已撤销 */
+  status?: number
+  createTime?: string
+}
+
+/** 中药代煎订单 DecoctionOrder（依据 DecoctionController / decoction_order 表） */
+export interface DecoctionOrder {
+  id: number
+  /** 订单号 */
+  orderNo?: string
+  prescriptionId?: number
+  patientId?: number
+  /** 剂数 */
+  doses?: number
+  /** 代煎类型: SELF-自煎 / HOSPITAL-医院代煎 */
+  decoctionType?: string
+  /** 状态: PENDING-待煎 / DECOCTING-煎制中 / READY-待取药 / DISPENSED-已发药 / CANCELLED-已取消 */
+  status?: string
+  /** 取药凭证码（HOSPITAL 类型生成） */
+  pickupCode?: string
+  /** 代煎费（HOSPITAL 类型 = 剂数 × 3.00） */
+  feeAmount?: number
+  remark?: string
+  createTime?: string
+  updateTime?: string
 }

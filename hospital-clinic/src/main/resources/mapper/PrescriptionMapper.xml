@@ -13,15 +13,20 @@
         <result column="review_comment" property="reviewComment"/>
         <result column="total_amount" property="totalAmount"/>
         <result column="pay_status" property="payStatus"/>
+        <result column="prescription_type" property="prescriptionType"/>
+        <result column="herbal_doses" property="herbalDoses"/>
+        <result column="herbal_usage" property="herbalUsage"/>
         <result column="create_time" property="createTime"/>
     </resultMap>
 
     <insert id="insert" parameterType="com.hospital.clinic.entity.Prescription"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO prescription (prescription_no, medical_record_id, patient_id,
-                                  doctor_id, status, review_comment, create_time)
+                                  doctor_id, status, review_comment,
+                                  prescription_type, herbal_doses, herbal_usage, create_time)
         VALUES (#{prescriptionNo}, #{medicalRecordId}, #{patientId},
-                #{doctorId}, #{status}, #{reviewComment}, SYSDATE)
+                #{doctorId}, #{status}, #{reviewComment},
+                #{prescriptionType}, #{herbalDoses}, #{herbalUsage}, SYSDATE)
     </insert>
 
     <select id="selectById" resultMap="BaseResultMap">

@@ -23,4 +23,8 @@ public class PrescriptionItemVO {
     private java.math.BigDecimal unitPrice;
     private String unit;
     private String remark;
+    /** 中药煎法：先煎/后下/包煎/烊化等（HERBAL 明细使用，V9） */
+    private String decoctionMethod;
+    /** 中药脚注：特殊处理说明（HERBAL 明细使用，V9） */
+    private String footnote;
 }

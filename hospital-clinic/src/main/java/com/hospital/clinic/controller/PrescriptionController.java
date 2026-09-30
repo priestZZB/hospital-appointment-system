@@ -89,6 +89,7 @@ public class PrescriptionController {
                         .usageMethod(i.getUsageMethod()).frequency(i.getFrequency())
                         .days(i.getDays()).quantity(i.getQuantity())
                         .unit(i.getUnit()).remark(i.getRemark())
+                        .decoctionMethod(i.getDecoctionMethod()).footnote(i.getFootnote())
                         .build())
                 .collect(Collectors.toList());
 
@@ -98,6 +99,8 @@ public class PrescriptionController {
                 .doctorId(p.getDoctorId()).status(p.getStatus())
                 .reviewComment(p.getReviewComment())
                 .totalAmount(p.getTotalAmount()).payStatus(p.getPayStatus())
+                .prescriptionType(p.getPrescriptionType())
+                .herbalDoses(p.getHerbalDoses()).herbalUsage(p.getHerbalUsage())
                 .items(itemVOs)
                 .createTime(p.getCreateTime()).build();
     }

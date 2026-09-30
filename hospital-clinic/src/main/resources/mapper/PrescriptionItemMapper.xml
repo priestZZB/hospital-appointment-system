@@ -17,19 +17,24 @@
         <result column="unit_price" property="unitPrice"/>
         <result column="unit" property="unit"/>
         <result column="remark" property="remark"/>
+        <result column="decoction_method" property="decoctionMethod"/>
+        <result column="footnote" property="footnote"/>
     </resultMap>
 
     <insert id="insertBatch">
         INSERT INTO prescription_item (prescription_id, drug_id, drug_name,
                                        specification, dosage, usage_method,
-                                       frequency, days, quantity, unit_price, unit, remark)
+                                       frequency, days, quantity, unit_price, unit, remark,
+                                       decoction_method, footnote)
         SELECT t.prescription_id, t.drug_id, t.drug_name, t.specification, t.dosage,
-               t.usage_method, t.frequency, t.days, t.quantity, t.unit_price, t.unit, t.remark FROM (
+               t.usage_method, t.frequency, t.days, t.quantity, t.unit_price, t.unit, t.remark,
+               t.decoction_method, t.footnote FROM (
         <foreach collection="items" item="item" separator=" UNION ALL ">
             SELECT #{item.prescriptionId} AS prescription_id, #{item.drugId} AS drug_id, #{item.drugName} AS drug_name,
              #{item.specification} AS specification, #{item.dosage} AS dosage, #{item.usageMethod} AS usage_method,
              #{item.frequency} AS frequency, #{item.days} AS days, #{item.quantity} AS quantity,
-             #{item.unitPrice} AS unit_price, #{item.unit} AS unit, #{item.remark} AS remark FROM dual
+             #{item.unitPrice} AS unit_price, #{item.unit} AS unit, #{item.remark} AS remark,
+             #{item.decoctionMethod} AS decoction_method, #{item.footnote} AS footnote FROM dual
         </foreach>
         ) t
     </insert>

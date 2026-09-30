@@ -5,6 +5,7 @@ import com.hospital.common.exception.ErrorCodeEnum;
 import com.hospital.common.feign.PrescriptionFeignClient;
 import com.hospital.medsupply.entity.DrugDispense;
 import com.hospital.medsupply.mapper.DrugDispenseMapper;
+import com.hospital.medsupply.mapper.DrugMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,8 @@ public class DispenseService {
     private final DrugDispenseMapper dispenseMapper;
     private final InventoryService inventoryService;
     private final PrescriptionFeignClient prescriptionFeignClient;
+    private final DrugMapper drugMapper;
+    private final NarcoticService narcoticService;
 
     /**
      * 处方审核（APPROVE 通过 / REJECT 驳回）
@@ -105,6 +108,15 @@ public class DispenseService {
                 }
                 inventoryService.outbound(((Number) drugId).longValue(), qty,
                         "处方发药 prescriptionId=" + prescriptionId, operatorId);
+                // 麻精药品发药同步写五专登记（OUTBOUND，B8）
+                com.hospital.medsupply.entity.Drug drug =
+                        drugMapper.selectById(((Number) drugId).longValue());
+                if (drug != null && drug.getControlLevel() != null
+                        && !"NORMAL".equals(drug.getControlLevel())) {
+                    narcoticService.register(((Number) drugId).longValue(), "OUTBOUND", qty,
+                            prescriptionId, record.getPatientId(), operatorId,
+                            "处方发药 prescriptionId=" + prescriptionId);
+                }
             }
         }
 

@@ -141,6 +141,12 @@ public class ApiTestRunner {
         runStep("6-payment-收费员代缴日结", this::testCashierSettle);
         runStep("6-security-报告越权防护", this::testReportSecurity);
 
+        // ════════════ 迭代 7 药事管理（B1~B11） ════════════
+        section("迭代 7 药事回归 — 目录/批次/CDSS/抗菌/中药/代煎/麻精/退药/调拨/指导单");
+        runStep("7-medsupply-目录批次药库", this::testPharmacyCatalogBatch);
+        runStep("7-clinic-中药处方与安全拦截", this::testPharmacyPrescribing);
+        runStep("7-medsupply-代煎麻精退药指导单", this::testPharmacyOps);
+
         report.print();
     }
 
@@ -957,7 +963,10 @@ public class ApiTestRunner {
     private List<Map> fetchAvailableSlots(Long deptId, String date) throws IOException {
         ApiTestEngine.ApiResponse r = engine.getWithAuth("/api/clinic/slots?departmentId=" + deptId + "&date=" + date);
         if (r.isOk() && r.getData() instanceof List) {
-            return (List<Map>) r.getData();
+            // 只取未被占用的号源（残留库重跑时避免撞"当前时段已有预约"）
+            return ((List<Map>) r.getData()).stream()
+                    .filter(s -> "AVAILABLE".equals(s.get("status")))
+                    .collect(Collectors.toList());
         }
         return Collections.emptyList();
     }
@@ -1546,6 +1555,386 @@ public class ApiTestRunner {
         if (patientId != null) {
             check("GET  /api/exam/report/my?patientId=" + patientId + "（管理员代查报告）",
                     engine.getWithAuth("/api/exam/report/my?patientId=" + patientId));
+        }
+    }
+
+    // ==================== 迭代 7 药事回归（B1~B11） ====================
+
+    /** B1/B5/B7/B8：药品三分类、批次效期预警、调拨、麻精五专登记（入库段） */
+    private void testPharmacyCatalogBatch() throws IOException {
+        engine.setToken(adminToken());
+
+        // B1 建 3 类药品：中药饮片 / 麻精（麻醉） / 特殊使用级抗菌
+        ApiTestEngine.ApiResponse herbal = engine.postWithAuth("/api/admin/drug", Map.of(
+                "drugCode", "HB" + randomDigits(4), "drugName", "当归饮片（自动化）",
+                "genericName", "当归", "specification", "饮片 1g", "dosageForm", "饮片",
+                "manufacturer", "自动化中药房", "referencePrice", 0.8, "unit", "g",
+                "description", "补血活血（自动化测试）", "drugType", "HERBAL"));
+        check("POST /api/admin/drug（建中药饮片 HERBAL）", herbal);
+        if (herbal.isOk() && herbal.getData() instanceof Map) {
+            state.put("pharmacyHerbalDrugId", ((Map) herbal.getData()).get("id"));
+        }
+
+        ApiTestEngine.ApiResponse narcotic = engine.postWithAuth("/api/admin/drug", Map.of(
+                "drugCode", "NC" + randomDigits(4), "drugName", "盐酸吗啡片（自动化）",
+                "specification", "10mg×10片", "dosageForm", "片剂",
+                "manufacturer", "自动化制药", "referencePrice", 15.0, "unit", "BOX",
+                "description", "麻醉药品（自动化测试）", "drugType", "WESTERN", "controlLevel", "NARCOTIC"));
+        check("POST /api/admin/drug（建麻醉药品 NARCOTIC）", narcotic);
+        if (narcotic.isOk() && narcotic.getData() instanceof Map) {
+            state.put("pharmacyNarcoticDrugId", ((Map) narcotic.getData()).get("id"));
+        }
+
+        ApiTestEngine.ApiResponse abx = engine.postWithAuth("/api/admin/drug", Map.of(
+                "drugCode", "AB" + randomDigits(4), "drugName", "注射用万古霉素（自动化）",
+                "specification", "0.5g/支", "dosageForm", "注射剂",
+                "manufacturer", "自动化制药", "referencePrice", 68.0, "unit", "VIAL",
+                "description", "特殊使用级抗菌药物（自动化测试）", "drugType", "WESTERN",
+                "antibioticLevel", "SPECIAL"));
+        check("POST /api/admin/drug（建特殊级抗菌药 SPECIAL）", abx);
+        if (abx.isOk() && abx.getData() instanceof Map) {
+            state.put("pharmacyAbxDrugId", ((Map) abx.getData()).get("id"));
+        }
+
+        Object herbalDrugId = state.get("pharmacyHerbalDrugId");
+        Object narcoticDrugId = state.get("pharmacyNarcoticDrugId");
+        Object abxDrugId = state.get("pharmacyAbxDrugId");
+        if (herbalDrugId == null || narcoticDrugId == null || abxDrugId == null) {
+            check("POST /api/admin/drug/batch/inbound（跳过—建药失败）",
+                    syntheticOk("建药失败，跳过批次链路"));
+            return;
+        }
+
+        // B1 分类管理端点
+        check("PUT  /api/admin/drug/" + herbalDrugId + "/type（B1 分类管理）",
+                engine.putWithAuth("/api/admin/drug/" + herbalDrugId + "/type",
+                        Map.of("drugType", "HERBAL")));
+
+        // B5 采购入库（麻精批次效期仅 +15 天 → 触发效期预警；抗菌药也入库供后续发药）
+        String today = LocalDate.now().format(DATE_FMT);
+        String expiringSoon = LocalDate.now().plusDays(15).format(DATE_FMT);
+        String nextYear = LocalDate.now().plusYears(1).format(DATE_FMT);
+        ApiTestEngine.ApiResponse nb = engine.postWithAuth("/api/admin/drug/batch/inbound", Map.of(
+                "drugId", narcoticDrugId, "batchNo", "N2026A" + randomDigits(3),
+                "supplier", "国药集团（自动化）", "quantity", 100,
+                "productionDate", today, "expiryDate", expiringSoon));
+        check("POST /api/admin/drug/batch/inbound（麻精采购入库 100，效期+15天）", nb);
+        if (nb.isOk() && nb.getData() instanceof Map) {
+            state.put("pharmacyNarcoticBatchId", ((Map) nb.getData()).get("id"));
+        }
+        check("POST /api/admin/drug/batch/inbound（饮片采购入库 500）",
+                engine.postWithAuth("/api/admin/drug/batch/inbound", Map.of(
+                        "drugId", herbalDrugId, "batchNo", "P2026I" + randomDigits(3),
+                        "supplier", "亳州药市（自动化）", "quantity", 500,
+                        "productionDate", today, "expiryDate", nextYear)));
+        check("POST /api/admin/drug/batch/inbound（抗菌药采购入库 200）",
+                engine.postWithAuth("/api/admin/drug/batch/inbound", Map.of(
+                        "drugId", abxDrugId, "batchNo", "V2026V" + randomDigits(3),
+                        "supplier", "自动化医药", "quantity", 200,
+                        "productionDate", today, "expiryDate", nextYear)));
+
+        // B5 效期预警：麻精批次（+15 天）应出现在 30 天预警列表
+        ApiTestEngine.ApiResponse expiring = engine.getWithAuth("/api/admin/drug/batch/expiring");
+        check("GET  /api/admin/drug/batch/expiring（B5 效期预警）", expiring);
+        if (expiring.isOk() && expiring.getData() instanceof List) {
+            boolean hit = ((List<?>) expiring.getData()).stream()
+                    .anyMatch(o -> o instanceof Map m
+                            && String.valueOf(m.get("drugId")).equals(String.valueOf(narcoticDrugId)));
+            assertTrue("效期预警应包含麻精临期批次（+15天）", hit);
+        }
+
+        // B8 五专登记：麻精入库应自动写 INBOUND 流水，结存=100
+        ApiTestEngine.ApiResponse narcReg = engine.getWithAuth(
+                "/api/admin/drug/narcotic/list?drugId=" + narcoticDrugId);
+        check("GET  /api/admin/drug/narcotic/list（B8 麻精五专登记查询）", narcReg);
+        if (narcReg.isOk() && narcReg.getData() instanceof List && !((List<?>) narcReg.getData()).isEmpty()) {
+            Map first = (Map) ((List<?>) narcReg.getData()).get(0);
+            assertTrue("麻精登记应有 INBOUND 流水且结存=100",
+                    "INBOUND".equals(first.get("action"))
+                            && first.get("balance") != null && ((Number) first.get("balance")).intValue() == 100);
+        }
+
+        // B7 调拨：饮片 药库→药房
+        check("POST /api/admin/drug/transfer（B7 药库→药房调拨 50）",
+                engine.postWithAuth("/api/admin/drug/transfer", Map.of(
+                        "drugId", herbalDrugId, "quantity", 50,
+                        "fromLocation", "WAREHOUSE", "toLocation", "PHARMACY",
+                        "batchNo", "P2026ITR")));
+        check("GET  /api/admin/drug/transfer/list（调拨记录）",
+                engine.getWithAuth("/api/admin/drug/transfer/list?pageNo=1&pageSize=10"));
+    }
+
+    /** B2/B4/B9/B10：中药饮片处方、CDSS 拦截、抗菌分级授权拦截与放行（含完整门诊链路） */
+    private void testPharmacyPrescribing() throws IOException {
+        String today = LocalDate.now().format(DATE_FMT);
+
+        // 独立"药事患者"：规避主患者与主链路排班的防重复挂号键（2003）
+        String pharPhone = "135" + randomDigits(8);
+        check("POST /api/auth/register（注册药事链路患者）",
+                engine.register(Map.of("phone", pharPhone, "password", "Test12345",
+                        "realName", "药事自动化患者", "gender", 1)));
+        String pharToken = engine.login(pharPhone, "Test12345");
+        if (pharToken.isEmpty()) {
+            check("POST /api/clinic/appointments（跳过—药事患者登录失败）",
+                    syntheticOk("药事患者登录失败"));
+            return;
+        }
+        state.put("pharmacyToken", pharToken);
+        engine.setToken(pharToken);
+        ApiTestEngine.ApiResponse pharProfile = engine.getWithAuth("/api/patient/profile");
+        if (pharProfile.isOk() && pharProfile.getData() instanceof Map
+                && ((Map) pharProfile.getData()).get("id") != null) {
+            state.put("pharmacyPatientId", ((Map) pharProfile.getData()).get("id"));
+        }
+
+        // 新挂号（药事患者）→ 接诊（admin=李医生）→ 病历
+        List<Map> slots = fetchAvailableSlots(DEPT_ID, today).stream()
+                .filter(s -> "AVAILABLE".equals(s.get("status")))
+                .filter(this::inCheckinWindow)
+                .collect(Collectors.toList());
+        if (slots.isEmpty()) {
+            check("POST /api/clinic/appointments（跳过—药事链路无可用号源）",
+                    syntheticOk("无可用号源，中药/拦截用例跳过"));
+            return;
+        }
+        Map slot = slots.get(slots.size() - 1); // 取列表尾部的空闲号源
+        long slotId = ((Number) slot.get("id")).longValue();
+        long schedId = ((Number) slot.get("scheduleId")).longValue();
+        ApiTestEngine.ApiResponse appt = engine.postWithAuth("/api/clinic/appointments",
+                Map.of("slotId", slotId, "scheduleId", schedId));
+        check("POST /api/clinic/appointments（药事链路挂号）", appt);
+        if (!appt.isOk() || !(appt.getData() instanceof Map)) {
+            return;
+        }
+        Object apptId = ((Map) appt.getData()).get("id");
+        state.put("pharmacyAppointmentId", apptId);
+
+        // 挂号缴费 → 签到（接诊前置，与主链路一致）
+        Object pharPayOrderId = ((Map) appt.getData()).get("paymentOrderId");
+        if (pharPayOrderId != null) {
+            check("POST /api/payment/pay/" + pharPayOrderId + "（药事链路缴挂号费）",
+                    engine.postWithAuth("/api/payment/pay/" + pharPayOrderId, Map.of()));
+        }
+        ApiTestEngine.ApiResponse checkin = engine.postWithAuth("/api/clinic/checkin",
+                Map.of("appointmentId", apptId));
+        check("POST /api/clinic/checkin（药事链路签到）", checkin);
+        Object pharCheckinId = checkin.isOk() && checkin.getData() instanceof Map
+                ? ((Map) checkin.getData()).get("id") : null;
+
+        engine.setToken(adminToken());
+        if (pharCheckinId != null) {
+            check("POST /api/clinic/call/next（药事链路叫号）",
+                    engine.postWithAuth("/api/clinic/call/next",
+                            Map.of("departmentId", DEPT_ID, "consultRoom", "2诊室")));
+        }
+        ApiTestEngine.ApiResponse start = engine.postWithAuth(
+                "/api/clinic/consultation/start?appointmentId=" + apptId, Map.of());
+        check("POST /api/clinic/consultation/start（药事链路开始接诊）", start);
+        if (!start.isOk() || !(start.getData() instanceof Map)) {
+            return;
+        }
+        Object recordId2 = ((Map) start.getData()).get("id");
+        state.put("pharmacyRecordId", recordId2);
+        check("PUT  /api/clinic/consultation/" + recordId2 + "（药事链路提交病历）",
+                engine.putWithAuth("/api/clinic/consultation/" + recordId2,
+                        Map.of("chiefComplaint", "药事自动化主诉", "presentIllness", "药事自动化现病史",
+                                "temperature", 36.8, "pulse", 76, "respiration", 18,
+                                "bloodPressure", "118/78", "diagnosisCode", "J06.9",
+                                "diagnosisDesc", "急性上呼吸道感染（药事自动化）", "action", "SUBMIT")));
+
+        Object abxDrugId = state.get("pharmacyAbxDrugId");
+        Object narcoticDrugId = state.get("pharmacyNarcoticDrugId");
+        Object herbalDrugId = state.get("pharmacyHerbalDrugId");
+        if (abxDrugId == null || narcoticDrugId == null || herbalDrugId == null) {
+            check("POST /api/clinic/prescription（跳过—药事药品未就绪）", syntheticOk("药品未就绪"));
+            return;
+        }
+
+        // B9 CDSS：建 MAX_DOSE/BLOCK 规则 → 开方（1g 超单次 0.1g 上限）→ 预期被拦截
+        ApiTestEngine.ApiResponse rule = engine.postWithAuth("/api/admin/drug/rule", Map.of(
+                "ruleType", "MAX_DOSE", "drugId", abxDrugId, "maxSingleDose", 0.1,
+                "severity", "BLOCK", "description", "万古霉素单次上限 0.1g（自动化）"));
+        check("POST /api/admin/drug/rule（B9 建 CDSS 剂量拦截规则）", rule);
+        Object ruleId = rule.isOk() && rule.getData() instanceof Map ? ((Map) rule.getData()).get("id") : null;
+        checkNeg("POST /api/clinic/prescription（B9 剂量超限应被 CDSS 拦截）",
+                engine.postWithAuth("/api/clinic/prescription", Map.of(
+                        "medicalRecordId", recordId2, "items", List.of(Map.ofEntries(
+                                Map.entry("drugId", abxDrugId), Map.entry("drugName", "注射用万古霉素（自动化）"),
+                                Map.entry("specification", "0.5g/支"), Map.entry("dosage", "1g"),
+                                Map.entry("usageMethod", "IV"), Map.entry("frequency", "QD"),
+                                Map.entry("days", 3), Map.entry("quantity", 3), Map.entry("price", 68.0),
+                                Map.entry("unit", "VIAL"))))));
+        if (ruleId != null) {
+            check("DELETE /api/admin/drug/rule/" + ruleId + "（删除 CDSS 规则）",
+                    engine.deleteWithAuth("/api/admin/drug/rule/" + ruleId));
+        }
+
+        // B10 抗菌分级：医生无 SPECIAL 授权 → 拦截；授权后 → 放行（同一处方同时含麻精药，供后续链路）
+        checkNeg("POST /api/clinic/prescription（B10 无授权开特殊级抗菌药应拒绝）",
+                engine.postWithAuth("/api/clinic/prescription", Map.of(
+                        "medicalRecordId", recordId2, "items", List.of(Map.ofEntries(
+                                Map.entry("drugId", abxDrugId), Map.entry("drugName", "注射用万古霉素（自动化）"),
+                                Map.entry("specification", "0.5g/支"), Map.entry("dosage", "0.5g"),
+                                Map.entry("usageMethod", "IV"), Map.entry("frequency", "QD"),
+                                Map.entry("days", 3), Map.entry("quantity", 3), Map.entry("price", 68.0),
+                                Map.entry("unit", "VIAL"))))));
+        check("POST /api/admin/drug/antibiotic-auth（B10 授权医生 SPECIAL 级）",
+                engine.postWithAuth("/api/admin/drug/antibiotic-auth",
+                        Map.of("doctorId", 1, "maxLevel", "SPECIAL")));
+        ApiTestEngine.ApiResponse rxWest = engine.postWithAuth("/api/clinic/prescription", Map.of(
+                "medicalRecordId", recordId2, "prescriptionType", "WESTERN", "items", List.of(
+                        Map.ofEntries(Map.entry("drugId", abxDrugId),
+                                Map.entry("drugName", "注射用万古霉素（自动化）"),
+                                Map.entry("specification", "0.5g/支"), Map.entry("dosage", "0.5g"),
+                                Map.entry("usageMethod", "IV"), Map.entry("frequency", "QD"),
+                                Map.entry("days", 3), Map.entry("quantity", 3), Map.entry("price", 68.0),
+                                Map.entry("unit", "VIAL")),
+                        Map.ofEntries(Map.entry("drugId", narcoticDrugId),
+                                Map.entry("drugName", "盐酸吗啡片（自动化）"),
+                                Map.entry("specification", "10mg×10片"), Map.entry("dosage", "10mg"),
+                                Map.entry("usageMethod", "ORAL"), Map.entry("frequency", "PRN"),
+                                Map.entry("days", 2), Map.entry("quantity", 1), Map.entry("price", 15.0),
+                                Map.entry("unit", "BOX")))));
+        check("POST /api/clinic/prescription（B10 授权后开西药笺成功，含麻精药）", rxWest);
+        if (rxWest.isOk() && rxWest.getData() instanceof Map) {
+            state.put("pharmacyRxWesternId", ((Map) rxWest.getData()).get("id"));
+        }
+
+        // B2/B4 中药饮片处方笺（剂数+煎服法+明细煎法脚注）
+        ApiTestEngine.ApiResponse rxHerbal = engine.postWithAuth("/api/clinic/prescription", Map.of(
+                "medicalRecordId", recordId2, "prescriptionType", "HERBAL",
+                "herbalDoses", 7, "herbalUsage", "每日一剂，水煎400ml，分早晚两次温服",
+                "items", List.of(
+                        Map.ofEntries(Map.entry("drugId", herbalDrugId),
+                                Map.entry("drugName", "当归饮片（自动化）"),
+                                Map.entry("specification", "饮片 1g"), Map.entry("dosage", "10g"),
+                                Map.entry("usageMethod", "DECOCT"), Map.entry("frequency", "BID"),
+                                Map.entry("days", 7), Map.entry("quantity", 70), Map.entry("price", 0.8),
+                                Map.entry("unit", "g"), Map.entry("decoctionMethod", "先煎"),
+                                Map.entry("footnote", "_AUTO_FOOTNOTE_")),
+                        Map.ofEntries(Map.entry("drugId", herbalDrugId),
+                                Map.entry("drugName", "当归饮片（自动化）"),
+                                Map.entry("specification", "饮片 1g"), Map.entry("dosage", "6g"),
+                                Map.entry("usageMethod", "DECOCT"), Map.entry("frequency", "BID"),
+                                Map.entry("days", 7), Map.entry("quantity", 42), Map.entry("price", 0.8),
+                                Map.entry("unit", "g"), Map.entry("decoctionMethod", "后下"),
+                                Map.entry("footnote", "冲服")))));
+        check("POST /api/clinic/prescription（B2/B4 开中药饮片笺 7 剂）", rxHerbal);
+        if (rxHerbal.isOk() && rxHerbal.getData() instanceof Map) {
+            state.put("pharmacyRxHerbalId", ((Map) rxHerbal.getData()).get("id"));
+            assertTrue("中药处方类型应为 HERBAL",
+                    "HERBAL".equals(((Map) rxHerbal.getData()).get("prescriptionType")));
+        }
+
+        // 两张处方缴费（真实流：划价收费 → 审核 → 发药；药事患者本人支付）
+        engine.setToken(pharToken);
+        for (String key : List.of("pharmacyRxWesternId", "pharmacyRxHerbalId")) {
+            Object rxId = state.get(key);
+            if (rxId == null) continue;
+            ApiTestEngine.ApiResponse cost = engine.postWithAuth("/api/payment/treatment/order",
+                    Map.of("orderType", "DRUG", "relatedId", rxId,
+                            "items", List.of(Map.of("itemName", "处方药费（药事自动化）",
+                                    "qty", 1, "price", 30.0))));
+            check("POST /api/payment/treatment/order（药事处方 " + key + " 缴费单）", cost);
+            if (cost.isOk() && cost.getData() instanceof Map) {
+                Object orderId = ((Map) cost.getData()).get("id");
+                check("POST /api/payment/treatment/pay/" + orderId + "（药事处方缴费）",
+                        engine.postWithAuth("/api/payment/treatment/pay/" + orderId, Map.of()));
+            }
+        }
+    }
+
+    /** B3/B6/B8/B11：审核发药麻精出账、退药冲账、代煎状态机、用药指导单 PDF */
+    private void testPharmacyOps() throws IOException {
+        engine.setToken(adminToken());
+        Object rxWesternId = state.get("pharmacyRxWesternId");
+        Object rxHerbalId = state.get("pharmacyRxHerbalId");
+        Object narcoticDrugId = state.get("pharmacyNarcoticDrugId");
+        Object herbalDrugId = state.get("pharmacyHerbalDrugId");
+        Object patientId = state.get("pharmacyPatientId");
+
+        // B8 麻精发药闭环：审核（四查十对）→ 发药 → OUTBOUND 流水
+        if (rxWesternId != null) {
+            check("PUT  /api/admin/drug/dispense/" + rxWesternId + "/review（麻精处方审核-四查十对）",
+                    engine.putWithAuth("/api/admin/drug/dispense/" + rxWesternId + "/review",
+                            Map.of("action", "APPROVE", "reviewComment", "四查十对通过（自动化）",
+                                    "reviewCheck", "双人复核（自动化）")));
+            check("POST /api/admin/drug/dispense/" + rxWesternId + "（麻精处方发药）",
+                    engine.postWithAuth("/api/admin/drug/dispense/" + rxWesternId, Map.of()));
+            if (narcoticDrugId != null) {
+                ApiTestEngine.ApiResponse after = engine.getWithAuth(
+                        "/api/admin/drug/narcotic/list?drugId=" + narcoticDrugId);
+                check("GET  /api/admin/drug/narcotic/list（B8 发药后五专流水）", after);
+                if (after.isOk() && after.getData() instanceof List && !((List<?>) after.getData()).isEmpty()) {
+                    Map latest = (Map) ((List<?>) after.getData()).get(0);
+                    assertTrue("麻精发药应写 OUTBOUND 流水且结存=99",
+                            "OUTBOUND".equals(latest.get("action"))
+                                    && latest.get("balance") != null
+                                    && ((Number) latest.get("balance")).intValue() == 99);
+                }
+            }
+
+            // B6 退药冲账（发药后退 1 盒麻精）
+            if (patientId != null && narcoticDrugId != null) {
+                check("POST /api/admin/drug/return（B6 麻精退药 1 盒冲账）",
+                        engine.postWithAuth("/api/admin/drug/return", Map.of(
+                                "prescriptionId", rxWesternId, "patientId", patientId,
+                                "drugId", narcoticDrugId, "quantity", 1,
+                                "refundAmount", 15.0, "reason", "自动化退药冲账")));
+                ApiTestEngine.ApiResponse afterRet = engine.getWithAuth(
+                        "/api/admin/drug/narcotic/list?drugId=" + narcoticDrugId);
+                if (afterRet.isOk() && afterRet.getData() instanceof List && !((List<?>) afterRet.getData()).isEmpty()) {
+                    Map latest = (Map) ((List<?>) afterRet.getData()).get(0);
+                    assertTrue("麻精退药应写 RETURN 流水且结存回补=100",
+                            "RETURN".equals(latest.get("action"))
+                                    && latest.get("balance") != null
+                                    && ((Number) latest.get("balance")).intValue() == 100);
+                }
+            }
+
+            // B11 用药指导单 PDF
+            checkReachable("GET  /api/medsupply/guidance/" + rxWesternId + "/pdf（B11 用药指导单 PDF）",
+                    engine.getWithAuth("/api/medsupply/guidance/" + rxWesternId + "/pdf"));
+        }
+
+        // B3 中药代煎状态机：下单（HOSPITAL）→ DECOCTING → READY（取药凭证）→ DISPENSED
+        if (rxHerbalId != null) {
+            ApiTestEngine.ApiResponse deco = engine.postWithAuth("/api/medsupply/decoction",
+                    Map.of("prescriptionId", rxHerbalId, "doses", 7, "decoctionType", "HOSPITAL"));
+            check("POST /api/medsupply/decoction（B3 中药代煎下单 7 剂）", deco);
+            Object decoId = deco.isOk() && deco.getData() instanceof Map
+                    ? ((Map) deco.getData()).get("id") : null;
+            if (decoId != null) {
+                check("PUT  /api/medsupply/decoction/" + decoId + "/handle（开始煎制）",
+                        engine.putWithAuth("/api/medsupply/decoction/" + decoId + "/handle",
+                                Map.of("action", "DECOCTING")));
+                ApiTestEngine.ApiResponse ready = engine.putWithAuth(
+                        "/api/medsupply/decoction/" + decoId + "/handle", Map.of("action", "READY"));
+                check("PUT  /api/medsupply/decoction/" + decoId + "/handle（煎制完成待取药）", ready);
+                if (ready.isOk() && ready.getData() instanceof Map) {
+                    assertTrue("代煎 READY 应生成取药凭证码",
+                            ((Map) ready.getData()).get("pickupCode") != null);
+                }
+                check("PUT  /api/medsupply/decoction/" + decoId + "/handle（凭凭证发药）",
+                        engine.putWithAuth("/api/medsupply/decoction/" + decoId + "/handle",
+                                Map.of("action", "DISPENSED")));
+            }
+        }
+
+        // B5 养护报损：新建小批次→报损清零
+        if (herbalDrugId != null) {
+            String today = LocalDate.now().format(DATE_FMT);
+            ApiTestEngine.ApiResponse small = engine.postWithAuth("/api/admin/drug/batch/inbound", Map.of(
+                    "drugId", herbalDrugId, "batchNo", "S2026S" + randomDigits(3),
+                    "supplier", "自动化药库", "quantity", 10,
+                    "productionDate", today, "expiryDate", LocalDate.now().plusMonths(6).format(DATE_FMT)));
+            check("POST /api/admin/drug/batch/inbound（待报损小批次 10）", small);
+            if (small.isOk() && small.getData() instanceof Map) {
+                Object batchId = ((Map) small.getData()).get("id");
+                check("POST /api/admin/drug/batch/" + batchId + "/scrap（B5 养护报损）",
+                        engine.postWithAuth("/api/admin/drug/batch/" + batchId + "/scrap",
+                                Map.of("reason", "受潮变质（自动化报损）")));
+            }
         }
     }
 

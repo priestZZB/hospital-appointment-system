@@ -408,4 +408,35 @@ public final class PermissionConstant {
     public static final String MENU_INPATIENT_DOCTOR = "menu:inpatient:doctor";
     /** 菜单：住院护士站 */
     public static final String MENU_INPATIENT_NURSE = "menu:inpatient:nurse";
+
+    // ==================== 药事管理（medsupply · 迭代7 B1~B10，对应 auth V14 植入） ====================
+
+    /** 药品三分类管理（WESTERN/CHINESE_PATENT/HERBAL） */
+    public static final String MEDSUPPLY_DRUG_TYPE_MANAGE = "api:medsupply:drug:type:manage";
+    /** 药库批次/效期查询 */
+    public static final String MEDSUPPLY_DRUG_BATCH_LIST = "api:medsupply:drug:batch:list";
+    /** 采购入库批次 */
+    public static final String MEDSUPPLY_DRUG_BATCH_CREATE = "api:medsupply:drug:batch:create";
+    /** 药品养护报损 */
+    public static final String MEDSUPPLY_DRUG_SCRAP = "api:medsupply:drug:scrap";
+    /** 退药冲账 */
+    public static final String MEDSUPPLY_DRUG_RETURN_CREATE = "api:medsupply:drug:return:create";
+    /** 药品调拨 */
+    public static final String MEDSUPPLY_DRUG_TRANSFER_CREATE = "api:medsupply:drug:transfer:create";
+    /** 麻精五专登记 */
+    public static final String MEDSUPPLY_NARCOTIC_REGISTER = "api:medsupply:narcotic:register";
+    /** 麻精登记查询 */
+    public static final String MEDSUPPLY_NARCOTIC_QUERY = "api:medsupply:narcotic:query";
+    /** 中药代煎下单（患者/医生） */
+    public static final String MEDSUPPLY_DECOCTION_CREATE = "api:medsupply:decoction:create";
+    /** 代煎状态流转（药师） */
+    public static final String MEDSUPPLY_DECOCTION_MANAGE = "api:medsupply:decoction:manage";
+    /** 代煎查询（患者本人/药师） */
+    public static final String MEDSUPPLY_DECOCTION_QUERY = "api:medsupply:decoction:query";
+    /** CDSS 合理用药规则管理 */
+    public static final String MEDSUPPLY_DRUGRULE_MANAGE = "api:medsupply:drugrule:manage";
+    /** 抗菌药物分级授权管理 */
+    public static final String MEDSUPPLY_ANTIBIOTIC_AUTH = "api:medsupply:antibiotic:auth";
+    /** 用药指导单打印 */
+    public static final String MEDSUPPLY_GUIDANCE_PRINT = "api:medsupply:guidance:print";
 }

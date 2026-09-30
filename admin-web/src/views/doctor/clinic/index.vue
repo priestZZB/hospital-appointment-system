@@ -73,11 +73,22 @@ type PrescriptionDraft = {
   price: number
   unit: string
   remark: string
+  /** 中药煎法：先煎/后下/包煎/烊化等（中药笺使用，V9） */
+  decoctionMethod?: string
+  /** 中药脚注：特殊处理说明（中药笺使用，V9） */
+  footnote?: string
 }
 
 const prescriptionItems = ref<PrescriptionDraft[]>([])
 const drugOptions = ref<Drug[]>([])
 const drugKeyword = ref('')
+
+/** 处方笺类型：WESTERN-西药笺（默认） / HERBAL-中药饮片笺（V9） */
+const prescriptionType = ref<'WESTERN' | 'HERBAL'>('WESTERN')
+/** 中药剂数（中药笺提交必填） */
+const herbalDoses = ref<number | undefined>(undefined)
+/** 煎服法 */
+const herbalUsage = ref('')
 
 function rxLineTotal(item: PrescriptionDraft): number {
   return (item.price ?? 0) * (item.quantity ?? 1)
@@ -194,6 +205,9 @@ function resetForm() {
     action: 'DRAFT',
   })
   prescriptionItems.value = []
+  prescriptionType.value = 'WESTERN'
+  herbalDoses.value = undefined
+  herbalUsage.value = ''
   examForm.examItemId = undefined
   examForm.applyRemark = ''
   triageText.value = ''
@@ -276,11 +290,26 @@ async function handlePrescription() {
     WMessage.warning('请先添加处方明细')
     return
   }
+  if (prescriptionType.value === 'HERBAL' && (!herbalDoses.value || herbalDoses.value <= 0)) {
+    WMessage.warning('中药笺请填写剂数')
+    return
+  }
+  const isHerbal = prescriptionType.value === 'HERBAL'
   try {
-    await createPrescriptionApi({ medicalRecordId: record.value.id, items: prescriptionItems.value })
+    await createPrescriptionApi({
+      medicalRecordId: record.value.id,
+      prescriptionType: prescriptionType.value,
+      herbalDoses: isHerbal ? herbalDoses.value : undefined,
+      herbalUsage: isHerbal ? herbalUsage.value.trim() || undefined : undefined,
+      items: prescriptionItems.value,
+    })
     WMessage.success('处方已开具')
     prescriptionItems.value = []
+    prescriptionType.value = 'WESTERN'
+    herbalDoses.value = undefined
+    herbalUsage.value = ''
   } catch (e) {
+    // 后端 CDSS 拦截 / 抗菌药物授权不足等业务错误 message 原样展示
     WMessage.error((e as Error).message || '处方开具失败')
   }
 }
@@ -468,9 +497,31 @@ onMounted(async () => {
 
             <w-divider content-position="left">处方明细</w-divider>
             <div class="rx-toolbar">
+              <w-radio-group v-model="prescriptionType" class="rx-toolbar__type">
+                <w-radio value="WESTERN">西药笺</w-radio>
+                <w-radio value="HERBAL">中药笺</w-radio>
+              </w-radio-group>
               <w-input v-model="drugKeyword" placeholder="搜索药品名称" class="rx-toolbar__search" @keyup.enter="searchDrugs" />
               <w-button :icon="Search" @click="searchDrugs">搜索</w-button>
               <w-button type="primary" :icon="Plus" @click="addPrescriptionItem">添加明细</w-button>
+            </div>
+            <!-- 中药笺头部：剂数（必填） + 煎服法 -->
+            <div v-if="prescriptionType === 'HERBAL'" class="rx-herbal-head">
+              <div class="rx-herbal-head__item">
+                <span class="rx-herbal-head__label">剂数<em class="rx-herbal-head__required">*</em></span>
+                <w-input-number
+                  v-model="herbalDoses"
+                  :min="1"
+                  :max="99"
+                  controls-position="right"
+                  placeholder="剂"
+                  class="rx-herbal-head__doses"
+                />
+              </div>
+              <div class="rx-herbal-head__item rx-herbal-head__item--grow">
+                <span class="rx-herbal-head__label">煎服法</span>
+                <w-input v-model="herbalUsage" placeholder="如：每日一剂，水煎400ml，分早晚两次温服" />
+              </div>
             </div>
             <div v-if="!prescriptionItems.length" class="rx-empty">暂无处方明细，点击「添加明细」开始</div>
             <div v-for="(item, idx) in prescriptionItems" :key="idx" class="rx-row">
@@ -495,6 +546,10 @@ onMounted(async () => {
                 <w-input v-model="item.frequency" placeholder="频次" class="rx-field" />
                 <w-input-number v-model="item.days" :min="1" placeholder="天数" controls-position="right" class="rx-field" />
                 <w-input-number v-model="item.quantity" :min="1" placeholder="数量" controls-position="right" class="rx-field" />
+                <template v-if="prescriptionType === 'HERBAL'">
+                  <w-input v-model="item.decoctionMethod" placeholder="煎法（先煎/后下/包煎）" class="rx-field" />
+                  <w-input v-model="item.footnote" placeholder="脚注（特殊处理说明）" class="rx-field" />
+                </template>
               </div>
             </div>
             <div v-if="prescriptionItems.length" class="rx-total">
@@ -736,6 +791,45 @@ onMounted(async () => {
 .rx-toolbar__search {
   flex: 1;
   min-width: 140px;
+}
+.rx-toolbar__type {
+  margin-right: 4px;
+}
+
+/* 中药笺头部：剂数 + 煎服法 */
+.rx-herbal-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--w3-color-primary-plain, #eaeefe);
+  border-radius: var(--hospital-radius-md);
+  background: var(--w3-color-primary-plain, #eaeefe);
+}
+.rx-herbal-head__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 130px;
+}
+.rx-herbal-head__item--grow {
+  flex: 1;
+  min-width: 200px;
+  width: auto;
+}
+.rx-herbal-head__label {
+  font-size: 12px;
+  color: var(--hospital-text-second);
+}
+.rx-herbal-head__required {
+  color: var(--w3-color-danger, #f53f3f);
+  font-style: normal;
+  margin-left: 2px;
+}
+.rx-herbal-head__doses {
+  width: 100%;
 }
 .rx-empty {
   padding: 16px;
