@@ -439,4 +439,34 @@ public final class PermissionConstant {
     public static final String MEDSUPPLY_ANTIBIOTIC_AUTH = "api:medsupply:antibiotic:auth";
     /** 用药指导单打印 */
     public static final String MEDSUPPLY_GUIDANCE_PRINT = "api:medsupply:guidance:print";
+
+    // ==================== 迭代8 检验 LIS + 影像中心 ====================
+    /** 标本采集 */
+    public static final String MEDSUPPLY_SPECIMEN_COLLECT = "api:medsupply:specimen:collect";
+    /** 标本核收 */
+    public static final String MEDSUPPLY_SPECIMEN_RECEIVE = "api:medsupply:specimen:receive";
+    /** 标本查询 */
+    public static final String MEDSUPPLY_SPECIMEN_QUERY = "api:medsupply:specimen:query";
+    /** 检验结果录入 */
+    public static final String MEDSUPPLY_RESULT_ENTRY = "api:medsupply:result:entry";
+    /** 检验结果查询 */
+    public static final String MEDSUPPLY_RESULT_QUERY = "api:medsupply:result:query";
+    /** 化验单打印 */
+    public static final String MEDSUPPLY_LABREPORT_PRINT = "api:medsupply:labreport:print";
+    /** 检查预约 */
+    public static final String MEDSUPPLY_EXAMRESV_BOOK = "api:medsupply:examresv:book";
+    /** 检查报到 */
+    public static final String MEDSUPPLY_EXAMRESV_CHECKIN = "api:medsupply:examresv:checkin";
+    /** 检查预约查询 */
+    public static final String MEDSUPPLY_EXAMRESV_QUERY = "api:medsupply:examresv:query";
+    /** 影像上传 */
+    public static final String MEDSUPPLY_IMAGE_UPLOAD = "api:medsupply:image:upload";
+    /** 影像查询 */
+    public static final String MEDSUPPLY_IMAGE_QUERY = "api:medsupply:image:query";
+    /** 报告模板管理 */
+    public static final String MEDSUPPLY_TEMPLATE_MANAGE = "api:medsupply:template:manage";
+    /** 云影像链接生成 */
+    public static final String MEDSUPPLY_CLOUDLINK_CREATE = "api:medsupply:cloudlink:create";
+    /** 云影像查看 */
+    public static final String MEDSUPPLY_CLOUDLINK_VIEW = "api:medsupply:cloudlink:view";
 }

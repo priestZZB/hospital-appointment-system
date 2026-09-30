@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 28080
 
 springdoc:
   swagger-ui:
@@ -47,11 +47,11 @@ spring:
           uri: lb://clinic-service
           predicates:
             - Path=/api/clinic/**,/api/department/**,/api/schedule/**,/api/slot/**,/api/order/**,/api/checkin/**,/api/call/**,/api/queue/**,/api/consultation/**,/api/medical-record/**,/api/prescription/**,/api/stop/**,/api/bi/**,/api/ws/**
-        # medsupply-service: 药品、检查项、发药、报告、输液、检验
+        # medsupply-service: 药品、检查项、发药、报告、输液、检验、影像、预约
         - id: medsupply-service
           uri: lb://medsupply-service
           predicates:
-            - Path=/api/medsupply/**,/api/admin/drug/**,/api/admin/exam/**,/api/exam/**,/api/admin/drug/dispense/**,/api/infusion/**,/api/lab/**
+            - Path=/api/medsupply/**,/api/admin/drug/**,/api/admin/exam/**,/api/exam/**,/api/admin/drug/dispense/**,/api/infusion/**,/api/lab/**,/api/admin/lab/**
         # inpatient-service: 住院（入院/床位/医嘱/执行/生命体征/预交金/出院）
         - id: inpatient-service
           uri: lb://inpatient-service

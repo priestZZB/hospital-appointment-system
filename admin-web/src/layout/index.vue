@@ -15,6 +15,7 @@ import {
   Guide,
   Hospital,
   List,
+  Picture,
   Qrcode,
   Scan,
   Send,
@@ -99,6 +100,7 @@ const adminMenuGroups: MenuGroup[] = [
       { path: '/clinic', label: '门诊诊疗', icon: Flow },
       { path: '/drugs', label: '药品管理', icon: Tool, permissions: ['menu:admin:drug'] },
       { path: '/exam', label: '检查检验', icon: Scan, permissions: ['menu:admin:exam'] },
+      { path: '/med-tech-center', label: '医技工作台', icon: Picture },
       { path: '/exam-tech', label: '检查技师工作台', icon: Scan, permissions: ['menu:exam-tech:workbench'] },
       { path: '/lab-tech', label: '检验技师工作台', icon: Scan, permissions: ['menu:lab-tech:workbench'] },
       { path: '/infusion-nurse', label: '护士站输液', icon: Tool, permissions: ['menu:nurse:workbench'] },
@@ -154,6 +156,8 @@ const staffTabs = computed<MenuItem[]>(() => {
   if (userStore.isNurse) tabs.push({ path: '/infusion-nurse', label: '护士站输液', permissions: ['menu:nurse:workbench'] })
   if (userStore.isNurse) tabs.push({ path: '/inpatient-nurse', label: '住院护士站', permissions: ['menu:inpatient:nurse'] })
   if (userStore.isExamTech) tabs.push({ path: '/exam-tech', label: '检查执行', permissions: ['menu:exam-tech:workbench'] })
+  // 迭代8：检验 LIS + 影像中心（页面内按角色门控，无权限显示空态）
+  if (userStore.isLabTech || userStore.isExamTech) tabs.push({ path: '/med-tech-center', label: '医技中心' })
   if (userStore.isPharmacist) tabs.push({ path: '/drugs', label: '药房', permissions: ['menu:admin:drug'] })
   tabs.push({ path: '/profile', label: '个人中心' })
   return filterByPerm(tabs)

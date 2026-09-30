@@ -104,6 +104,21 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '检查检验', permissions: ['menu:admin:exam'] },
       },
       {
+        // 迭代8 医技工作台（检验 LIS + 影像中心）。/exam-tech 已被既有「检查技师工作台」占用，
+        // 故以 /med-tech-center 平级挂载；页面内按 isLabTech/isExamTech/isAdmin 角色门控（无权限显示空态）
+        path: 'med-tech-center',
+        name: 'MedTechCenter',
+        component: () => import('@/views/admin/exam-tech/index.vue'),
+        meta: { title: '医技工作台' },
+      },
+      {
+        // PACS 影像浏览（query: seriesId 或 code=云影像访问码）
+        path: 'pacs-viewer',
+        name: 'PacsViewer',
+        component: () => import('@/views/admin/exam-tech/viewer.vue'),
+        meta: { title: 'PACS 影像浏览' },
+      },
+      {
         path: 'stop',
         name: 'Stop',
         component: () => import('@/views/admin/stop/index.vue'),

@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <pre>
  * 使用示例：
- *   ApiTestEngine engine = new ApiTestEngine("http://localhost:8080");
+ *   ApiTestEngine engine = new ApiTestEngine("http://localhost:28080");
  *   // 白名单接口
  *   engine.post("/api/auth/register", Map.of("phone","13800000001","password","abc12345","realName","测试","idCard","310101199001011234"));
  *   // 登录获取 Token

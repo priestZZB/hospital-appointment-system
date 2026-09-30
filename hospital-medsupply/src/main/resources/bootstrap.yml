@@ -13,6 +13,21 @@ spring:
     username: hospital_medsupply
     password: Hospital_2026
     driver-class-name: oracle.jdbc.OracleDriver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# MinIO 对象存储（历史配置保留；影像存储已改本地磁盘，见 pacs.storage-root）
+minio:
+  endpoint: http://localhost:9000
+  accessKey: minioadmin
+  secretKey: minioadmin
+  bucket: hospital
+
+# PACS 影像本地存储根目录（D2 影像文件，key=pacs/{applicationId}/{seriesNo}/{index}.jpg）
+pacs:
+  storage-root: ./data/pacs
 
 jwt:
   secret: hospital-appointment-system-jwt-secret-key-2026-must-be-at-least-32-chars

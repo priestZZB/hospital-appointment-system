@@ -7,6 +7,7 @@
 declare module '@win-design-next/icons-vue' {
   import type { Component } from 'vue'
 
+  export const ArrowLeft: Component
   export const ArrowRight: Component
   export const BarChart: Component
   export const CaretBottom: Component
@@ -17,7 +18,10 @@ declare module '@win-design-next/icons-vue' {
   export const CircleWarning: Component
   export const Close: Component
   export const Computer: Component
+  export const Copy: Component
   export const Date: Component
+  export const Delete: Component
+  export const Download: Component
   export const Edit: Component
   export const File: Component
   export const Filter: Component
@@ -27,12 +31,15 @@ declare module '@win-design-next/icons-vue' {
   export const Guide: Component
   export const Hospital: Component
   export const Key: Component
+  export const Link: Component
   export const LineChart: Component
   export const List: Component
   export const ListSolid: Component
   export const ListTimeline: Component
   export const Location: Component
   export const Lock: Component
+  export const Minus: Component
+  export const Picture: Component
   export const Plus: Component
   export const Qrcode: Component
   export const Rank: Component
@@ -58,4 +65,6 @@ declare module '@win-design-next/icons-vue' {
   export const UserGroup: Component
   export const Verify: Component
   export const ViewGridCard: Component
+  export const ZoomIn: Component
+  export const ZoomOut: Component
 }

@@ -32,6 +32,12 @@ public class ExamReport implements Serializable {
     /** 检查结果/诊断 */
     private String reportResult;
 
+    /** 结构化-所见（D4，CLOB），医生开报告时套模板或自由书写 */
+    private String findings;
+
+    /** 结构化-印象（D4） */
+    private String conclusion;
+
     /** 报告附件 MinIO URL */
     private String attachmentUrl;
 

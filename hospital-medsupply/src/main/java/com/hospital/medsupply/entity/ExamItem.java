@@ -28,6 +28,9 @@ public class ExamItem implements Serializable {
     /** 项目类型：LAB-检验 / RADIOLOGY-放射 / ULTRASOUND-超声 / ENDOSCOPY-内镜 / ECG-心电 */
     private String itemType;
 
+    /** 检查类别（D5）: DX-摄影 / CT / MR / US-超声 / ENDO-内镜 / PATH-病理 / ECG，检验类为空 */
+    private String modality;
+
     /** 参考价格 */
     private BigDecimal referencePrice;
 

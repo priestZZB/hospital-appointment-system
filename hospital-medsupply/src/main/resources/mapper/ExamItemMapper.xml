@@ -8,6 +8,7 @@
         <result column="item_code" property="itemCode"/>
         <result column="item_name" property="itemName"/>
         <result column="item_type" property="itemType"/>
+        <result column="modality" property="modality"/>
         <result column="reference_price" property="referencePrice"/>
         <result column="exec_dept" property="execDept"/>
         <result column="precautions" property="precautions"/>
@@ -54,9 +55,9 @@
 
     <insert id="insert" parameterType="com.hospital.medsupply.entity.ExamItem"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO exam_item (item_code, item_name, item_type, reference_price,
+        INSERT INTO exam_item (item_code, item_name, item_type, modality, reference_price,
                                exec_dept, precautions, status, create_time, update_time)
-        VALUES (#{itemCode}, #{itemName}, #{itemType}, #{referencePrice},
+        VALUES (#{itemCode}, #{itemName}, #{itemType}, #{modality}, #{referencePrice},
                 #{execDept}, #{precautions}, #{status}, SYSDATE, SYSDATE)
     </insert>
 
@@ -65,6 +66,7 @@
         <set>
             <if test="itemName != null">item_name = #{itemName},</if>
             <if test="itemType != null">item_type = #{itemType},</if>
+            <if test="modality != null">modality = #{modality},</if>
             <if test="referencePrice != null">reference_price = #{referencePrice},</if>
             <if test="execDept != null">exec_dept = #{execDept},</if>
             <if test="precautions != null">precautions = #{precautions},</if>

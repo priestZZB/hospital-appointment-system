@@ -9,6 +9,8 @@
         <result column="patient_id" property="patientId"/>
         <result column="report_desc" property="reportDesc"/>
         <result column="report_result" property="reportResult"/>
+        <result column="findings" property="findings"/>
+        <result column="conclusion" property="conclusion"/>
         <result column="attachment_url" property="attachmentUrl"/>
         <result column="attachment_name" property="attachmentName"/>
         <result column="operator_id" property="operatorId"/>
@@ -23,11 +25,13 @@
     <insert id="insert" parameterType="com.hospital.medsupply.entity.ExamReport"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO exam_report (application_id, patient_id, report_desc,
-                                 report_result, attachment_url, attachment_name,
+                                 report_result, findings, conclusion,
+                                 attachment_url, attachment_name,
                                  operator_id, auditor_id, audit_time, audit_comment,
                                  status, complete_time, create_time)
         VALUES (#{applicationId}, #{patientId}, #{reportDesc},
-                #{reportResult}, #{attachmentUrl}, #{attachmentName},
+                #{reportResult}, #{findings}, #{conclusion},
+                #{attachmentUrl}, #{attachmentName},
                 #{operatorId}, #{auditorId}, #{auditTime}, #{auditComment},
                 #{status}, #{completeTime}, SYSDATE)
     </insert>

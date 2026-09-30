@@ -77,6 +77,7 @@ public class ExamService {
      */
     @Transactional(rollbackFor = Exception.class)
     public ExamReport createReport(Long applicationId, String reportDesc, String reportResult,
+                                   String findings, String conclusion,
                                    MultipartFile file, String status, Long operatorId) {
         if (applicationId == null) {
             throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "applicationId 不能为空");
@@ -94,6 +95,9 @@ public class ExamService {
         report.setPatientId(application.getPatientId());
         report.setReportDesc(reportDesc);
         report.setReportResult(reportResult);
+        // 迭代8 D4：结构化影像报告（所见/印象）
+        report.setFindings(findings);
+        report.setConclusion(conclusion);
         report.setOperatorId(operatorId);
         if (file != null && !file.isEmpty()) {
             report.setAttachmentUrl(fileService.upload(file));

@@ -62,6 +62,11 @@
             <artifactId>minio</artifactId>
             <version>8.5.7</version>
         </dependency>
+        <!-- Redis：云影像链接 code 存储（迭代8 D6，与 auth 同 starter） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <!-- PDFBox：用药指导单 PDF 生成（迭代7 药事管理，与 clinic 医疗证明同版本） -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>

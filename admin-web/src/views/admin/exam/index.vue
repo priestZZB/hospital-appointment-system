@@ -5,6 +5,7 @@ import { WMessage } from 'win-design-next'
 import type { UploadFile, UploadInstance } from 'win-design-next'
 import { CircleCheck, File, ListSolid, Plus, Refresh, Search, Upload } from '@win-design-next/icons-vue'
 import { createExamItemApi, createExamReportApi, getExamItemsApi, getMyExamReportsApi } from '@/api/medsupply'
+import { applyReportTemplateApi } from '@/api/lis'
 import { useUserStore } from '@/stores/user'
 import type { ExamItem, ExamReport } from '@/types'
 
@@ -59,11 +60,46 @@ const entryForm = reactive({
   applicationId: undefined as number | undefined,
   reportDesc: '',
   reportResult: '',
+  /** 迭代8 透传：影像所见（findings） */
+  findings: '',
+  /** 迭代8 透传：影像印象（conclusion） */
+  conclusion: '',
   status: 'PUBLISHED' as 'DRAFT' | 'PUBLISHED',
 })
 const entryFile = ref<File | null>(null)
 const entrySubmitting = ref(false)
 const uploadRef = ref<UploadInstance>()
+
+// 迭代8：报告模板套用（按当前项目 modality + 部位回填 findings / conclusion）
+const TEMPLATE_MODALITY_OPTIONS = ['CT', 'MR', 'DR', 'CR', 'US', 'OTHER'] as const
+const tplModality = ref('CT')
+const tplBodyPart = ref('')
+const tplApplying = ref(false)
+
+async function applyTemplate() {
+  if (!tplModality.value) {
+    WMessage.warning('请选择模板分类（检查模态）')
+    return
+  }
+  tplApplying.value = true
+  try {
+    const res = await applyReportTemplateApi({
+      modality: tplModality.value,
+      bodyPart: tplBodyPart.value.trim() || undefined,
+    })
+    if (!res || (!res.findings && !res.conclusion)) {
+      WMessage.warning('未匹配到可用模板，请检查模板分类与部位')
+      return
+    }
+    entryForm.findings = res.findings || ''
+    entryForm.conclusion = res.conclusion || ''
+    WMessage.success('模板已套用，可继续编辑')
+  } catch (e) {
+    WMessage.error((e as Error).message || '模板套用失败')
+  } finally {
+    tplApplying.value = false
+  }
+}
 
 // 报告查询
 const reports = ref<ExamReport[]>([])
@@ -188,13 +224,23 @@ async function submitReport() {
   form.append('applicationId', String(entryForm.applicationId))
   form.append('reportDesc', entryForm.reportDesc)
   form.append('reportResult', entryForm.reportResult)
+  form.append('findings', entryForm.findings)
+  form.append('conclusion', entryForm.conclusion)
   form.append('status', entryForm.status)
   if (entryFile.value) form.append('file', entryFile.value)
   entrySubmitting.value = true
   try {
     await createExamReportApi(form)
     WMessage.success('报告录入成功')
-    Object.assign(entryForm, { applicationId: undefined, reportDesc: '', reportResult: '', status: 'PUBLISHED' })
+    Object.assign(entryForm, {
+      applicationId: undefined,
+      reportDesc: '',
+      reportResult: '',
+      findings: '',
+      conclusion: '',
+      status: 'PUBLISHED',
+    })
+    tplBodyPart.value = ''
     entryFile.value = null
     uploadRef.value?.clearFiles()
     fetchReports()
@@ -316,6 +362,22 @@ onMounted(() => {
               </w-form-item>
               <w-form-item label="报告描述">
                 <w-input v-model="entryForm.reportDesc" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="请输入报告描述" />
+              </w-form-item>
+              <!-- 迭代8：报告模板套用（按模态 + 部位回填所见 / 印象） -->
+              <w-form-item label="套用模板">
+                <div class="tpl-apply">
+                  <w-select v-model="tplModality" placeholder="模板分类" class="tpl-apply__modality">
+                    <w-option v-for="m in TEMPLATE_MODALITY_OPTIONS" :key="m" :label="m" :value="m" />
+                  </w-select>
+                  <w-input v-model="tplBodyPart" placeholder="部位（如 头部，可留空通用）" class="tpl-apply__bodypart" clearable />
+                  <w-button type="primary" plain :loading="tplApplying" @click="applyTemplate">套用模板</w-button>
+                </div>
+              </w-form-item>
+              <w-form-item label="所见 findings">
+                <w-input v-model="entryForm.findings" type="textarea" :rows="4" maxlength="2000" show-word-limit placeholder="影像所见（可由模板套用后编辑）" />
+              </w-form-item>
+              <w-form-item label="印象 conclusion">
+                <w-input v-model="entryForm.conclusion" type="textarea" :rows="3" maxlength="1000" show-word-limit placeholder="影像印象 / 诊断结论（可由模板套用后编辑）" />
               </w-form-item>
               <w-form-item label="报告结果">
                 <w-input v-model="entryForm.reportResult" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="请输入报告结果" />
@@ -493,6 +555,22 @@ onMounted(() => {
   margin-left: 10px;
   font-size: 13px;
   color: var(--hospital-text-second);
+}
+
+/* 模板套用行 */
+.tpl-apply {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.tpl-apply__modality {
+  width: 130px;
+  flex-shrink: 0;
+}
+.tpl-apply__bodypart {
+  flex: 1;
+  min-width: 0;
 }
 
 .text-third {

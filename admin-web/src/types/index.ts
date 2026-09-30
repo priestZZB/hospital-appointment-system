@@ -1039,3 +1039,105 @@ export interface DecoctionOrder {
   createTime?: string
   updateTime?: string
 }
+
+/** ==================== 检验 LIS + 影像中心（迭代8） ==================== */
+
+/** 检验标本 Specimen（依据：SpecimenController /api/admin/lab/specimen） */
+export interface Specimen {
+  id: number
+  /** 标本条码号（SP 前缀） */
+  specimenNo?: string
+  applicationId: number
+  patientId?: number
+  /** 标本类型: BLOOD-血液 / URINE-尿液 / STOOL-粪便 / SPUTUM-痰液 / OTHER-其他 */
+  specimenType?: string
+  /** 采集容器 */
+  container?: string
+  /** 采集部位 */
+  collectSite?: string
+  /** 状态: COLLECTED-已采集 / RECEIVED-已核收 / REJECTED-已拒收 / TESTING-检测中 */
+  status?: string
+  collectTime?: string
+  remark?: string
+}
+
+/** 检验结果明细 ResultItem（依据：LabResultController /api/admin/lab/result） */
+export interface ResultItem {
+  id?: number
+  itemCode: string
+  itemName: string
+  resultValue?: string
+  unit?: string
+  refRange?: string
+  /** 异常标识：后端按参考范围自动判定 ↑ / ↓，前端只读展示 */
+  abnormalFlag?: string
+  sortOrder?: number
+}
+
+/** 检查预约 ExamReservation（依据：ExamReservationController /api/admin/exam/reservation） */
+export interface ExamReservation {
+  id: number
+  applicationId: number
+  patientId?: number
+  /** 预约日期（yyyy-MM-dd） */
+  reserveDate?: string
+  /** 预约时段（如 08:00-08:30，30 分钟步进） */
+  timeSlot?: string
+  /** 检查室 */
+  room?: string
+  /** 状态: BOOKED-已预约 / CHECKED_IN-已报到 / DONE-已完成 / CANCELLED-已取消 */
+  status?: string
+  checkinTime?: string
+}
+
+/** 影像序列 ImageSeries（依据：ExamImageController /api/admin/exam/image） */
+export interface ImageSeries {
+  id: number
+  /** 序列号（IM 前缀） */
+  seriesNo?: string
+  applicationId: number
+  patientId?: number
+  /** 检查模态: CT / MR / DR / CR / US ... */
+  modality?: string
+  description?: string
+  /** 序列内影像张数 */
+  imageCount?: number
+  createTime?: string
+}
+
+/** 检查报告模板 ReportTemplate（依据：ExamTemplateController /api/admin/exam/template） */
+export interface ReportTemplate {
+  id?: number
+  /** 模板分类（检查模态）: CT / MR / DR / CR / US / OTHER */
+  modality: string
+  /** 适用部位 */
+  bodyPart?: string
+  /** 模板类型: FINDING-所见 / CONCLUSION-印象 */
+  templateType: string
+  content: string
+  /** 1-启用 0-停用 */
+  status?: number
+  createTime?: string
+}
+
+/** 云影像链接 CloudLink（依据：CloudController POST /api/medsupply/cloud/{applicationId}/link） */
+export interface CloudLink {
+  /** 分享访问码 */
+  code: string
+  /** 分享地址（形如 /cloud-view/{code}） */
+  url: string
+}
+
+/** 云影像浏览数据 CloudViewVO（依据：CloudController GET /api/medsupply/cloud/view/{code}） */
+export interface CloudViewVO {
+  applicationId: number
+  series: ImageSeries[]
+  /** 检查报告（findings / conclusion 等），未出报告时为 null */
+  report: ({ findings?: string; conclusion?: string } & Record<string, unknown>) | null
+}
+
+/** 报告模板套用结果 TemplateApplyVO（依据：GET /api/admin/exam/template/apply?modality=&bodyPart=） */
+export interface TemplateApplyVO {
+  findings?: string
+  conclusion?: string
+}

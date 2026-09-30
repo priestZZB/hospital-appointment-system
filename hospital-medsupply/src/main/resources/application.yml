@@ -1,5 +1,5 @@
 server:
-  port: 8084
+  port: 28084
 
 spring:
   main:

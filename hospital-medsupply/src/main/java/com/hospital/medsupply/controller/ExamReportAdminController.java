@@ -45,10 +45,12 @@ public class ExamReportAdminController {
             @RequestParam(value = "reportDesc", required = false) String reportDesc,
             @RequestParam(value = "reportResult", required = false) String reportResult,
             @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "findings", required = false) String findings,
+            @RequestParam(value = "conclusion", required = false) String conclusion,
             @RequestParam(value = "file", required = false) MultipartFile file) {
         requireExamTechOrAdmin();
         return Result.ok(examService.createReport(
-                applicationId, reportDesc, reportResult, file, status, UserContext.getUserId()));
+                applicationId, reportDesc, reportResult, findings, conclusion, file, status, UserContext.getUserId()));
     }
 
     /**
