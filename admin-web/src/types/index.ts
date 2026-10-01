@@ -1501,3 +1501,33 @@ export interface InsuranceSettleParam {
   operatorId?: number
   items: InsuranceSettleItemParam[]
 }
+
+/* ==================== 迭代12 病案与统计 ==================== */
+/** I2 传染病/不良事件上报（base=/api/inpatient/report-form） */
+export interface ReportForm {
+  id?: number
+  reportType?: string
+  patientId?: number
+  patientName?: string
+  eventName?: string
+  eventTime?: string
+  occurDepartment?: string
+  content?: string
+  reporterId?: number
+  reporterName?: string
+  status?: string
+  reviewNote?: string
+  createTime?: string
+}
+/** I3 病案借阅记录（base=/api/inpatient/medical-record） */
+export interface RecordBorrow {
+  id?: number
+  recordId?: number
+  borrowerId?: number
+  borrowerName?: string
+  purpose?: string
+  borrowTime?: string
+  expectReturnTime?: string
+  returnTime?: string
+  status?: string
+}

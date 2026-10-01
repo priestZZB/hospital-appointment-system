@@ -277,6 +277,27 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/payment/insurance-catalog/index.vue'),
         meta: { title: '医保目录管理' },
       },
+      {
+        // 迭代12：统计报表中心（I1 门诊/住院日报月报 + CSV 导出）
+        path: 'report-center',
+        name: 'ReportCenter',
+        component: () => import('@/views/stats/report-center/index.vue'),
+        meta: { title: '统计报表中心' },
+      },
+      {
+        // 迭代12：上报登记（I2 传染病/不良事件）
+        path: 'report-form',
+        name: 'ReportForm',
+        component: () => import('@/views/inpatient/report-form/index.vue'),
+        meta: { title: '上报登记' },
+      },
+      {
+        // 迭代12：病案与临床路径（I3 病案借阅归档 + J1 临床路径）
+        path: 'medical-record',
+        name: 'MedicalRecord',
+        component: () => import('@/views/inpatient/medical-record/index.vue'),
+        meta: { title: '病案与临床路径' },
+      },
     ],
   },
   {

@@ -159,6 +159,7 @@ public class ApiTestRunner {
         runStep("9-slot-专家号绿色通道加号改期", this::testOutpatientEnhance);
         runStep("10-surgery-手术中心全链", this::testSurgeryCenter);
         runStep("11-insurance-医保结算财务", this::testInsuranceFinance);
+        runStep("12-casefile-病案统计路径", this::testCaseFileStats);
 
         report.print();
     }
@@ -2896,6 +2897,139 @@ public class ApiTestRunner {
                 st = rvm.get("Status");
             }
             assertTrue("冲正后结算单状态应为 REVERSED", "REVERSED".equals(String.valueOf(st)));
+        }
+    }
+
+    /**
+     * 迭代 12：病案与统计（I1 报表中心日报/月报/CSV、I2 上报登记、I3 病案借阅归档、J1 临床路径入径/变异/完成）。
+     */
+    private void testCaseFileStats() throws IOException {
+        engine.setToken(adminToken());
+        String today = LocalDate.now().format(DATE_FMT);
+        String month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        String suf = randomDigits(4);
+
+        // ---------- I1 报表中心 ----------
+        check("GET  /api/clinic/stats/daily?date=今天（I1 门诊日报）",
+                engine.getWithAuth("/api/clinic/stats/daily?date=" + today));
+        check("GET  /api/clinic/stats/monthly?month=当月（I1 门诊月报）",
+                engine.getWithAuth("/api/clinic/stats/monthly?month=" + month));
+        check("GET  /api/inpatient/stats/daily?date=今天（I1 住院日报）",
+                engine.getWithAuth("/api/inpatient/stats/daily?date=" + today));
+        check("GET  /api/inpatient/stats/monthly?month=当月（I1 住院月报）",
+                engine.getWithAuth("/api/inpatient/stats/monthly?month=" + month));
+        checkReachable("GET  /api/clinic/stats/daily/export（I1 门诊日报 CSV 导出）",
+                () -> engine.getWithAuth("/api/clinic/stats/daily/export?date=" + today));
+        checkReachable("GET  /api/inpatient/stats/daily/export（I1 住院日报 CSV 导出）",
+                () -> engine.getWithAuth("/api/inpatient/stats/daily/export?date=" + today));
+
+        // ---------- I2 上报登记 ----------
+        Object patientId = state.get("手术PatientId");
+        if (patientId == null) {
+            patientId = state.get("patientId");
+        }
+        if (patientId == null) {
+            check("POST /api/inpatient/report-form（跳过—无患者）", syntheticOk("无患者，上报登记用例跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse report = engine.postWithAuth("/api/inpatient/report-form",
+                Map.of("reportType", "INFECTIOUS", "patientId", patientId, "patientName", "上报患者" + suf,
+                        "eventName", "肺结核", "eventTime", today + "T10:00:00", "occurDepartment", "呼吸内科",
+                        "content", "迭代12传染病上报自动化验证", "reporterId", 1, "reporterName", "李医生"));
+        check("POST /api/inpatient/report-form（I2 传染病上报提交）", report);
+        Object reportId = report.isOk() && report.getData() instanceof Map rm ? rm.get("id") : null;
+        if (reportId != null) {
+            check("PUT  /api/inpatient/report-form/" + reportId + "/review（I2 上报审核）",
+                    engine.putWithAuth("/api/inpatient/report-form/" + reportId + "/review?note=迭代12复核通过", Map.of()));
+        }
+        check("GET  /api/inpatient/report-form/list?reportType=INFECTIOUS（I2 上报列表）",
+                engine.getWithAuth("/api/inpatient/report-form/list?reportType=INFECTIOUS&pageNo=1&pageSize=10"));
+
+        // ---------- I3 病案登记→归档→借阅→归还 ----------
+        ApiTestEngine.ApiResponse record = engine.postWithAuth("/api/inpatient/medical-record",
+                Map.of("patientId", patientId, "patientName", "病案患者" + suf,
+                        "diagnosis", "急性阑尾炎（迭代12病案验证）"));
+        check("POST /api/inpatient/medical-record（I3 病案登记）", record);
+        Object recordId = record.isOk() && record.getData() instanceof Map rdm ? rdm.get("id") : null;
+        if (recordId == null) {
+            check("PUT  /api/inpatient/medical-record/{id}/archive（跳过—病案登记失败）", syntheticOk("病案登记失败，借阅链路跳过"));
+            return;
+        }
+        check("GET  /api/inpatient/medical-record/" + recordId + "（I3 病案详情）",
+                engine.getWithAuth("/api/inpatient/medical-record/" + recordId));
+        check("PUT  /api/inpatient/medical-record/" + recordId + "/archive（I3 病案归档）",
+                engine.putWithAuth("/api/inpatient/medical-record/" + recordId + "/archive", Map.of()));
+        ApiTestEngine.ApiResponse borrow = engine.postWithAuth("/api/inpatient/medical-record/" + recordId + "/borrow",
+                Map.of("borrowerId", 1, "borrowerName", "李医生", "purpose", "迭代12病案借阅验证",
+                        "expectReturnTime", LocalDate.now().plusDays(3).format(DATE_FMT) + "T18:00:00"));
+        check("POST /api/inpatient/medical-record/" + recordId + "/borrow（I3 病案借出）", borrow);
+        Object borrowId = borrow.isOk() && borrow.getData() instanceof Map bm ? bm.get("id") : null;
+        if (borrowId != null) {
+            check("POST /api/inpatient/medical-record/" + recordId + "/return/" + borrowId + "（I3 病案归还）",
+                    engine.postWithAuth("/api/inpatient/medical-record/" + recordId + "/return/" + borrowId, Map.of()));
+        }
+        check("GET  /api/inpatient/medical-record/borrow/list（I3 借阅台账）",
+                engine.getWithAuth("/api/inpatient/medical-record/borrow/list?pageNo=1&pageSize=10"));
+
+        // ---------- J1 临床路径：模板→入径→推进→完成 + 变异分支 ----------
+        ApiTestEngine.ApiResponse template = engine.postWithAuth("/api/inpatient/path-template",
+                Map.of("pathCode", "CP12" + suf, "pathName", "急性阑尾炎临床路径" + suf, "diseaseName", "急性阑尾炎",
+                        "standardDays", 5, "totalEstimate", 8000.00,
+                        "itemJson", "[{\"day\":1,\"items\":[\"血常规\",\"腹部B超\"]},{\"day\":2,\"items\":[\"阑尾切除术\"]}]"));
+        check("POST /api/inpatient/path-template（J1 路径模板创建）", template);
+        Object templateId = template.isOk() && template.getData() instanceof Map tm ? tm.get("id") : null;
+        if (templateId == null) {
+            check("POST /api/inpatient/patient-path/enter（跳过—模板创建失败）", syntheticOk("模板创建失败，路径链路跳过"));
+            return;
+        }
+        check("GET  /api/inpatient/path-template/list?keyword=（J1 模板列表）",
+                engine.getWithAuth("/api/inpatient/path-template/list?pageNo=1&pageSize=10"));
+
+        // 需要在院入院记录：为手术患者新登记一笔
+        ApiTestEngine.ApiResponse admit3 = engine.postWithAuth("/api/inpatient/admission",
+                Map.of("patientId", patientId, "departmentId", 1, "attendingDoctorId", 1,
+                        "attendingDoctorName", "李医生", "admissionDiag", "迭代12临床路径入院", "expectedDays", 5));
+        check("POST /api/inpatient/admission（J1 临床路径入院登记）", admit3);
+        Object admissionId3 = admit3.isOk() && admit3.getData() instanceof Map am3 ? am3.get("id") : null;
+        if (admissionId3 == null) {
+            check("POST /api/inpatient/patient-path/enter（跳过—入院失败）", syntheticOk("入院失败，路径链路跳过"));
+            return;
+        }
+        ApiTestEngine.ApiResponse enter = engine.postWithAuth("/api/inpatient/patient-path/enter",
+                Map.of("templateId", templateId, "admissionId", admissionId3, "patientId", patientId));
+        check("POST /api/inpatient/patient-path/enter（J1 患者入径）", enter);
+        Object pathId = enter.isOk() && enter.getData() instanceof Map em ? em.get("id") : null;
+        if (pathId == null) {
+            check("POST /api/inpatient/patient-path/{id}/advance（跳过—入径失败）", syntheticOk("入径失败，路径推进跳过"));
+            return;
+        }
+        check("GET  /api/inpatient/patient-path/" + pathId + "（J1 路径详情）",
+                engine.getWithAuth("/api/inpatient/patient-path/" + pathId));
+        check("POST /api/inpatient/patient-path/" + pathId + "/advance（J1 推进一天）",
+                engine.postWithAuth("/api/inpatient/patient-path/" + pathId + "/advance", Map.of()));
+        check("POST /api/inpatient/patient-path/" + pathId + "/complete（J1 路径完成）",
+                engine.postWithAuth("/api/inpatient/patient-path/" + pathId + "/complete", Map.of()));
+        ApiTestEngine.ApiResponse pathView = engine.getWithAuth("/api/inpatient/patient-path/" + pathId);
+        if (pathView.isOk() && pathView.getData() instanceof Map pvm
+                && pvm.get("path") instanceof Map pvInner) {
+            Object pst = pvInner.get("status");
+            assertTrue("完成路径后状态应为 COMPLETED", "COMPLETED".equals(String.valueOf(pst)));
+        }
+        // 变异分支：完成后再入径→变异
+        ApiTestEngine.ApiResponse enter2 = engine.postWithAuth("/api/inpatient/patient-path/enter",
+                Map.of("templateId", templateId, "admissionId", admissionId3, "patientId", patientId));
+        check("POST /api/inpatient/patient-path/enter（J1 二次入径）", enter2);
+        Object pathId2 = enter2.isOk() && enter2.getData() instanceof Map em2 ? em2.get("id") : null;
+        if (pathId2 != null) {
+            check("POST /api/inpatient/patient-path/" + pathId2 + "/variation（J1 变异登记）",
+                    engine.postWithAuth("/api/inpatient/patient-path/" + pathId2 + "/variation",
+                            Map.of("reason", "迭代12变异验证-体温异常")));
+            ApiTestEngine.ApiResponse pv2 = engine.getWithAuth("/api/inpatient/patient-path/" + pathId2);
+            if (pv2.isOk() && pv2.getData() instanceof Map pvm2
+                    && pvm2.get("path") instanceof Map pvInner2) {
+                Object pst2 = pvInner2.get("status");
+                assertTrue("变异后路径状态应为 VARIATION", "VARIATION".equals(String.valueOf(pst2)));
+            }
         }
     }
 }

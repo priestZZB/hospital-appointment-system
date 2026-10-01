@@ -138,6 +138,15 @@ const adminMenuGroups: MenuGroup[] = [
     ],
   },
   {
+    // 迭代12：统计分析（病案与统计，管理员 + 医生可见）
+    title: '统计分析',
+    items: [
+      { path: '/report-center', label: '统计报表中心', icon: BarChart },
+      { path: '/report-form', label: '上报登记', icon: Send },
+      { path: '/medical-record', label: '病案与临床路径', icon: File },
+    ],
+  },
+  {
     title: '系统管理',
     items: [
       { path: '/users', label: '用户管理', icon: UserGroup, permissions: ['menu:admin:user'] },

@@ -538,4 +538,26 @@ public final class PermissionConstant {
     public static final String PAYMENT_CHARGE_ITEM_MANAGE = "api:payment:charge-item:manage";
     /** 收费项目查询（管理员/医生） */
     public static final String PAYMENT_CHARGE_ITEM_QUERY = "api:payment:charge-item:query";
+
+    // ==================== 迭代12 病案与统计 ====================
+    /** 门诊日报查询 */
+    public static final String CLINIC_STATS_DAILY = "api:clinic:stats:daily";
+    /** 门诊月报查询 */
+    public static final String CLINIC_STATS_MONTHLY = "api:clinic:stats:monthly";
+    /** 门诊报表导出 */
+    public static final String CLINIC_STATS_EXPORT = "api:clinic:stats:export";
+    /** 住院日报查询 */
+    public static final String INPATIENT_STATS_DAILY = "api:inpatient:stats:daily";
+    /** 住院月报查询 */
+    public static final String INPATIENT_STATS_MONTHLY = "api:inpatient:stats:monthly";
+    /** 住院报表导出 */
+    public static final String INPATIENT_STATS_EXPORT = "api:inpatient:stats:export";
+    /** 上报登记管理（医护） */
+    public static final String REPORT_FORM_MANAGE = "api:inpatient:report-form:manage";
+    /** 上报审核 */
+    public static final String REPORT_FORM_REVIEW = "api:inpatient:report-form:review";
+    /** 病案管理 */
+    public static final String MEDICAL_RECORD_MANAGE = "api:inpatient:medical-record:manage";
+    /** 临床路径管理 */
+    public static final String PATIENT_PATH_MANAGE = "api:inpatient:patient-path:manage";
 }
