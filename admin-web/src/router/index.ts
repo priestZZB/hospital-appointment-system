@@ -327,6 +327,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '智能算法中心' },
       },
       {
+        // 迭代16：AI 智能助手（B2 多轮问诊/候诊预测/AI 医助）
+        path: 'ai-assistant',
+        name: 'AiAssistant',
+        component: () => import('@/views/ai/index.vue'),
+        meta: { title: 'AI 智能助手' },
+      },
+      {
         // 迭代12：病案与临床路径（I3 病案借阅归档 + J1 临床路径）
         path: 'medical-record',
         name: 'MedicalRecord',

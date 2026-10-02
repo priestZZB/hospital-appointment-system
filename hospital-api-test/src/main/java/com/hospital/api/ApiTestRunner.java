@@ -163,6 +163,7 @@ public class ApiTestRunner {
         runStep("13-internet-互联网医院患者服务", this::testCaseInternet);
         runStep("14-emergency-急诊与运营", this::testCaseEmergency);
         runStep("15-algo-算法层", this::testCaseAlgorithm);
+        runStep("16-ai-B2智能层", this::testCaseAiB2);
 
         report.print();
     }
@@ -3176,6 +3177,73 @@ public class ApiTestRunner {
 
     private Long toLong(Object v) {
         return v == null ? null : Long.valueOf(String.valueOf(v));
+    }
+
+    /** 迭代16：AI智能层（B2-1 多轮问诊 / B2-2 候诊时长 / B2-3 门诊量 / B2-4 AI用药 / B2-5 报告摘要） */
+    private void testCaseAiB2() throws IOException {
+        String suf = randomDigits(4);
+
+        // ---------- B2-1 多轮问诊 ----------
+        ApiTestEngine.ApiResponse start = engine.postWithAuth("/api/ai/consult/start",
+                Map.of("patientId", 980000L + Long.parseLong(suf), "symptom", "发热伴咳嗽" + suf));
+        check("POST /api/ai/consult/start（B2-1 开始问诊）", start);
+        String sessionNo = start.isOk() && start.getData() instanceof Map sm
+                ? String.valueOf(sm.get("sessionNo")) : null;
+        if (sessionNo != null) {
+            ApiTestEngine.ApiResponse r1 = engine.postWithAuth("/api/ai/consult/" + sessionNo + "/reply",
+                    Map.of("content", "最高38.9度" + suf));
+            check("POST /api/ai/consult/" + sessionNo + "/reply（B2-1 第1轮回答）", r1);
+            ApiTestEngine.ApiResponse r2 = engine.postWithAuth("/api/ai/consult/" + sessionNo + "/reply",
+                    Map.of("content", "持续3天了"));
+            check("POST /api/ai/consult/" + sessionNo + "/reply（B2-1 第2轮出建议）", r2);
+            boolean closed = r2.isOk() && r2.getData() instanceof Map rm
+                    && Boolean.TRUE.equals(rm.get("finished")) && rm.get("suggestion") != null;
+            assertTrue("B2-1 两轮追问后应给出建议并关闭会话", closed);
+            check("GET  /api/ai/consult/" + sessionNo + "（B2-1 会话详情）",
+                    engine.getWithAuth("/api/ai/consult/" + sessionNo));
+            ApiTestEngine.ApiResponse closedReply = engine.postWithAuth("/api/ai/consult/" + sessionNo + "/reply",
+                    Map.of("content", "再问一次"));
+            checkNeg("POST /api/ai/consult/…/reply（B2-1 已关闭会话应被拒）", closedReply);
+        }
+        check("GET  /api/ai/consult/list?patientId=980000" + suf + "（B2-1 会话分页）",
+                engine.getWithAuth("/api/ai/consult/list?patientId=" + (980000L + Long.parseLong(suf))));
+
+        // ---------- B2-2 候诊时长预测 ----------
+        ApiTestEngine.ApiResponse wait = engine.postWithAuth("/api/ai/wait-time/predict",
+                Map.of("queueLength", 12, "avgMinutes", 8, "windows", 2));
+        check("POST /api/ai/wait-time/predict（B2-2 候诊时长）", wait);
+        boolean waitOk = wait.isOk() && wait.getData() instanceof Map wm
+                && wm.get("estimateMinutes") instanceof Number && ((Number) wm.get("estimateMinutes")).intValue() == 48;
+        assertTrue("B2-2 12人×8分/2窗口 应预测约48分钟", waitOk);
+
+        // ---------- B2-3 门诊量预测 ----------
+        ApiTestEngine.ApiResponse volume = engine.postWithAuth("/api/ai/visit-volume/predict",
+                Map.of("recentDaily", List.of(120, 135, 128, 140, 150, 145, 160)));
+        check("POST /api/ai/visit-volume/predict（B2-3 门诊量预测）", volume);
+        boolean volumeOk = volume.isOk() && volume.getData() instanceof Map vm
+                && vm.get("forecastNext3Days") instanceof List<?> f && f.size() == 3;
+        assertTrue("B2-3 应返回未来3天预测", volumeOk);
+
+        // ---------- B2-4 AI 用药推荐 ----------
+        ApiTestEngine.ApiResponse drug = engine.postWithAuth("/api/ai/drug-recommend",
+                Map.of("diagnosis", "高血压2级" + suf, "allergy", "青霉素"));
+        check("POST /api/ai/drug-recommend（B2-4 用药推荐-高血压）", drug);
+        boolean drugOk = drug.isOk() && drug.getData() instanceof Map dm
+                && dm.get("recommended") instanceof List<?> rec && !rec.isEmpty();
+        assertTrue("B2-4 高血压诊断应给出推荐药品", drugOk);
+        ApiTestEngine.ApiResponse drugBad = engine.postWithAuth("/api/ai/drug-recommend", Map.of());
+        checkNeg("POST /api/ai/drug-recommend（B2-4 缺诊断应被拒）", drugBad);
+
+        // ---------- B2-5 报告摘要 ----------
+        ApiTestEngine.ApiResponse summary = engine.postWithAuth("/api/ai/report-summary",
+                Map.of("title", "门诊病历" + suf, "chiefComplaint", "反复咳嗽咳痰一周，伴发热两天" + suf,
+                        "diagnosis", "急性上呼吸道感染" + suf, "advice", "注意休息多饮水，一周后复诊"));
+        check("POST /api/ai/report-summary（B2-5 报告摘要）", summary);
+        boolean summaryOk = summary.isOk() && summary.getData() instanceof Map sm
+                && sm.get("summary") != null && String.valueOf(sm.get("summary")).contains("诊断为");
+        assertTrue("B2-5 摘要应包含诊断要素", summaryOk);
+        check("GET  /api/ai/predictions?predType=WAIT_TIME（B2 预测留痕分页）",
+                engine.getWithAuth("/api/ai/predictions?predType=WAIT_TIME&pageNo=1&pageSize=10"));
     }
 
     /** 迭代15：算法层（B1-1 遗传排班 / B1-2 优先级叫号 / B1-3 停诊重调度 / B1-4 爽约预测 / B1-5 排床优化） */

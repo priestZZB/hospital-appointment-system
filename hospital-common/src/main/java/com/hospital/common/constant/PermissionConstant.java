@@ -592,4 +592,12 @@ public final class PermissionConstant {
     public static final String NOSHOW_VIEW = "api:ai:noshow:view";
     /** 排床优化管理（迭代15 B1） */
     public static final String BEDPLAN_MANAGE = "api:inpatient:bedplan:manage";
+    /** AI 多轮问诊（迭代16 B2） */
+    public static final String AI_CONSULT = "api:ai:consult:manage";
+    /** AI 预测视图（迭代16 B2） */
+    public static final String AI_PREDICT = "api:ai:predict:view";
+    /** AI 用药推荐（迭代16 B2） */
+    public static final String AI_DRUG = "api:ai:drug:recommend";
+    /** AI 报告摘要（迭代16 B2） */
+    public static final String AI_SUMMARY = "api:ai:summary:manage";
 }

@@ -167,6 +167,7 @@ const adminMenuGroups: MenuGroup[] = [
     title: '智能算法',
     items: [
       { path: '/algorithm', label: '智能算法中心', icon: BarChart },
+      { path: '/ai-assistant', label: 'AI 智能助手', icon: Send },
     ],
   },
   {
