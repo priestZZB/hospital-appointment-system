@@ -306,6 +306,20 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '互联网医院服务' },
       },
       {
+        // 迭代14：急诊中心（G1 预检分级/G2 抢救记录/L4 考勤打卡）
+        path: 'emergency',
+        name: 'EmergencyCenter',
+        component: () => import('@/views/emergency/index.vue'),
+        meta: { title: '急诊中心' },
+      },
+      {
+        // 迭代14：后台资产管理（L1 耗材/L2 设备）
+        path: 'asset',
+        name: 'AssetManage',
+        component: () => import('@/views/asset/index.vue'),
+        meta: { title: '后台资产管理' },
+      },
+      {
         // 迭代12：病案与临床路径（I3 病案借阅归档 + J1 临床路径）
         path: 'medical-record',
         name: 'MedicalRecord',

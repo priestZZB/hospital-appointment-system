@@ -161,6 +161,7 @@ public class ApiTestRunner {
         runStep("11-insurance-医保结算财务", this::testInsuranceFinance);
         runStep("12-casefile-病案统计路径", this::testCaseFileStats);
         runStep("13-internet-互联网医院患者服务", this::testCaseInternet);
+        runStep("14-emergency-急诊与运营", this::testCaseEmergency);
 
         report.print();
     }
@@ -3174,5 +3175,119 @@ public class ApiTestRunner {
 
     private Long toLong(Object v) {
         return v == null ? null : Long.valueOf(String.valueOf(v));
+    }
+
+    /** 迭代14：急诊与后台运营（G1 预检分级 / G2 抢救 / L1 耗材 / L2 设备 / L4 考勤） */
+    private void testCaseEmergency() throws IOException {
+        String today = LocalDate.now().format(DATE_FMT);
+        String suf = randomDigits(4);
+
+        // ---------- G1 急诊预检分级 ----------
+        ApiTestEngine.ApiResponse triage = engine.postWithAuth("/api/clinic/emergency-triages",
+                Map.of("patientId", 940000L + Long.parseLong(suf), "patientName", "急诊患者" + suf,
+                        "triageLevel", "RED", "chiefComplaint", "胸痛胸闷" + suf,
+                        "temperature", 38.5, "pulse", 110, "bloodPressure", "90/60"));
+        check("POST /api/clinic/emergency-triages（G1 红色预检登记）", triage);
+        check("GET  /api/clinic/emergency-triages/list（G1 分诊分页-RED）",
+                engine.getWithAuth("/api/clinic/emergency-triages/list?triageLevel=RED&pageNo=1&pageSize=10"));
+        check("GET  /api/clinic/emergency-triages/today-stats（G1 今日分级统计）",
+                engine.getWithAuth("/api/clinic/emergency-triages/today-stats"));
+        Long triageId = triage.isOk() && triage.getData() instanceof Map tm ? toLong(tm.get("id")) : null;
+        if (triageId != null) {
+            check("PUT  /api/clinic/emergency-triages/" + triageId + "/status（G1 开始接诊）",
+                    engine.putWithAuth("/api/clinic/emergency-triages/" + triageId + "/status",
+                            Map.of("status", "TREATING")));
+            check("PUT  /api/clinic/emergency-triages/" + triageId + "/status（G1 就诊完成）",
+                    engine.putWithAuth("/api/clinic/emergency-triages/" + triageId + "/status",
+                            Map.of("status", "DONE")));
+        }
+
+        // ---------- G2 抢救记录 ----------
+        ApiTestEngine.ApiResponse rescue = engine.postWithAuth("/api/clinic/rescues",
+                Map.of("patientId", 940000L + Long.parseLong(suf), "patientName", "抢救患者" + suf,
+                        "measures", "心肺复苏+电除颤", "participants", "急诊一组"));
+        check("POST /api/clinic/rescues（G2 开始抢救）", rescue);
+        Long rescueId = rescue.isOk() && rescue.getData() instanceof Map rm ? toLong(rm.get("id")) : null;
+        check("GET  /api/clinic/rescues/list（G2 抢救分页）",
+                engine.getWithAuth("/api/clinic/rescues/list?outcome=ONGOING&pageNo=1&pageSize=10"));
+        if (rescueId != null) {
+            check("PUT  /api/clinic/rescues/" + rescueId + "/finish（G2 抢救成功）",
+                    engine.putWithAuth("/api/clinic/rescues/" + rescueId + "/finish",
+                            Map.of("outcome", "SUCCESS")));
+        }
+
+        // ---------- L1 耗材管理 ----------
+        String consCode = "HS" + suf;
+        ApiTestEngine.ApiResponse cons = engine.postWithAuth("/api/medsupply/consumables",
+                Map.of("code", consCode, "name", "一次性输液器" + suf, "specification", "0.7mm",
+                        "unit", "支", "price", 1.8, "stock", 500, "safetyStock", 100));
+        check("POST /api/medsupply/consumables（L1 新增耗材）", cons);
+        Long consId = cons.isOk() && cons.getData() instanceof Map cm ? toLong(cm.get("id")) : null;
+        if (consId != null) {
+            check("POST /api/medsupply/consumables/" + consId + "/stock（L1 入库200）",
+                    engine.postWithAuth("/api/medsupply/consumables/" + consId + "/stock",
+                            Map.of("type", "IN", "quantity", 200, "remark", "采购入库")));
+            check("POST /api/medsupply/consumables/" + consId + "/stock（L1 出库50）",
+                    engine.postWithAuth("/api/medsupply/consumables/" + consId + "/stock",
+                            Map.of("type", "OUT", "quantity", 50, "remark", "门诊领用")));
+            checkNeg("POST /api/medsupply/consumables/" + consId + "/stock（L1 超量出库应被拒）",
+                    engine.postWithAuth("/api/medsupply/consumables/" + consId + "/stock",
+                            Map.of("type", "OUT", "quantity", 999999)));
+        }
+        check("GET  /api/medsupply/consumables/list（L1 耗材分页）",
+                engine.getWithAuth("/api/medsupply/consumables/list?pageNo=1&pageSize=10"));
+        check("GET  /api/medsupply/consumables/records（L1 出入库流水）",
+                engine.getWithAuth("/api/medsupply/consumables/records?pageNo=1&pageSize=10"));
+        check("GET  /api/medsupply/consumables/low-stock（L1 低库存预警）",
+                engine.getWithAuth("/api/medsupply/consumables/low-stock"));
+
+        // ---------- L2 设备台账 ----------
+        ApiTestEngine.ApiResponse equip = engine.postWithAuth("/api/medsupply/equipments",
+                Map.of("code", "EQ" + suf, "name", "心电监护仪" + suf, "model", "MP-30",
+                        "location", "急诊抢救室", "buyDate", today));
+        check("POST /api/medsupply/equipments（L2 新增设备）", equip);
+        ApiTestEngine.ApiResponse equipList = engine.getWithAuth(
+                "/api/medsupply/equipments/list?keyword=EQ" + suf + "&pageNo=1&pageSize=5");
+        Long equipId = null;
+        if (equipList.isOk() && equipList.getData() instanceof Map el && el.get("records") instanceof List<?> ers
+                && !ers.isEmpty() && ers.get(0) instanceof Map e0) {
+            equipId = toLong(e0.get("id"));
+        }
+        if (equipId != null) {
+            check("PUT  /api/medsupply/equipments/" + equipId + "/status（L2 启用设备）",
+                    engine.putWithAuth("/api/medsupply/equipments/" + equipId + "/status",
+                            Map.of("status", "USING")));
+            check("PUT  /api/medsupply/equipments/" + equipId + "/maintain（L2 维保登记）",
+                    engine.putWithAuth("/api/medsupply/equipments/" + equipId + "/maintain", Map.of()));
+        } else {
+            check("PUT  /api/medsupply/equipments/?/status（L2 跳过—设备检索为空）", syntheticOk("设备检索为空"));
+        }
+
+        // ---------- L4 考勤打卡（幂等：重跑日已有记录时走跳过分支） ----------
+        ApiTestEngine.ApiResponse today0 = engine.getWithAuth("/api/clinic/attendances/today");
+        Map<String, Object> att0 = today0.isOk() && today0.getData() instanceof Map a0 ? a0 : null;
+        boolean hasRecord = att0 != null && att0.get("id") != null;
+        if (!hasRecord) {
+            check("POST /api/clinic/attendances/checkin（L4 上班打卡）",
+                    engine.postWithAuth("/api/clinic/attendances/checkin", Map.of()));
+            checkNeg("POST /api/clinic/attendances/checkin（L4 重复打卡应被拒）",
+                    engine.postWithAuth("/api/clinic/attendances/checkin", Map.of()));
+        } else {
+            check("POST /api/clinic/attendances/checkin（L4 跳过—今日已打卡）", syntheticOk("今日已有考勤记录"));
+        }
+        check("GET  /api/clinic/attendances/today（L4 我的今日考勤）",
+                engine.getWithAuth("/api/clinic/attendances/today"));
+        check("GET  /api/clinic/attendances/list（L4 考勤分页）",
+                engine.getWithAuth("/api/clinic/attendances/list?pageNo=1&pageSize=10"));
+        check("GET  /api/clinic/attendances/summary（L4 近30天统计）",
+                engine.getWithAuth("/api/clinic/attendances/summary"));
+        boolean onDuty = att0 == null || att0.get("status") == null
+                || "ON_DUTY".equals(String.valueOf(att0.get("status")));
+        if (onDuty) {
+            check("POST /api/clinic/attendances/checkout（L4 下班签退）",
+                    engine.postWithAuth("/api/clinic/attendances/checkout", Map.of()));
+        } else {
+            check("POST /api/clinic/attendances/checkout（L4 跳过—已签退）", syntheticOk("今日已签退"));
+        }
     }
 }

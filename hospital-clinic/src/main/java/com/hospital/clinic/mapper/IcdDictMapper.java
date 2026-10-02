@@ -84,7 +84,7 @@ public interface IcdDictMapper {
      * 校验某编码是否存在于启用的字典中
      * （病历提交校验 J3：diagnosisCode 非空时必须命中本查询）
      */
-    @Select("SELECT COUNT(1) FROM icd_dict WHERE status = 1 AND (icd_code = #{icdCode} OR INSTR(#{icdCode}, icd_code || ''.'') = 1 OR INSTR(icd_code, #{icdCode} || ''.'') = 1)")
+    @Select("SELECT COUNT(1) FROM icd_dict WHERE status = 1 AND (icd_code = #{icdCode} OR INSTR(#{icdCode}, icd_code || '.') = 1 OR INSTR(icd_code, #{icdCode} || '.') = 1)")
     long countEnabledByCode(@Param("icdCode") String icdCode);
 
     /** 章节分类列表（前端筛选下拉用） */

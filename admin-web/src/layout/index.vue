@@ -155,6 +155,14 @@ const adminMenuGroups: MenuGroup[] = [
     ],
   },
   {
+    // 迭代14：急诊与运营（预检分级/抢救/考勤 + 耗材/设备）
+    title: '急诊与运营',
+    items: [
+      { path: '/emergency', label: '急诊中心', icon: Guide },
+      { path: '/asset', label: '后台资产管理', icon: Server },
+    ],
+  },
+  {
     title: '系统管理',
     items: [
       { path: '/users', label: '用户管理', icon: UserGroup, permissions: ['menu:admin:user'] },
