@@ -3031,5 +3031,18 @@ public class ApiTestRunner {
                 assertTrue("变异后路径状态应为 VARIATION", "VARIATION".equals(String.valueOf(pst2)));
             }
         }
+
+        // ---------- J2 医疗质量指标看板 ----------
+        check("GET  /api/medsupply/quality/indicators（J2 质控指标-累计口径）",
+                engine.getWithAuth("/api/medsupply/quality/indicators"));
+        check("GET  /api/medsupply/quality/indicators?date=今天（J2 质控指标-当日口径）",
+                engine.getWithAuth("/api/medsupply/quality/indicators?date=" + today));
+
+        // ---------- J4 医生工作量统计 ----------
+        ApiTestEngine.ApiResponse workload = engine.getWithAuth("/api/clinic/stats/doctor-workload?date=" + today);
+        check("GET  /api/clinic/stats/doctor-workload?date=今天（J4 医生工作量）", workload);
+        if (workload.isOk() && workload.getData() instanceof List<?> wlList) {
+            assertTrue("J4 医生工作量应返回列表结构", wlList.isEmpty() || wlList.get(0) instanceof Map);
+        }
     }
 }

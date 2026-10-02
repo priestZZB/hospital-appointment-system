@@ -560,4 +560,8 @@ public final class PermissionConstant {
     public static final String MEDICAL_RECORD_MANAGE = "api:inpatient:medical-record:manage";
     /** 临床路径管理 */
     public static final String PATIENT_PATH_MANAGE = "api:inpatient:patient-path:manage";
+    /** 质控指标看板（迭代12补全 J2） */
+    public static final String QUALITY_VIEW = "api:medsupply:quality:view";
+    /** 医生工作量统计（迭代12补全 J4） */
+    public static final String DOCTOR_WORKLOAD_VIEW = "api:clinic:stats:workload";
 }

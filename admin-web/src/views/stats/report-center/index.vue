@@ -3,6 +3,8 @@
  * 统计报表中心（迭代12 I1，/report-center）。
  * Tab1 门诊报表：日报（挂号/接诊/处方/收入/科室TOP5）+ 月报（指标+逐日序列）+ CSV 导出。
  * Tab2 住院报表：日报（入院/出院/在院/手术/押金/收入）+ 月报 + CSV 导出。
+ * Tab3 医生工作量（J4）：按医生聚合挂号/接诊/处方/金额。
+ * Tab4 质控指标（J2）：危急值闭环率/报告完成率/标本采集。
  */
 import { onMounted, ref } from 'vue'
 import { WMessage } from 'win-design-next'
@@ -17,10 +19,12 @@ import {
   getClinicMonthlyApi,
   getInpatientDailyApi,
   getInpatientMonthlyApi,
+  getDoctorWorkloadApi,
+  getQualityIndicatorsApi,
 } from '@/api/stats'
-import type { StatsDailyRow, StatsMonthlyRow } from '@/api/stats'
+import type { DoctorWorkloadRow, QualityIndicators, StatsDailyRow, StatsMonthlyRow } from '@/api/stats'
 
-const activeTab = ref<'clinic' | 'inpatient'>('clinic')
+const activeTab = ref<'clinic' | 'inpatient' | 'workload' | 'quality'>('clinic')
 const dailyDate = ref(new Date().toISOString().slice(0, 10))
 const monthlyMonth = ref(new Date().toISOString().slice(0, 7))
 
@@ -40,6 +44,7 @@ function money(v?: number | null): string {
 }
 
 async function fetchDaily() {
+  if (activeTab.value !== 'clinic' && activeTab.value !== 'inpatient') return
   dailyLoading.value = true
   try {
     daily.value =
@@ -52,6 +57,7 @@ async function fetchDaily() {
 }
 
 async function fetchMonthly() {
+  if (activeTab.value !== 'clinic' && activeTab.value !== 'inpatient') return
   monthlyLoading.value = true
   try {
     monthly.value =
@@ -68,8 +74,48 @@ async function fetchMonthly() {
 function switchTab() {
   daily.value = null
   monthly.value = null
+  if (activeTab.value === 'workload') {
+    fetchWorkload()
+    return
+  }
+  if (activeTab.value === 'quality') {
+    fetchQuality()
+    return
+  }
   fetchDaily()
   fetchMonthly()
+}
+
+/* ================= J4 医生工作量 ================= */
+const workloadLoading = ref(false)
+const workload = ref<DoctorWorkloadRow[]>([])
+async function fetchWorkload() {
+  workloadLoading.value = true
+  try {
+    workload.value = await getDoctorWorkloadApi(dailyDate.value)
+  } catch (e) {
+    WMessage.error((e as Error).message || '医生工作量加载失败')
+  } finally {
+    workloadLoading.value = false
+  }
+}
+
+/* ================= J2 质控指标 ================= */
+const qualityLoading = ref(false)
+const quality = ref<QualityIndicators | null>(null)
+const qualityDate = ref('')
+async function fetchQuality() {
+  qualityLoading.value = true
+  try {
+    quality.value = await getQualityIndicatorsApi(qualityDate.value || undefined)
+  } catch (e) {
+    WMessage.error((e as Error).message || '质控指标加载失败')
+  } finally {
+    qualityLoading.value = false
+  }
+}
+function rateText(v?: number | null): string {
+  return v == null ? '-' : `${v}%`
 }
 
 async function exportCsv(kind: 'daily' | 'monthly') {
@@ -112,6 +158,8 @@ onMounted(() => {
     <w-tabs v-model="activeTab" class="hospital-card" @tab-change="switchTab">
       <w-tab-pane label="门诊报表" name="clinic" />
       <w-tab-pane label="住院报表" name="inpatient" />
+      <w-tab-pane label="医生工作量" name="workload" />
+      <w-tab-pane label="质控指标" name="quality" />
     </w-tabs>
 
     <!-- 日报 -->
@@ -205,6 +253,74 @@ onMounted(() => {
         </w-table>
       </div>
     </w-card>
+
+    <!-- Tab3 医生工作量（J4） -->
+    <w-card v-if="activeTab === 'workload'" shadow="never" class="hospital-card">
+      <template #header>
+        <div class="card-head-row">
+          <span>医生工作量（按医生聚合当日数据）</span>
+          <div class="head-actions">
+            <w-date-picker v-model="dailyDate" value-format="YYYY-MM-DD" style="width: 150px" @change="fetchWorkload" />
+            <w-button type="primary" @click="fetchWorkload">查询</w-button>
+          </div>
+        </div>
+      </template>
+      <w-table :data="workload" row-key="doctorId" border stripe :loading="workloadLoading" empty-text="当日暂无工作量数据" size="small">
+        <w-table-column label="医生" width="140">
+          <template #default="{ row }">{{ row.doctorName || '-' }}</template>
+        </w-table-column>
+        <w-table-column label="科室" width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.deptName || '-' }}</template>
+        </w-table-column>
+        <w-table-column label="挂号数" width="100" align="center">
+          <template #default="{ row }">{{ row.registerCount ?? '-' }}</template>
+        </w-table-column>
+        <w-table-column label="接诊数" width="100" align="center">
+          <template #default="{ row }">{{ row.consultCount ?? '-' }}</template>
+        </w-table-column>
+        <w-table-column label="处方数" width="100" align="center">
+          <template #default="{ row }">{{ row.prescriptionCount ?? '-' }}</template>
+        </w-table-column>
+        <w-table-column label="处方金额" min-width="130" align="right">
+          <template #default="{ row }">{{ money(row.prescriptionAmount) }}</template>
+        </w-table-column>
+      </w-table>
+    </w-card>
+
+    <!-- Tab4 质控指标（J2） -->
+    <w-card v-if="activeTab === 'quality'" shadow="never" class="hospital-card">
+      <template #header>
+        <div class="card-head-row">
+          <span>医疗质量指标</span>
+          <div class="head-actions">
+            <w-date-picker v-model="qualityDate" value-format="YYYY-MM-DD" clearable placeholder="留空=累计" style="width: 150px" @change="fetchQuality" />
+            <w-button type="primary" @click="fetchQuality">查询</w-button>
+          </div>
+        </div>
+      </template>
+      <div v-loading="qualityLoading" class="metric-grid">
+        <div class="metric-box">
+          <div class="metric-label">危急值闭环率</div>
+          <div class="metric-value">{{ rateText(quality?.critical?.closeRate) }}</div>
+          <div class="metric-sub">已闭环 {{ quality?.critical?.closed ?? '-' }} / 共 {{ quality?.critical?.total ?? '-' }} 条</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">报告完成率（及时率）</div>
+          <div class="metric-value">{{ rateText(quality?.report?.doneRate) }}</div>
+          <div class="metric-sub">已完成 {{ quality?.report?.done ?? '-' }} / 共 {{ quality?.report?.total ?? '-' }} 份</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">平均报告时长</div>
+          <div class="metric-value">{{ quality?.report?.avgHours ?? '-' }}<span class="metric-unit">h</span></div>
+          <div class="metric-sub">自申请创建至报告完成</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">标本采集数</div>
+          <div class="metric-value">{{ quality?.specimen?.total ?? '-' }}</div>
+          <div class="metric-sub">已采集 {{ quality?.specimen?.collected ?? '-' }} 份</div>
+        </div>
+      </div>
+    </w-card>
   </div>
 </template>
 
@@ -241,6 +357,17 @@ onMounted(() => {
 }
 .metric-money {
   color: #d4751f;
+}
+.metric-sub {
+  font-size: 12px;
+  color: #98a3b3;
+  margin-top: 6px;
+}
+.metric-unit {
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 4px;
+  color: #7a8699;
 }
 .sub-title {
   margin: 18px 0 10px;

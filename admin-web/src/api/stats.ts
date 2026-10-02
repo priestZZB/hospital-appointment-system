@@ -79,3 +79,28 @@ export function downloadBlob(blob: Blob, filename: string): void {
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
+
+/** ==================== 迭代12补全 J4/J2 ==================== */
+/** J4 医生工作量行 */
+export interface DoctorWorkloadRow {
+  doctorId?: number
+  doctorName?: string
+  deptName?: string
+  registerCount?: number
+  consultCount?: number
+  prescriptionCount?: number
+  prescriptionAmount?: number
+}
+/** J4 医生工作量（按医生聚合当日挂号/接诊/处方/金额） */
+export function getDoctorWorkloadApi(date: string): Promise<DoctorWorkloadRow[]> {
+  return request<DoctorWorkloadRow[]>({ url: '/clinic/stats/doctor-workload', method: 'get', params: { date } })
+}
+/** J2 质控指标（危急值闭环/报告完成率/标本） */
+export interface QualityIndicators {
+  critical?: { total?: number; closed?: number; closeRate?: number | null }
+  report?: { total?: number; done?: number; doneRate?: number | null; avgHours?: number | null }
+  specimen?: { total?: number; collected?: number }
+}
+export function getQualityIndicatorsApi(date?: string): Promise<QualityIndicators> {
+  return request<QualityIndicators>({ url: '/medsupply/quality/indicators', method: 'get', params: date ? { date } : {} })
+}

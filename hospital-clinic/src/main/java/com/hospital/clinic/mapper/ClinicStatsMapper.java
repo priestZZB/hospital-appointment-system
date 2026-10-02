@@ -48,4 +48,20 @@ public interface ClinicStatsMapper {
             "   WHERE TO_CHAR(create_time, 'YYYY-MM') = #{month}" +
             ") t GROUP BY \"day\" ORDER BY 1")
     List<Map<String, Object>> incomeSeries(@Param("month") String month);
+
+    /** J4 医生工作量：按医生聚合当日挂号/接诊/处方数与处方金额 */
+    @Select("SELECT d.id AS \"doctorId\", d.name AS \"doctorName\", dept.dept_name AS \"deptName\", " +
+            "  NVL(ap.cnt, 0) AS \"registerCount\", NVL(ck.cnt, 0) AS \"consultCount\", " +
+            "  NVL(pr.cnt, 0) AS \"prescriptionCount\", NVL(pr.amt, 0) AS \"prescriptionAmount\" " +
+            "FROM doctor d " +
+            "JOIN department dept ON dept.id = d.department_id " +
+            "LEFT JOIN (SELECT doctor_id, COUNT(*) cnt FROM appointment " +
+            "   WHERE TRUNC(create_time) = TRUNC(TO_DATE(#{date}, 'YYYY-MM-DD')) GROUP BY doctor_id) ap ON ap.doctor_id = d.id " +
+            "LEFT JOIN (SELECT doctor_id, COUNT(*) cnt FROM checkin " +
+            "   WHERE TRUNC(checkin_time) = TRUNC(TO_DATE(#{date}, 'YYYY-MM-DD')) GROUP BY doctor_id) ck ON ck.doctor_id = d.id " +
+            "LEFT JOIN (SELECT doctor_id, COUNT(*) cnt, SUM(total_amount) amt FROM prescription " +
+            "   WHERE TRUNC(create_time) = TRUNC(TO_DATE(#{date}, 'YYYY-MM-DD')) GROUP BY doctor_id) pr ON pr.doctor_id = d.id " +
+            "WHERE d.status = 1 " +
+            "ORDER BY NVL(ap.cnt, 0) DESC, NVL(pr.cnt, 0) DESC")
+    List<Map<String, Object>> doctorWorkload(@Param("date") String date);
 }

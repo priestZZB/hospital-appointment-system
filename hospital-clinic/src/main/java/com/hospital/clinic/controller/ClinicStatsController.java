@@ -55,6 +55,13 @@ public class ClinicStatsController {
         return Result.ok(vo);
     }
 
+    /** J4 医生工作量：按医生聚合当日挂号/接诊/处方数与处方金额 */
+    @GetMapping("/doctor-workload")
+    @RequiresPermission(PermissionConstant.DOCTOR_WORKLOAD_VIEW)
+    public Result<List<Map<String, Object>>> doctorWorkload(@RequestParam String date) {
+        return Result.ok(statsMapper.doctorWorkload(date));
+    }
+
     @GetMapping("/daily/export")
     @RequiresPermission(PermissionConstant.CLINIC_STATS_EXPORT)
     public ResponseEntity<byte[]> dailyExport(@RequestParam String date) {
