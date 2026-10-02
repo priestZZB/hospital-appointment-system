@@ -1171,6 +1171,17 @@ public class ApiTestRunner {
         return m.length() > 120 ? m.substring(0, 120) + "…" : m;
     }
 
+    /** 防 Oracle CHAR 列反序列化为 Character 的比较：统一转 String 再比 */
+    private static String asText(Object v) {
+        return v == null ? null : String.valueOf(v);
+    }
+
+    /** 防 Map 取值类型漂移的整数读取：非 Number 返回 Integer.MIN_VALUE（不会抛 CCE） */
+    private static int asInt(Object v) {
+        return v instanceof Number n ? n.intValue() : Integer.MIN_VALUE;
+    }
+
+
     private static String randomDigits(int n) {
         StringBuilder sb = new StringBuilder();
         Random rnd = new Random();
@@ -1691,8 +1702,8 @@ public class ApiTestRunner {
         if (narcReg.isOk() && narcReg.getData() instanceof List && !((List<?>) narcReg.getData()).isEmpty()) {
             Map first = (Map) ((List<?>) narcReg.getData()).get(0);
             assertTrue("麻精登记应有 INBOUND 流水且结存=100",
-                    "INBOUND".equals(first.get("action"))
-                            && first.get("balance") != null && ((Number) first.get("balance")).intValue() == 100);
+                    "INBOUND".equals(asText(first.get("action")))
+                            && asInt(first.get("balance")) == 100);
         }
 
         // B7 调拨：饮片 药库→药房
@@ -1984,9 +1995,8 @@ public class ApiTestRunner {
                 if (after.isOk() && after.getData() instanceof List && !((List<?>) after.getData()).isEmpty()) {
                     Map latest = (Map) ((List<?>) after.getData()).get(0);
                     assertTrue("麻精发药应写 OUTBOUND 流水且结存=99",
-                            "OUTBOUND".equals(latest.get("action"))
-                                    && latest.get("balance") != null
-                                    && ((Number) latest.get("balance")).intValue() == 99);
+                            "OUTBOUND".equals(asText(latest.get("action")))
+                                    && asInt(latest.get("balance")) == 99);
                 }
             }
 
@@ -2002,9 +2012,8 @@ public class ApiTestRunner {
                 if (afterRet.isOk() && afterRet.getData() instanceof List && !((List<?>) afterRet.getData()).isEmpty()) {
                     Map latest = (Map) ((List<?>) afterRet.getData()).get(0);
                     assertTrue("麻精退药应写 RETURN 流水且结存回补=100",
-                            "RETURN".equals(latest.get("action"))
-                                    && latest.get("balance") != null
-                                    && ((Number) latest.get("balance")).intValue() == 100);
+                            "RETURN".equals(asText(latest.get("action")))
+                                    && asInt(latest.get("balance")) == 100);
                 }
             }
 
