@@ -320,6 +320,13 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '后台资产管理' },
       },
       {
+        // 迭代15：智能算法中心（B1 遗传排班/停诊重调度/爽约预测）
+        path: 'algorithm',
+        name: 'AlgorithmCenter',
+        component: () => import('@/views/algorithm/index.vue'),
+        meta: { title: '智能算法中心' },
+      },
+      {
         // 迭代12：病案与临床路径（I3 病案借阅归档 + J1 临床路径）
         path: 'medical-record',
         name: 'MedicalRecord',

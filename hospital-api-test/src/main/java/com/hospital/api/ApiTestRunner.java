@@ -162,6 +162,7 @@ public class ApiTestRunner {
         runStep("12-casefile-病案统计路径", this::testCaseFileStats);
         runStep("13-internet-互联网医院患者服务", this::testCaseInternet);
         runStep("14-emergency-急诊与运营", this::testCaseEmergency);
+        runStep("15-algo-算法层", this::testCaseAlgorithm);
 
         report.print();
     }
@@ -3177,11 +3178,77 @@ public class ApiTestRunner {
         return v == null ? null : Long.valueOf(String.valueOf(v));
     }
 
+    /** 迭代15：算法层（B1-1 遗传排班 / B1-2 优先级叫号 / B1-3 停诊重调度 / B1-4 爽约预测 / B1-5 排床优化） */
+    private void testCaseAlgorithm() throws IOException {
+        String today = LocalDate.now().format(DATE_FMT);
+        String suf = randomDigits(4);
+
+        // ---------- B1-1 遗传排班 ----------
+        ApiTestEngine.ApiResponse ga = engine.postWithAuth(
+                "/api/clinic/schedule-algo/generate?weekStart=" + today, Map.of());
+        check("POST /api/clinic/schedule-algo/generate（B1-1 遗传排班生成）", ga);
+        Object batchNo = ga.isOk() && ga.getData() instanceof Map gm ? gm.get("batchNo") : null;
+        if (batchNo != null) {
+            check("GET  /api/clinic/schedule-algo/batch/" + batchNo + "（B1-1 批次详情）",
+                    engine.getWithAuth("/api/clinic/schedule-algo/batch/" + batchNo));
+            check("POST /api/clinic/schedule-algo/batch/" + batchNo + "/apply（B1-1 应用批次）",
+                    engine.postWithAuth("/api/clinic/schedule-algo/batch/" + batchNo + "/apply", Map.of()));
+        }
+        check("GET  /api/clinic/schedule-algo/list（B1-1 建议分页）",
+                engine.getWithAuth("/api/clinic/schedule-algo/list?pageNo=1&pageSize=10"));
+
+        // ---------- B1-2 优先级叫号 ----------
+        check("GET  /api/clinic/queue-priority（B1-2 优先级叫号队列）",
+                engine.getWithAuth("/api/clinic/queue-priority"));
+
+        // ---------- B1-3 停诊重调度 ----------
+        ApiTestEngine.ApiResponse resched = engine.postWithAuth("/api/clinic/schedule-stop/reschedule",
+                Map.of("doctorId", 1, "stopDate", today));
+        check("POST /api/clinic/schedule-stop/reschedule（B1-3 停诊重调度生成）", resched);
+        check("GET  /api/clinic/schedule-stop/batches（B1-3 批次分页）",
+                engine.getWithAuth("/api/clinic/schedule-stop/batches?pageNo=1&pageSize=10"));
+
+        // ---------- B1-4 爽约预测 ----------
+        long fakeAppt = 950000L + Long.parseLong(suf);
+        ApiTestEngine.ApiResponse noShow = engine.postWithAuth("/api/ai/no-show/predict",
+                Map.of("patientId", 960000L + Long.parseLong(suf), "appointmentId", fakeAppt,
+                        "historyTotal", 6, "historyNoShow", 2, "advanceDays", 9, "hourOfDay", 7));
+        check("POST /api/ai/no-show/predict（B1-4 爽约预测-高风险画像）", noShow);
+        boolean highRisk = noShow.isOk() && noShow.getData() instanceof Map nm
+                && "HIGH".equals(String.valueOf(nm.get("riskLevel")));
+        assertTrue("B1-4 高风险画像应评出 HIGH", highRisk);
+        check("POST /api/ai/no-show/predict（B1-4 爽约预测-低风险画像）",
+                engine.postWithAuth("/api/ai/no-show/predict",
+                        Map.of("patientId", 960001L + Long.parseLong(suf), "appointmentId", fakeAppt + 1,
+                                "historyTotal", 12, "historyNoShow", 0, "advanceDays", 1, "hourOfDay", 10)));
+        check("GET  /api/ai/no-show/list（B1-4 预测分页）",
+                engine.getWithAuth("/api/ai/no-show/list?pageNo=1&pageSize=10"));
+
+        // ---------- B1-5 排床优化 ----------
+        ApiTestEngine.ApiResponse bedPlan = engine.postWithAuth("/api/inpatient/bed-plan/generate",
+                Map.of("patients", List.of(
+                        Map.of("patientId", 970000L + Long.parseLong(suf), "patientName", "急诊入院" + suf,
+                                "priority", 1, "queuedAt", today + " 08:00"),
+                        Map.of("patientId", 970001L + Long.parseLong(suf), "patientName", "普通入院" + suf,
+                                "priority", 4, "queuedAt", today + " 09:00"),
+                        Map.of("patientId", 970002L + Long.parseLong(suf), "patientName", "普通入院B" + suf,
+                                "priority", 3, "queuedAt", today + " 07:00"))));
+        check("POST /api/inpatient/bed-plan/generate（B1-5 排床优化生成）", bedPlan);
+        if (bedPlan.isOk() && bedPlan.getData() instanceof Map bm) {
+            assertTrue("B1-5 优先级1的急诊患者应排最前",
+                    bm.get("suggestions") instanceof List<?> sugList && !sugList.isEmpty()
+                            && sugList.get(0) instanceof Map first
+                            && Long.valueOf(970000L + Long.parseLong(suf))
+                                    .equals(toLong(first.get("patientId"))));
+        }
+        check("GET  /api/inpatient/bed-plan/list（B1-5 方案分页）",
+                engine.getWithAuth("/api/inpatient/bed-plan/list?pageNo=1&pageSize=10"));
+    }
+
     /** 迭代14：急诊与后台运营（G1 预检分级 / G2 抢救 / L1 耗材 / L2 设备 / L4 考勤） */
     private void testCaseEmergency() throws IOException {
         String today = LocalDate.now().format(DATE_FMT);
         String suf = randomDigits(4);
-
         // ---------- G1 急诊预检分级 ----------
         ApiTestEngine.ApiResponse triage = engine.postWithAuth("/api/clinic/emergency-triages",
                 Map.of("patientId", 940000L + Long.parseLong(suf), "patientName", "急诊患者" + suf,

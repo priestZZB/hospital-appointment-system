@@ -163,6 +163,13 @@ const adminMenuGroups: MenuGroup[] = [
     ],
   },
   {
+    // 迭代15：智能算法（遗传排班/停诊重调度/爽约预测）
+    title: '智能算法',
+    items: [
+      { path: '/algorithm', label: '智能算法中心', icon: BarChart },
+    ],
+  },
+  {
     title: '系统管理',
     items: [
       { path: '/users', label: '用户管理', icon: UserGroup, permissions: ['menu:admin:user'] },

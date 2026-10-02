@@ -582,4 +582,14 @@ public final class PermissionConstant {
     public static final String CONSUMABLE_MANAGE = "api:medsupply:consumable:manage";
     /** 设备管理（迭代14 L2） */
     public static final String EQUIPMENT_MANAGE = "api:medsupply:equipment:manage";
+    /** 遗传排班算法（迭代15 B1） */
+    public static final String SCHEDULE_ALGO = "api:clinic:schedule:algo";
+    /** 优先级叫号视图（迭代15 B1） */
+    public static final String QUEUE_PRIORITY = "api:clinic:queue:priority";
+    /** 停诊重调度（迭代15 B1） */
+    public static final String STOP_RESCHEDULE = "api:clinic:stop:reschedule";
+    /** 爽约预测视图（迭代15 B1） */
+    public static final String NOSHOW_VIEW = "api:ai:noshow:view";
+    /** 排床优化管理（迭代15 B1） */
+    public static final String BEDPLAN_MANAGE = "api:inpatient:bedplan:manage";
 }
