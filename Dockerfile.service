@@ -1,0 +1,23 @@
+# =====================================================================
+# 医院门诊预约挂号系统 — 后端服务通用 Dockerfile（迭代17 M3）
+# 构建：docker build -f Dockerfile.service --build-arg JAR=hospital-clinic-1.0.0.jar -t hospital-clinic .
+# =====================================================================
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# 时区统一东八区，避免 Oracle DATE 读写偏差
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+# JAR 由构建参数指定（每服务一条 build 命令或 CI 矩阵）
+ARG JAR
+COPY ${JAR} /app/app.jar
+
+# 容器内以 8080 端口约定，由 compose 映射到宿主 28080~28087
+EXPOSE 8080
+
+# 容器化环境标识：服务注册使用容器名而非 localhost（bootstrap.yml 的 nacos.ip 被 NACOS_IP 覆盖）
+ENV JAVA_OPTS="-Xms256m -Xmx512m -Dspring.cloud.nacos.discovery.ip=${POD_IP:-127.0.0.1}"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

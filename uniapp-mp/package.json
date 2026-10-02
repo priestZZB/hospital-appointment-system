@@ -1,0 +1,8 @@
+{
+  "name": "hospital-mp",
+  "version": "1.0.0",
+  "description": "医院门诊预约挂号系统 - 患者端小程序（迭代17 K5）",
+  "uni-app": {
+    "vueVersion": "3"
+  }
+}

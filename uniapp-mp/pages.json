@@ -1,0 +1,36 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": { "navigationBarTitleText": "智慧医院" }
+    },
+    {
+      "path": "pages/appointment/index",
+      "style": { "navigationBarTitleText": "预约挂号" }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": { "navigationBarTitleText": "我的预约" }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": { "navigationBarTitleText": "我的" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "智慧医院",
+    "navigationBarBackgroundColor": "#3b82f6",
+    "backgroundColor": "#f5f7fa"
+  },
+  "tabBar": {
+    "color": "#98a3b3",
+    "selectedColor": "#3b82f6",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/appointment/index", "text": "挂号" },
+      { "pagePath": "pages/orders/index", "text": "预约单" },
+      { "pagePath": "pages/profile/index", "text": "我的" }
+    ]
+  }
+}

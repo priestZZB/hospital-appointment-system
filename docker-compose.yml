@@ -1,0 +1,203 @@
+# =====================================================================
+# 医院门诊预约挂号系统 — Docker Compose 编排（迭代17 M3）
+# 拓扑：Oracle 19c + Redis + Nacos + MinIO + 8 微服务 + 网关 + Web 前端
+# 启动：docker compose up -d --build
+# 注意：首次启动需等 Oracle 初始化（约 2~3 分钟）后再启动微服务，
+#       各服务 Flyway 迁移会自动执行。
+# =====================================================================
+
+name: hospital-appointment-system
+
+x-java-common: &java-common
+  restart: unless-stopped
+  environment:
+    TZ: Asia/Shanghai
+    # Nacos / Redis / Oracle / MinIO 统一容器名寻址
+    SPRING_CLOUD_NACOS_DISCOVERY_IP: ${HOST_IP:-127.0.0.1}
+    SPRING_DATA_REDIS_HOST: redis
+    JAVA_OPTS: "-Xms256m -Xmx512m"
+  depends_on:
+    - nacos
+    - redis
+    - oracle
+
+services:
+  # ---------------- 基础设施 ----------------
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: hospital-oracle
+    environment:
+      ORACLE_PWD: Hospital_2026
+      TZ: Asia/Shanghai
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      # 首次启动自动建 8 个业务 schema（hospital_auth 等）与授权脚本
+      - ./docker/oracle/init:/opt/oracle/scripts/startup
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'select 1 from dual;' | sqlplus -s system/Hospital_2026@localhost:1521/FREEPDB1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: hospital-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: hospital-nacos
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: minio/minio:latest
+    container_name: hospital-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # ---------------- 业务微服务（容器内 8080 → 宿主 28081~28087） ----------------
+  auth:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-auth/target/hospital-auth-1.0.0.jar }
+    image: hospital/auth:1.0.0
+    container_name: hospital-auth
+    ports: ["28081:8080"]
+    depends_on: { oracle: { condition: service_healthy } }
+
+  patient:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-patient/target/hospital-patient-1.0.0.jar }
+    image: hospital/patient:1.0.0
+    container_name: hospital-patient
+    ports: ["28082:8080"]
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_CLOUD_NACOS_DISCOVERY_IP: ${HOST_IP:-127.0.0.1}
+      SPRING_DATA_REDIS_HOST: redis
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+      # MinIO 容器内寻址
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    depends_on: { oracle: { condition: service_healthy }, minio: { condition: service_started } }
+
+  clinic:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-clinic/target/hospital-clinic-1.0.0.jar }
+    image: hospital/clinic:1.0.0
+    container_name: hospital-clinic
+    ports: ["28083:8080"]
+    depends_on: { oracle: { condition: service_healthy } }
+
+  payment:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-payment/target/hospital-payment-1.0.0.jar }
+    image: hospital/payment:1.0.0
+    container_name: hospital-payment
+    ports: ["28084:8080"]
+    depends_on: { oracle: { condition: service_healthy } }
+
+  medsupply:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-medsupply/target/hospital-medsupply-1.0.0.jar }
+    image: hospital/medsupply:1.0.0
+    container_name: hospital-medsupply
+    ports: ["28085:8080"]
+    depends_on: { oracle: { condition: service_healthy } }
+
+  inpatient:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-inpatient/target/hospital-inpatient-1.0.0.jar }
+    image: hospital/inpatient:1.0.0
+    container_name: hospital-inpatient
+    ports: ["28086:8080"]
+    depends_on: { oracle: { condition: service_healthy } }
+
+  ai:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-ai/target/hospital-ai-1.0.0.jar }
+    image: hospital/ai:1.0.0
+    container_name: hospital-ai
+    ports: ["28087:8080"]
+    depends_on: { oracle: { condition: service_healthy } }
+
+  # ---------------- 网关（宿主 28080） ----------------
+  gateway:
+    <<: *java-common
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+      args: { JAR: hospital-gateway/target/hospital-gateway-1.0.0.jar }
+    image: hospital/gateway:1.0.0
+    container_name: hospital-gateway
+    ports:
+      - "28080:8080"
+    depends_on: { oracle: { condition: service_healthy }, auth: { condition: service_started }, clinic: { condition: service_started } }
+
+  # ---------------- Web 管理端（nginx 托管 admin-web 构建产物） ----------------
+  web:
+    image: nginx:1.27-alpine
+    container_name: hospital-web
+    ports:
+      - "8091:80"
+    volumes:
+      - ./admin-web/dist:/usr/share/nginx/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [gateway]
+
+volumes:
+  oracle-data:
+  redis-data:
+  minio-data:
