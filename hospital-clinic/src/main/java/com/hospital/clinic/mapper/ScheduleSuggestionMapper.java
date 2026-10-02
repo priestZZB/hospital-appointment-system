@@ -51,9 +51,9 @@ public interface ScheduleSuggestionMapper {
             "</where> ORDER BY id</script>")
     List<Map<String, Object>> selectDoctors(@Param("departmentId") Long departmentId);
 
-    /** 某周已有排班的医生日（用于 GA 保留约束） */
+    /** 某周已有排班的医生日（用于 GA 保留约束；排除已停诊排班，避免建议复活停诊班） */
     @Select("SELECT doctor_id AS \"doctorId\", TO_CHAR(schedule_date, 'YYYY-MM-DD') AS \"d\" " +
-            "FROM schedule WHERE schedule_date BETWEEN TO_DATE(#{weekStart}, 'YYYY-MM-DD') " +
+            "FROM schedule WHERE status = 1 AND schedule_date BETWEEN TO_DATE(#{weekStart}, 'YYYY-MM-DD') " +
             "AND TO_DATE(#{weekStart}, 'YYYY-MM-DD') + 6")
     List<Map<String, Object>> selectExistingWeek(@Param("weekStart") String weekStart);
 }

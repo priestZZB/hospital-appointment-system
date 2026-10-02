@@ -94,8 +94,9 @@ public class OnlineConsultController {
         return Result.ok(data);
     }
 
-    /** 患者发送消息 */
+    /** 发送消息（患者/医生）：会话须存在且未关闭；患者仅可为本人在本人复诊单发言 */
     @PostMapping("/{id}/messages")
+    @AuditLog(value = "图文复诊发消息", operationType = "INSERT")
     public Result<String> sendMessage(@PathVariable("id") Long id, @RequestBody Map<String, Object> body) {
         String content = str(body.get("content"));
         if (content == null || content.isBlank()) {
@@ -104,6 +105,18 @@ public class OnlineConsultController {
         String senderType = str(body.get("senderType"));
         if (!"PATIENT".equals(senderType) && !"DOCTOR".equals(senderType)) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "senderType 需为 PATIENT 或 DOCTOR");
+        }
+        Map<String, Object> consult = consultMapper.selectById(id);
+        if (consult == null) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "复诊单不存在");
+        }
+        String status = String.valueOf(consult.get("status"));
+        if ("CLOSED".equals(status)) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "复诊已关闭，不可继续发送消息");
+        }
+        if ("PATIENT".equals(senderType)
+                && !String.valueOf(consult.get("patientId")).equals(String.valueOf(UserContext.getUserId()))) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅可在本人复诊单发送消息");
         }
         consultMapper.insertMessage(id, senderType, UserContext.getUserId(), str(body.get("senderName")), content);
         return Result.ok("消息已发送");
@@ -149,11 +162,16 @@ public class OnlineConsultController {
         if (itemsObj instanceof List<?> items) {
             for (Object o : items) {
                 if (o instanceof Map item) {
-                    consultMapper.insertPrescriptionItem(prescriptionId, toLong(item.get("drugId")),
+                    Long itemDrugId = toLong(item.get("drugId"));
+                    if (itemDrugId == null) {
+                        throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "续方明细 drugId 不能为空");
+                    }
+                    int days = safePositiveInt(item.get("days"), "days");
+                    int quantity = safePositiveInt(item.get("quantity"), "quantity");
+                    consultMapper.insertPrescriptionItem(prescriptionId, itemDrugId,
                             str(item.get("drugName")), str(item.get("specification")), str(item.get("dosage")),
                             str(item.get("usageMethod")), str(item.get("frequency")),
-                            item.get("days") == null ? 1 : toInt(item.get("days")),
-                            item.get("quantity") == null ? 1 : toInt(item.get("quantity")),
+                            days, quantity,
                             str(item.get("unit")), str(item.get("remark")));
                 }
             }
@@ -165,9 +183,18 @@ public class OnlineConsultController {
         return Result.ok(data);
     }
 
-    /** 关闭复诊 */
+    /** 关闭复诊（患者本人或持接诊权限的医生） */
     @PostMapping("/{id}/close")
+    @AuditLog(value = "关闭图文复诊", operationType = "UPDATE")
     public Result<String> close(@PathVariable("id") Long id) {
+        Map<String, Object> consult = consultMapper.selectById(id);
+        if (consult == null) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "复诊单不存在");
+        }
+        boolean staff = UserContext.hasAnyPermission(PermissionConstant.CONSULT_HANDLE);
+        if (!staff && !String.valueOf(consult.get("patientId")).equals(String.valueOf(UserContext.getUserId()))) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅本人或接诊医生可关闭复诊");
+        }
         if (consultMapper.close(id) == 0) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "仅未结束的复诊单可关闭");
         }
@@ -180,6 +207,22 @@ public class OnlineConsultController {
 
     private Integer toInt(Object v) {
         return v == null ? null : Integer.valueOf(String.valueOf(v));
+    }
+
+    /** 明细数值安全解析：缺省 1，非法（非数字/<=0）直接拒绝 */
+    private int safePositiveInt(Object v, String field) {
+        if (v == null) {
+            return 1;
+        }
+        try {
+            int n = Integer.parseInt(String.valueOf(v));
+            if (n <= 0) {
+                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, field + " 需为正整数");
+            }
+            return n;
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, field + " 需为正整数");
+        }
     }
 
     private String str(Object v) {

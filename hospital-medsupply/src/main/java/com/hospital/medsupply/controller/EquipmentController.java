@@ -77,7 +77,7 @@ public class EquipmentController {
         return Result.ok(equipment);
     }
 
-    /** 状态变更 */
+    /** 状态变更（SCRAP 为终态，报废设备不可再转出） */
     @PutMapping("/{id}/status")
     @AuditLog(value = "设备状态变更", operationType = "UPDATE")
     @RequiresPermission(PermissionConstant.EQUIPMENT_MANAGE)
@@ -87,12 +87,12 @@ public class EquipmentController {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "status 需为 USING/IDLE/REPAIR/SCRAP");
         }
         if (equipmentMapper.updateStatus(id, status) == 0) {
-            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "设备不存在");
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "设备不存在或已报废（SCRAP 为终态）");
         }
         return Result.ok("状态已更新");
     }
 
-    /** 维保登记（恢复 IDLE 并记录维保日期） */
+    /** 维保登记（恢复 IDLE 并记录维保日期；已报废设备不可维保） */
     @PutMapping("/{id}/maintain")
     @AuditLog(value = "设备维保登记", operationType = "UPDATE")
     @RequiresPermission(PermissionConstant.EQUIPMENT_MANAGE)
@@ -107,7 +107,7 @@ public class EquipmentController {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "maintainDate 格式应为 yyyy-MM-dd");
         }
         if (equipmentMapper.maintain(id, maintainDate) == 0) {
-            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "设备不存在");
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "设备不存在或已报废（SCRAP 为终态）");
         }
         return Result.ok("维保已登记");
     }

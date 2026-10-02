@@ -37,6 +37,10 @@ public interface DeliveryMapper {
     @Select("SELECT id FROM delivery WHERE delivery_no = #{deliveryNo}")
     Long selectIdByNo(@Param("deliveryNo") String deliveryNo);
 
+    /** 同处方是否存在未完成（未拒收/未取消）的配送单，用于创建防重 */
+    @Select("SELECT COUNT(*) FROM delivery WHERE prescription_id = #{prescriptionId} AND status != 'DELIVERED'")
+    long countActiveByPrescription(@Param("prescriptionId") Long prescriptionId);
+
     @Select("SELECT " + COLS + " FROM delivery WHERE id = #{id}")
     Map<String, Object> selectById(@Param("id") Long id);
 

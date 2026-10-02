@@ -69,7 +69,7 @@ public class ExamReservationController {
         return Result.ok(reservationService.updateStatus(id, body != null ? body.get("action") : null));
     }
 
-    /** 患者自助改约（迭代13 K4：body: date=yyyy-MM-dd, timeSlot） */
+    /** 患者自助改约（迭代13 K4：body: date=yyyy-MM-dd, timeSlot）。员工可改任何预约，非员工仅限本人预约 */
     @AuditLog(value = "检查预约改约", operationType = "UPDATE")
     @PutMapping("/{id}/reschedule")
     public Result<ExamReservation> reschedule(@PathVariable("id") Long id,
@@ -81,6 +81,9 @@ public class ExamReservationController {
             } catch (DateTimeParseException e) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "date 格式应为 yyyy-MM-dd");
             }
+        }
+        if (newDate != null) {
+            requireSelfOrExamStaff(reservationService.getById(id));
         }
         return Result.ok(reservationService.reschedule(id, newDate, body != null ? body.get("timeSlot") : null));
     }
@@ -122,6 +125,17 @@ public class ExamReservationController {
     private void requireExamStaff() {
         if (!UserContext.isExamTechOrAdmin() && !UserContext.isDoctorOrAdmin()) {
             throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅检查技师、医生或管理员可执行此操作");
+        }
+    }
+
+    /** 患者自助操作防护：员工放行，非员工仅可操作本人预约 */
+    private void requireSelfOrExamStaff(ExamReservation reservation) {
+        if (UserContext.isExamTechOrAdmin() || UserContext.isDoctorOrAdmin()) {
+            return;
+        }
+        if (reservation == null
+                || !String.valueOf(reservation.getPatientId()).equals(String.valueOf(UserContext.getUserId()))) {
+            throw new BusinessException(ErrorCodeEnum.NO_PERMISSION, "仅可操作本人预约");
         }
     }
 

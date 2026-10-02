@@ -73,15 +73,16 @@ public interface ExamReservationMapper {
     long countPage(@Param("reserveDate") LocalDate reserveDate, @Param("status") String status);
 
     /**
-     * 更新预约状态
+     * 更新预约状态（带来源状态前置，防 TOCTOU：checkin 与取消并发时后到者 affected=0）
      * <p>
      * BOOKED → CHECKED_IN 时写入 checkin_time；DONE/CANCELLED 不动 checkin_time（传 null）。
      */
     @Update("UPDATE exam_reservation SET status = #{status}, " +
             "checkin_time = CASE WHEN #{checkinTime} IS NOT NULL THEN #{checkinTime} ELSE checkin_time END " +
-            "WHERE id = #{id}")
+            "WHERE id = #{id} AND status = #{fromStatus}")
     int updateStatus(@Param("id") Long id,
                      @Param("status") String status,
+                     @Param("fromStatus") String fromStatus,
                      @Param("checkinTime") LocalDateTime checkinTime);
 
     /** 患者自助改约（迭代13 K4）：仅 BOOKED 状态可改，重写预约日期与时段 */

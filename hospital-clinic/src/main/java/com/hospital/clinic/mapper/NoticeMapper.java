@@ -16,9 +16,10 @@ import java.util.Map;
 @Mapper
 public interface NoticeMapper {
 
-    String COLS = "id, title, DBMS_LOB.SUBSTR(content, 2000, 1) AS content, notice_type, status, publisher_id, publisher_name, "
-            + "TO_CHAR(publish_time, 'YYYY-MM-DD HH24:MI') AS publish_time_text, "
-            + "TO_CHAR(create_time, 'YYYY-MM-DD HH24:MI') AS create_time_text";
+    String COLS = "id AS \"id\", title AS \"title\", DBMS_LOB.SUBSTR(content, 2000, 1) AS \"content\", "
+            + "notice_type AS \"noticeType\", status AS \"status\", publisher_id AS \"publisherId\", publisher_name AS \"publisherName\", "
+            + "TO_CHAR(publish_time, 'YYYY-MM-DD HH24:MI') AS \"publishTimeText\", "
+            + "TO_CHAR(create_time, 'YYYY-MM-DD HH24:MI') AS \"createTimeText\"";
 
     @Insert("INSERT INTO notice (title, content, notice_type, publisher_id, publisher_name) " +
             "VALUES (#{title}, #{content}, NVL(#{noticeType}, 'NOTICE'), #{publisherId}, #{publisherName})")

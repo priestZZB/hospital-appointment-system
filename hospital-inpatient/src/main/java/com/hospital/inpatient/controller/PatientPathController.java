@@ -107,6 +107,6 @@ public class PatientPathController {
     public Result<String> complete(@PathVariable Long id) {
         return patientPathMapper.complete(id) > 0
                 ? Result.ok("路径已完成")
-                : Result.fail(1001, "仅 IN_PATH 状态路径可完成");
+                : Result.fail(1001, "仅 IN_PATH/VARIATION 状态路径可完成");
     }
 }

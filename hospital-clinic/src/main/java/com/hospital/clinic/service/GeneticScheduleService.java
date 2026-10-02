@@ -101,8 +101,9 @@ public class GeneticScheduleService {
                         }
                     }
                 } else {
-                    c1 = pa;
-                    c2 = pb;
+                    // 无交叉也必须深拷贝：避免 mutate 原地改写父代/精英/best 引用
+                    c1 = java.util.Arrays.stream(pa).map(int[]::clone).toArray(int[][]::new);
+                    c2 = java.util.Arrays.stream(pb).map(int[]::clone).toArray(int[][]::new);
                 }
                 mutate(c1, locked, doctors, weekStart);
                 mutate(c2, locked, doctors, weekStart);
@@ -181,7 +182,10 @@ public class GeneticScheduleService {
     private int[][] tournament(List<int[][]> population, double[][] fits) {
         int a = RANDOM.nextInt(population.size());
         int b = RANDOM.nextInt(population.size());
-        return fits[a][0] >= fits[b][0] ? population.get(a) : population.get(b);
+        // fits 已按适应度降序排序，fits[x][1] 才是原种群下标；直接用 x 会随机化选择压力
+        int ia = (int) fits[a][1];
+        int ib = (int) fits[b][1];
+        return fits[a][0] >= fits[b][0] ? population.get(ia) : population.get(ib);
     }
 
     private void mutate(int[][] ind, Set<String> locked, List<Map<String, Object>> doctors, String weekStart) {

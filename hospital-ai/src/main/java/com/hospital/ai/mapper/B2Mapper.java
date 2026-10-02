@@ -23,10 +23,11 @@ public interface B2Mapper {
                       @Param("rounds") int rounds);
 
     @Update("UPDATE ai_consult_session SET messages = #{messages}, rounds = #{rounds}, " +
-            "suggestion = #{suggestion}, status = #{status} WHERE session_no = #{sessionNo}")
+            "suggestion = #{suggestion}, status = #{status} " +
+            "WHERE session_no = #{sessionNo} AND status = 'OPEN' AND rounds = #{expectedRound}")
     int updateSession(@Param("sessionNo") String sessionNo, @Param("messages") String messages,
                       @Param("rounds") int rounds, @Param("suggestion") String suggestion,
-                      @Param("status") String status);
+                      @Param("status") String status, @Param("expectedRound") int expectedRound);
 
     @Select("SELECT id AS \"id\", session_no AS \"sessionNo\", patient_id AS \"patientId\", " +
             "  symptom AS \"symptom\", DBMS_LOB.SUBSTR(messages, 2000, 1) AS \"messages\", " +
@@ -51,14 +52,16 @@ public interface B2Mapper {
     int insertPrediction(@Param("predNo") String predNo, @Param("predType") String predType,
                          @Param("score") Double score, @Param("detail") String detail);
 
-    @Select("SELECT id AS \"id\", pred_no AS \"predNo\", pred_type AS \"predType\", score AS \"score\", " +
+    @Select("<script>SELECT id AS \"id\", pred_no AS \"predNo\", pred_type AS \"predType\", score AS \"score\", " +
             "  DBMS_LOB.SUBSTR(detail, 2000, 1) AS \"detail\", " +
             "  TO_CHAR(create_time, 'YYYY-MM-DD HH24:MI') AS \"createTime\" " +
-            "FROM ai_prediction WHERE pred_type = #{predType} " +
-            "ORDER BY create_time DESC OFFSET #{offset} ROWS FETCH NEXT #{pageSize} ROWS ONLY")
+            "FROM ai_prediction " +
+            "<where><if test='predType != null and predType != \"\"'> pred_type = #{predType}</if></where> " +
+            "ORDER BY create_time DESC OFFSET #{offset} ROWS FETCH NEXT #{pageSize} ROWS ONLY</script>")
     List<Map<String, Object>> selectPredictionPage(@Param("predType") String predType,
                                                    @Param("offset") int offset, @Param("pageSize") int pageSize);
 
-    @Select("SELECT COUNT(*) FROM ai_prediction WHERE pred_type = #{predType}")
+    @Select("<script>SELECT COUNT(*) FROM ai_prediction " +
+            "<where><if test='predType != null and predType != \"\"'> pred_type = #{predType}</if></where></script>")
     long countPredictionPage(@Param("predType") String predType);
 }

@@ -74,8 +74,9 @@ public class StopController {
     public Result<List<StopApplicationVO>> listByStatus(@RequestParam(value = "status", required = false) String status,
                                                          @RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
                                                          @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
-        long offset = (long) (Math.max(pageNo, 1) - 1) * Math.min(pageSize, 100);
-        return Result.ok(stopService.listByStatus(status, offset, pageSize));
+        int size = Math.min(Math.max(pageSize, 1), 100);
+        long offset = (long) (Math.max(pageNo, 1) - 1) * size;
+        return Result.ok(stopService.listByStatus(status, offset, size));
     }
 
     /** 某医生的停诊申请列表 */
@@ -83,7 +84,8 @@ public class StopController {
     public Result<List<StopApplicationVO>> listByDoctor(@PathVariable("doctorId") Long doctorId,
                                                          @RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
                                                          @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
-        long offset = (long) (Math.max(pageNo, 1) - 1) * Math.min(pageSize, 100);
-        return Result.ok(stopService.listByDoctor(doctorId, offset, pageSize));
+        int size = Math.min(Math.max(pageSize, 1), 100);
+        long offset = (long) (Math.max(pageNo, 1) - 1) * size;
+        return Result.ok(stopService.listByDoctor(doctorId, offset, size));
     }
 }

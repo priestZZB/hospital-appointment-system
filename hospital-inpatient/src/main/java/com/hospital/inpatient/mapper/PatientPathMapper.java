@@ -75,6 +75,7 @@ public interface PatientPathMapper {
             "WHERE id = #{id} AND status IN ('IN_PATH', 'VARIATION')")
     int exit(@Param("id") Long id, @Param("reason") String reason);
 
-    @Update("UPDATE patient_path SET status = 'COMPLETED', exit_time = SYSDATE WHERE id = #{id} AND status = 'IN_PATH'")
+    @Update("UPDATE patient_path SET status = 'COMPLETED', exit_time = SYSDATE " +
+            "WHERE id = #{id} AND status IN ('IN_PATH', 'VARIATION')")
     int complete(@Param("id") Long id);
 }

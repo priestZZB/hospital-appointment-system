@@ -46,9 +46,17 @@ public class ConsumableController {
         if (consumableMapper.selectIdByCode(code) != null) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "耗材编码已存在");
         }
+        Double price = toDouble(body.get("price"));
+        Integer stock = body.get("stock") == null ? 0 : toInt(body.get("stock"));
+        Integer safetyStock = body.get("safetyStock") == null ? 0 : toInt(body.get("safetyStock"));
+        if (price != null && price < 0) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "单价不能为负数");
+        }
+        if (stock < 0 || safetyStock < 0) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "库存与安全库存不能为负数");
+        }
         consumableMapper.insert(code, name, str(body.get("specification")), str(body.get("unit")),
-                toDouble(body.get("price")), body.get("stock") == null ? 0 : toInt(body.get("stock")),
-                body.get("safetyStock") == null ? 0 : toInt(body.get("safetyStock")));
+                price, stock, safetyStock);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", consumableMapper.selectIdByCode(code));
         data.put("code", code);

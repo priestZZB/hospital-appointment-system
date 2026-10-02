@@ -693,6 +693,9 @@ public class AppointmentService {
 
     /**
      * 退款后标记预约已退款（payment-service 退款回调）
+     * <p>
+     * 迭代17审计修复：PAID 预约退款（患者取消/停诊退款）后号源必须释放，
+     * 否则 slot 永久停留 BOOKED 造成号源丢失。
      */
     @Transactional(rollbackFor = Exception.class)
     public void markAsRefunded(Long appointmentId) {
@@ -702,9 +705,10 @@ public class AppointmentService {
             log.warn("[挂号] 标记退款失败（状态不匹配）: appointmentId={}", appointmentId);
             return;
         }
-        // 清除重复挂号键
         Appointment appointment = appointmentMapper.selectById(appointmentId);
         if (appointment != null) {
+            // 释放号源（乐观锁；加号预约共享号源跳过）+ 清除重复挂号键
+            doReleaseSlot(appointment);
             String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
             stringRedisTemplate.delete(repeatKey);
         }
@@ -726,17 +730,24 @@ public class AppointmentService {
             log.info("[挂号] 号源释放跳过（已被支付或已取消）: appointmentId={}", appointmentId);
             return;
         }
-        // 读取号源版本号，乐观锁释放
-        // 加号预约（overbook_flag=1，迭代9 A2）共享已被占用的号源，跳过释放防止误放他人预约
-        if (!isOverbook(appointment)) {
-            Slot slot = slotMapper.selectById(appointment.getSlotId());
-            if (slot != null && "BOOKED".equals(slot.getStatus())) {
-                slotService.releaseSlot(appointment.getSlotId(), slot.getVersion());
-            }
-        }
+        doReleaseSlot(appointment);
         String repeatKey = REPEAT_KEY_PREFIX + appointment.getPatientId() + ":" + appointment.getScheduleId();
         stringRedisTemplate.delete(repeatKey);
         log.info("[挂号] 超时关单，号源已释放: appointmentId={}", appointmentId);
+    }
+
+    /**
+     * 号源释放公共实现：乐观锁释放；加号预约（overbook_flag=1，迭代9 A2）
+     * 共享已被占用的号源，跳过释放防止误放他人预约。
+     */
+    private void doReleaseSlot(Appointment appointment) {
+        if (isOverbook(appointment)) {
+            return;
+        }
+        Slot slot = slotMapper.selectById(appointment.getSlotId());
+        if (slot != null && "BOOKED".equals(slot.getStatus())) {
+            slotService.releaseSlot(appointment.getSlotId(), slot.getVersion());
+        }
     }
 
     // ==================== 私有方法 ====================

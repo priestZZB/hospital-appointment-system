@@ -107,7 +107,7 @@ public class ExamReservationService {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR,
                     "仅 BOOKED 状态的预约可报到，当前状态：" + reservation.getStatus());
         }
-        reservationMapper.updateStatus(reservationId, "CHECKED_IN", LocalDateTime.now());
+        reservationMapper.updateStatus(reservationId, "CHECKED_IN", "BOOKED", LocalDateTime.now());
         log.info("[检查预约] 到院报到: reservationId={}, applicationId={}",
                 reservationId, reservation.getApplicationId());
         return reservationMapper.selectById(reservationId);
@@ -129,13 +129,13 @@ public class ExamReservationService {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR,
                         "仅已报到（CHECKED_IN）的预约可标记完成，当前状态：" + reservation.getStatus());
             }
-            reservationMapper.updateStatus(reservationId, "DONE", null);
+            reservationMapper.updateStatus(reservationId, "DONE", "CHECKED_IN", null);
         } else if ("CANCELLED".equals(action)) {
             if (!"BOOKED".equals(reservation.getStatus())) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR,
                         "仅未报到（BOOKED）的预约可取消，当前状态：" + reservation.getStatus());
             }
-            reservationMapper.updateStatus(reservationId, "CANCELLED", null);
+            reservationMapper.updateStatus(reservationId, "CANCELLED", "BOOKED", null);
         } else {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "action 仅支持 DONE / CANCELLED");
         }
@@ -182,6 +182,9 @@ public class ExamReservationService {
         if (!"BOOKED".equals(reservation.getStatus())) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR,
                     "仅未报到（BOOKED）的预约可改约，当前状态：" + reservation.getStatus());
+        }
+        if (reserveDate.isBefore(LocalDate.now())) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "改约日期不能早于今天");
         }
         reservationMapper.reschedule(reservationId, reserveDate, timeSlot);
         log.info("[检查预约] 患者自助改约: reservationId={}, {} {} → {} {}",

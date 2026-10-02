@@ -109,13 +109,17 @@ public class ConsultController {
         if (next >= 3) {
             String suggestion = suggestionFor(symptom, answer);
             history.add(Map.of("role", "AI", "content", suggestion));
-            b2Mapper.updateSession(sessionNo, toJson(history), next, suggestion, "CLOSED");
+            b2Mapper.updateSession(sessionNo, toJson(history), next, suggestion, "CLOSED", round);
             data.put("suggestion", suggestion);
             data.put("finished", true);
         } else {
             String question = followUpFor(symptom, round);
+            if (question == null) {
+                // 主诉未命中追问模板时兜底通用追问，避免 Map.of(null) NPE 卡死会话
+                question = "还有其他伴随症状吗？（如持续时间、加重或缓解因素）";
+            }
             history.add(Map.of("role", "AI", "content", question));
-            b2Mapper.updateSession(sessionNo, toJson(history), next, null, "OPEN");
+            b2Mapper.updateSession(sessionNo, toJson(history), next, null, "OPEN", round);
             data.put("question", question);
             data.put("finished", false);
         }

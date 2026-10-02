@@ -52,6 +52,9 @@ public class DeliveryController {
                 || receiverPhone == null || receiverPhone.isBlank() || address == null || address.isBlank()) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "处方ID/患者/收货人与电话地址不能为空");
         }
+        if (deliveryMapper.countActiveByPrescription(prescriptionId) > 0) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "该处方已有进行中的配送单，请勿重复下单");
+        }
         String deliveryNo = "DL" + LocalDateTime.now().format(NO_FMT) + String.format("%04d", RANDOM.nextInt(10000));
         deliveryMapper.insert(deliveryNo, prescriptionId, patientId, str(body.get("patientName")),
                 str(body.get("drugSummary")), receiverName, receiverPhone, address, UserContext.getUserId());

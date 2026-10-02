@@ -1744,7 +1744,14 @@ public class ApiTestRunner {
     private void ensurePharmacySchedule(Object doctorId, String today) throws IOException {
         engine.setToken(adminToken()); // ensurePharmacyDoctor 末尾 login 会切换 token，确认排班需管理员权限
         LocalTime start = LocalTime.now().plusMinutes(20);
+        if (start.isAfter(LocalTime.of(22, 0))) {
+            // 深夜防跨午夜：now+20min 越过 22 点后 80 分钟时段会跨 0 点算出负号源数，改用当天固定上午时段
+            start = LocalTime.of(9, 0);
+        }
         LocalTime end = start.plusMinutes(80);
+        if (!end.isAfter(start)) {
+            end = LocalTime.of(23, 59);
+        }
         String period = LocalTime.now().isBefore(LocalTime.NOON) ? "AM" : "PM";
         ApiTestEngine.ApiResponse r = engine.postWithAuth("/api/clinic/schedules",
                 Map.of("doctorId", doctorId, "departmentId", DEPT_ID, "scheduleDate", today,
@@ -2333,7 +2340,14 @@ public class ApiTestRunner {
     private void ensureIter9Schedule(Object doctorId, String today, String feeType) throws IOException {
         engine.setToken(adminToken()); // 建排班需管理员权限
         LocalTime start = LocalTime.now().plusMinutes(20);
+        if (start.isAfter(LocalTime.of(22, 0))) {
+            // 深夜防跨午夜：now+20min 越过 22 点后 80 分钟时段会跨 0 点算出负号源数，改用当天固定上午时段
+            start = LocalTime.of(9, 0);
+        }
         LocalTime end = start.plusMinutes(80);
+        if (!end.isAfter(start)) {
+            end = LocalTime.of(23, 59);
+        }
         String period = LocalTime.now().isBefore(LocalTime.NOON) ? "AM" : "PM";
         ApiTestEngine.ApiResponse r = engine.postWithAuth("/api/clinic/schedules",
                 Map.of("doctorId", doctorId, "departmentId", DEPT_ID, "scheduleDate", today,
@@ -3156,9 +3170,12 @@ public class ApiTestRunner {
             check("POST /api/clinic/online-consults/" + consultId + "/accept（K1 跳过—发起失败）", syntheticOk("复诊单未创建"));
             return;
         }
+        // 患者消息必须用患者 token（服务端校验仅本人可发患者消息，迭代17审计加固）
+        engine.setToken(patient);
         check("POST /api/clinic/online-consults/" + consultId + "/messages（K1 患者发消息）",
                 engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/messages",
                         Map.of("senderType", "PATIENT", "content", "这两天早上血压150/95")));
+        engine.setToken(adminToken());
         check("POST /api/clinic/online-consults/" + consultId + "/accept（K1 医生接诊）",
                 engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/accept", Map.of()));
         check("POST /api/clinic/online-consults/" + consultId + "/messages（K1 医生回复）",

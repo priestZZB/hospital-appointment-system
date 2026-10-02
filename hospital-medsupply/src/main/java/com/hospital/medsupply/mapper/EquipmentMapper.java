@@ -46,11 +46,11 @@ public interface EquipmentMapper {
     long countPage(@Param("status") String status, @Param("keyword") String keyword);
 
     /** 设备状态变更 */
-    @Update("UPDATE equipment SET status = #{status} WHERE id = #{id}")
+    @Update("UPDATE equipment SET status = #{status} WHERE id = #{id} AND status != 'SCRAP'")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
     /** 维保登记 */
     @Update("UPDATE equipment SET status = 'IDLE', last_maintain_date = TO_DATE(#{maintainDate}, 'YYYY-MM-DD') " +
-            "WHERE id = #{id}")
+            "WHERE id = #{id} AND status != 'SCRAP'")
     int maintain(@Param("id") Long id, @Param("maintainDate") String maintainDate);
 }
