@@ -69,6 +69,22 @@ public class ExamReservationController {
         return Result.ok(reservationService.updateStatus(id, body != null ? body.get("action") : null));
     }
 
+    /** 患者自助改约（迭代13 K4：body: date=yyyy-MM-dd, timeSlot） */
+    @AuditLog(value = "检查预约改约", operationType = "UPDATE")
+    @PutMapping("/{id}/reschedule")
+    public Result<ExamReservation> reschedule(@PathVariable("id") Long id,
+                                              @RequestBody Map<String, String> body) {
+        LocalDate newDate = null;
+        if (body != null && body.get("date") != null && !body.get("date").isBlank()) {
+            try {
+                newDate = LocalDate.parse(body.get("date"));
+            } catch (DateTimeParseException e) {
+                throw new BusinessException(ErrorCodeEnum.PARAM_ERROR, "date 格式应为 yyyy-MM-dd");
+            }
+        }
+        return Result.ok(reservationService.reschedule(id, newDate, body != null ? body.get("timeSlot") : null));
+    }
+
     /** 预约详情 */
     @RequiresPermission(PermissionConstant.MEDSUPPLY_EXAMRESV_QUERY)
     @GetMapping("/{id}")

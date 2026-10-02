@@ -160,6 +160,7 @@ public class ApiTestRunner {
         runStep("10-surgery-手术中心全链", this::testSurgeryCenter);
         runStep("11-insurance-医保结算财务", this::testInsuranceFinance);
         runStep("12-casefile-病案统计路径", this::testCaseFileStats);
+        runStep("13-internet-互联网医院患者服务", this::testCaseInternet);
 
         report.print();
     }
@@ -3044,5 +3045,134 @@ public class ApiTestRunner {
         if (workload.isOk() && workload.getData() instanceof List<?> wlList) {
             assertTrue("J4 医生工作量应返回列表结构", wlList.isEmpty() || wlList.get(0) instanceof Map);
         }
+    }
+
+    /** 迭代13：互联网医院与患者服务（L3 公告 / K3 满意度 / K4 检查改约 / K2 购药配送 / K1 图文复诊） */
+    private void testCaseInternet() throws IOException {
+        String today = LocalDate.now().format(DATE_FMT);
+        String suf = randomDigits(4);
+
+        // ---------- L3 院内公告 ----------
+        check("POST /api/clinic/notices（L3 发布公告）",
+                engine.postWithAuth("/api/clinic/notices",
+                        Map.of("title", "门诊时间调整公告" + suf, "content", "每周三下午停诊维护",
+                                "noticeType", "NOTICE", "publisherName", "院办")));
+        check("GET  /api/clinic/notices/list（L3 公告分页）",
+                engine.getWithAuth("/api/clinic/notices/list?pageNo=1&pageSize=10"));
+        ApiTestEngine.ApiResponse noticeList = engine.getWithAuth(
+                "/api/clinic/notices/list?keyword=" + java.net.URLEncoder.encode("门诊时间调整公告" + suf,
+                        java.nio.charset.StandardCharsets.UTF_8) + "&pageNo=1&pageSize=5");
+        Long noticeId = null;
+        if (noticeList.isOk() && noticeList.getData() instanceof Map nl && nl.get("records") instanceof List<?> nrs
+                && !nrs.isEmpty() && nrs.get(0) instanceof Map n0) {
+            noticeId = toLong(n0.get("id"));
+        }
+        if (noticeId != null) {
+            check("PUT  /api/clinic/notices/" + noticeId + "/offline（L3 公告下线）",
+                    engine.putWithAuth("/api/clinic/notices/" + noticeId + "/offline", Map.of()));
+        } else {
+            check("PUT  /api/clinic/notices/?/offline（L3 跳过—未检索到公告）", syntheticOk("公告检索为空，下线用例跳过"));
+        }
+
+        // ---------- K3 满意度评价 ----------
+        long fakeAppointment = 910000L + Long.parseLong(suf);
+        check("POST /api/clinic/evaluations（K3 提交评价-4星）",
+                engine.postWithAuth("/api/clinic/evaluations",
+                        Map.of("appointmentId", fakeAppointment, "doctorId", 1, "score", 4,
+                                "content", "医生很耐心" + suf)));
+        checkNeg("POST /api/clinic/evaluations（K3 重复评价应被拒）",
+                engine.postWithAuth("/api/clinic/evaluations",
+                        Map.of("appointmentId", fakeAppointment, "doctorId", 1, "score", 5, "content", "再评一次")));
+        check("GET  /api/clinic/evaluations/doctor/1（K3 医生评价聚合）",
+                engine.getWithAuth("/api/clinic/evaluations/doctor/1"));
+        check("GET  /api/clinic/evaluations/list（K3 评价分页）",
+                engine.getWithAuth("/api/clinic/evaluations/list?pageNo=1&pageSize=10"));
+
+        // ---------- K4 检查预约线上改约 ----------
+        ApiTestEngine.ApiResponse resvList = engine.getWithAuth(
+                "/api/admin/exam/reservation/list?status=BOOKED&pageNo=1&pageSize=5");
+        Long bookId = null;
+        if (resvList.isOk() && resvList.getData() instanceof Map rl && rl.get("records") instanceof List<?> rrs
+                && !rrs.isEmpty() && rrs.get(0) instanceof Map r0) {
+            bookId = toLong(r0.get("id"));
+        }
+        if (bookId != null) {
+            check("PUT  /api/admin/exam/reservation/" + bookId + "/reschedule（K4 自助改约）",
+                    engine.putWithAuth("/api/admin/exam/reservation/" + bookId + "/reschedule",
+                            Map.of("date", today, "timeSlot", "14:00-15:00")));
+            check("PUT  /api/admin/exam/reservation/" + bookId + "/reschedule（K4 二次改约仍允许）",
+                    engine.putWithAuth("/api/admin/exam/reservation/" + bookId + "/reschedule",
+                            Map.of("date", today, "timeSlot", "15:00-16:00")));
+        } else {
+            check("PUT  /api/admin/exam/reservation/?/reschedule（K4 跳过—无BOOKED预约）", syntheticOk("无 BOOKED 预约，改约用例跳过"));
+        }
+
+        // ---------- K2 线上购药配送 ----------
+        long fakePrescription = 920000L + Long.parseLong(suf);
+        ApiTestEngine.ApiResponse deliveryCreated = engine.postWithAuth("/api/medsupply/deliveries",
+                Map.of("prescriptionId", fakePrescription, "patientId", 1, "patientName", "张三" + suf,
+                        "drugSummary", "阿莫西林胶囊x2盒", "receiverName", "张三" + suf,
+                        "receiverPhone", "1380000" + suf, "address", "测试市测试区100号"));
+        check("POST /api/medsupply/deliveries（K2 创建配送单）", deliveryCreated);
+        Long deliveryId = deliveryCreated.isOk() && deliveryCreated.getData() instanceof Map dc
+                ? toLong(dc.get("id")) : null;
+        if (deliveryId != null) {
+            check("PUT  /api/medsupply/deliveries/" + deliveryId + "/dispatch（K2 发货）",
+                    engine.putWithAuth("/api/medsupply/deliveries/" + deliveryId + "/dispatch", Map.of()));
+            check("PUT  /api/medsupply/deliveries/" + deliveryId + "/deliver（K2 确认送达）",
+                    engine.putWithAuth("/api/medsupply/deliveries/" + deliveryId + "/deliver", Map.of()));
+            check("GET  /api/medsupply/deliveries/" + deliveryId + "（K2 配送单详情）",
+                    engine.getWithAuth("/api/medsupply/deliveries/" + deliveryId));
+        }
+        check("GET  /api/medsupply/deliveries/list（K2 配送单分页）",
+                engine.getWithAuth("/api/medsupply/deliveries/list?pageNo=1&pageSize=10"));
+
+        // ---------- K1 线上图文复诊 ----------
+        String patient = patientToken();
+        if (patient == null || patient.isBlank()) {
+            check("POST /api/clinic/online-consults（K1 跳过—无患者token）", syntheticOk("无患者 token，复诊用例跳过"));
+            return;
+        }
+        engine.setToken(patient);
+        ApiTestEngine.ApiResponse consultCreated = engine.postWithAuth("/api/clinic/online-consults",
+                Map.of("doctorId", 1, "chiefComplaint", "血压偏高复诊" + suf));
+        check("POST /api/clinic/online-consults（K1 患者发起复诊）", consultCreated);
+        Long consultId = consultCreated.isOk() && consultCreated.getData() instanceof Map cc
+                ? toLong(cc.get("id")) : null;
+        engine.setToken(adminToken());
+        if (consultId == null) {
+            check("POST /api/clinic/online-consults/" + consultId + "/accept（K1 跳过—发起失败）", syntheticOk("复诊单未创建"));
+            return;
+        }
+        check("POST /api/clinic/online-consults/" + consultId + "/messages（K1 患者发消息）",
+                engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/messages",
+                        Map.of("senderType", "PATIENT", "content", "这两天早上血压150/95")));
+        check("POST /api/clinic/online-consults/" + consultId + "/accept（K1 医生接诊）",
+                engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/accept", Map.of()));
+        check("POST /api/clinic/online-consults/" + consultId + "/messages（K1 医生回复）",
+                engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/messages",
+                        Map.of("senderType", "DOCTOR", "content", "继续按时服药，一周后复查")));
+        check("GET  /api/clinic/online-consults/" + consultId + "（K1 复诊详情含消息）",
+                engine.getWithAuth("/api/clinic/online-consults/" + consultId));
+        ApiTestEngine.ApiResponse detail = engine.getWithAuth("/api/clinic/online-consults/" + consultId);
+        Map<String, Object> latestRecord = detail.isOk() && detail.getData() instanceof Map dd
+                && dd.get("latestRecordId") instanceof Map lr ? lr : null;
+        if (latestRecord != null && latestRecord.get("id") != null) {
+            check("POST /api/clinic/online-consults/" + consultId + "/prescribe（K1 续方-阿莫西林）",
+                    engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/prescribe",
+                            Map.of("items", List.of(Map.of("drugId", 930001, "drugName", "苯磺酸氨氯地平片" + suf,
+                                    "dosage", "5mg", "usageMethod", "口服", "frequency", "每日一次",
+                                    "days", 7, "quantity", 1, "unit", "盒")))));
+        } else {
+            check("POST /api/clinic/online-consults/?/prescribe（K1 跳过—患者无病历）", syntheticOk("患者无历史病历，续方用例跳过"));
+        }
+        check("POST /api/clinic/online-consults/" + consultId + "/close（K1 关闭复诊）",
+                engine.postWithAuth("/api/clinic/online-consults/" + consultId + "/close", Map.of()));
+        check("GET  /api/clinic/online-consults/list?mine=true（K1 我的复诊列表）",
+                engine.getWithAuth("/api/clinic/online-consults/list?mine=true&pageNo=1&pageSize=10"));
+    }
+
+    private Long toLong(Object v) {
+        return v == null ? null : Long.valueOf(String.valueOf(v));
     }
 }

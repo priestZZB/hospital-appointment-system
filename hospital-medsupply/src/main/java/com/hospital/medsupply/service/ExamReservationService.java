@@ -166,6 +166,29 @@ public class ExamReservationService {
         return result;
     }
 
+    /**
+     * 患者自助改约（迭代13 K4）：仅 BOOKED 状态可改约，重写预约日期与时段。
+     *
+     * @param reservationId 预约 ID
+     * @param reserveDate   新预约日期
+     * @param timeSlot      新预约时段
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ExamReservation reschedule(Long reservationId, LocalDate reserveDate, String timeSlot) {
+        if (reserveDate == null || timeSlot == null || timeSlot.isBlank()) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "新的预约日期与时段不能为空");
+        }
+        ExamReservation reservation = requireReservation(reservationId);
+        if (!"BOOKED".equals(reservation.getStatus())) {
+            throw new BusinessException(ErrorCodeEnum.PARAM_ERROR,
+                    "仅未报到（BOOKED）的预约可改约，当前状态：" + reservation.getStatus());
+        }
+        reservationMapper.reschedule(reservationId, reserveDate, timeSlot);
+        log.info("[检查预约] 患者自助改约: reservationId={}, {} {} → {} {}",
+                reservationId, reservation.getReserveDate(), reservation.getTimeSlot(), reserveDate, timeSlot);
+        return reservationMapper.selectById(reservationId);
+    }
+
     private ExamReservation requireReservation(Long reservationId) {
         if (reservationId == null) {
             throw new BusinessException(ErrorCodeEnum.PARAM_MISSING, "reservationId 不能为空");

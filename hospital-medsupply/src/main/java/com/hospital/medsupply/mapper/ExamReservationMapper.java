@@ -83,4 +83,10 @@ public interface ExamReservationMapper {
     int updateStatus(@Param("id") Long id,
                      @Param("status") String status,
                      @Param("checkinTime") LocalDateTime checkinTime);
+
+    /** 患者自助改约（迭代13 K4）：仅 BOOKED 状态可改，重写预约日期与时段 */
+    @Update("UPDATE exam_reservation SET reserve_date = #{reserveDate}, time_slot = #{timeSlot} " +
+            "WHERE id = #{id} AND status = 'BOOKED'")
+    int reschedule(@Param("id") Long id, @Param("reserveDate") LocalDate reserveDate,
+                   @Param("timeSlot") String timeSlot);
 }

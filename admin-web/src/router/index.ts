@@ -292,6 +292,20 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '上报登记' },
       },
       {
+        // 迭代13：院内公告（L3 发布/下线/浏览）
+        path: 'notices',
+        name: 'Notices',
+        component: () => import('@/views/clinic/notices/index.vue'),
+        meta: { title: '院内公告' },
+      },
+      {
+        // 迭代13：互联网医院服务（K3 评价/K4 改约/K2 配送/K1 复诊）
+        path: 'online-service',
+        name: 'OnlineService',
+        component: () => import('@/views/clinic/online-service/index.vue'),
+        meta: { title: '互联网医院服务' },
+      },
+      {
         // 迭代12：病案与临床路径（I3 病案借阅归档 + J1 临床路径）
         path: 'medical-record',
         name: 'MedicalRecord',

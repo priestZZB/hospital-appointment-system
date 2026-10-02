@@ -147,6 +147,14 @@ const adminMenuGroups: MenuGroup[] = [
     ],
   },
   {
+    // 迭代13：互联网医院（患者服务：公告/评价/改约/配送/复诊）
+    title: '互联网医院',
+    items: [
+      { path: '/notices', label: '院内公告', icon: Stamp },
+      { path: '/online-service', label: '互联网医院服务', icon: Flow },
+    ],
+  },
+  {
     title: '系统管理',
     items: [
       { path: '/users', label: '用户管理', icon: UserGroup, permissions: ['menu:admin:user'] },

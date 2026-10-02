@@ -564,4 +564,12 @@ public final class PermissionConstant {
     public static final String QUALITY_VIEW = "api:medsupply:quality:view";
     /** 医生工作量统计（迭代12补全 J4） */
     public static final String DOCTOR_WORKLOAD_VIEW = "api:clinic:stats:workload";
+    /** 公告管理（迭代13 L3） */
+    public static final String NOTICE_MANAGE = "api:clinic:notice:manage";
+    /** 评价查看（迭代13 K3） */
+    public static final String EVALUATION_VIEW = "api:clinic:evaluation:view";
+    /** 图文复诊接诊（迭代13 K1） */
+    public static final String CONSULT_HANDLE = "api:clinic:consult:handle";
+    /** 购药配送管理（迭代13 K2） */
+    public static final String DELIVERY_MANAGE = "api:medsupply:delivery:manage";
 }
